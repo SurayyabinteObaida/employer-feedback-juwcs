@@ -396,10 +396,17 @@ def send_magic_link_email(employer_email: str, employer_name: str, token: str):
     msg["To"] = employer_email
     msg.attach(MIMEText(html, "html"))
 
-    with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
-        server.starttls()
-        server.login(SMTP_USER, SMTP_PASSWORD)
-        server.sendmail(SMTP_USER, employer_email, msg.as_string())
+    try:
+        # Try STARTTLS (port 587)
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=10) as server:
+            server.starttls()
+            server.login(SMTP_USER, SMTP_PASSWORD)
+            server.sendmail(SMTP_USER, employer_email, msg.as_string())
+    except Exception:
+        # Fallback to SSL (port 465)
+        with smtplib.SMTP_SSL(SMTP_SERVER, 465, timeout=10) as server:
+            server.login(SMTP_USER, SMTP_PASSWORD)
+            server.sendmail(SMTP_USER, employer_email, msg.as_string())
 
 
 class InviteRequest(BaseModel):
@@ -453,6 +460,8 @@ def invite_employer(data: InviteRequest, db: DBSession = Depends(get_db)):
         send_magic_link_email(data.email, employer_name, token)
         return {"message": f"Invitation sent to {data.email}", "sent": True}
     except Exception as e:
+        import traceback
+        traceback.print_exc()  # This will show in Render logs
         return {
             "message": f"Employer created but email failed: {str(e)}",
             "sent": False,
