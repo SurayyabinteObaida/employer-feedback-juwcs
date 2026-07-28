@@ -8,3 +8,4 @@ python-multipart==0.0.17
 python-dotenv==1.0.1
 python-jose[cryptography]==3.3.0
 httpx==0.27.2
+resend==2.5.1
