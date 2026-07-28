@@ -348,10 +348,17 @@ def health_check():
 
 # --- Email / Admin ---
 
-import resend
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+import logging
 
-RESEND_API_KEY = os.getenv("RESEND_API_KEY")
-SENDER_EMAIL = os.getenv("SENDER_EMAIL", "onboarding@resend.dev")
+logger = logging.getLogger(__name__)
+
+SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USER = os.getenv("SMTP_USER")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
 APP_URL = os.getenv("APP_URL", "http://127.0.0.1:8000")
 
 def send_magic_link_email(employer_email: str, employer_name: str, token: str):
@@ -386,13 +393,20 @@ def send_magic_link_email(employer_email: str, employer_name: str, token: str):
     </div>
     """
 
-    resend.api_key = RESEND_API_KEY
-    resend.Emails.send({
-        "from": SENDER_EMAIL,
-        "to": [employer_email],
-        "subject": "Employer Feedback Portal - Access Link",
-        "html": html,
-    })
+    logger.info(f"Attempting to send email to {employer_email} via {SMTP_SERVER}:{SMTP_PORT} as {SMTP_USER}")
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = "Employer Feedback Portal - Access Link"
+    msg["From"] = SMTP_USER
+    msg["To"] = employer_email
+    msg.attach(MIMEText(html, "html"))
+
+    with smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=15) as server:
+        server.set_debuglevel(1)
+        server.starttls()
+        server.login(SMTP_USER, SMTP_PASSWORD)
+        server.sendmail(SMTP_USER, employer_email, msg.as_string())
+        logger.info(f"Email sent successfully to {employer_email}")
 
 
 class InviteRequest(BaseModel):
