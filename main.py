@@ -348,14 +348,10 @@ def health_check():
 
 # --- Email / Admin ---
 
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+import resend
 
-SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
-SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
-SMTP_USER = os.getenv("SMTP_USER")
-SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
+RESEND_API_KEY = os.getenv("RESEND_API_KEY")
+SENDER_EMAIL = os.getenv("SENDER_EMAIL", "onboarding@resend.dev")
 APP_URL = os.getenv("APP_URL", "http://127.0.0.1:8000")
 
 def send_magic_link_email(employer_email: str, employer_name: str, token: str):
@@ -390,23 +386,13 @@ def send_magic_link_email(employer_email: str, employer_name: str, token: str):
     </div>
     """
 
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = "Employer Feedback Portal - Access Link"
-    msg["From"] = SMTP_USER
-    msg["To"] = employer_email
-    msg.attach(MIMEText(html, "html"))
-
-    try:
-        # Try STARTTLS (port 587)
-        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=10) as server:
-            server.starttls()
-            server.login(SMTP_USER, SMTP_PASSWORD)
-            server.sendmail(SMTP_USER, employer_email, msg.as_string())
-    except Exception:
-        # Fallback to SSL (port 465)
-        with smtplib.SMTP_SSL(SMTP_SERVER, 465, timeout=10) as server:
-            server.login(SMTP_USER, SMTP_PASSWORD)
-            server.sendmail(SMTP_USER, employer_email, msg.as_string())
+    resend.api_key = RESEND_API_KEY
+    resend.Emails.send({
+        "from": SENDER_EMAIL,
+        "to": [employer_email],
+        "subject": "Employer Feedback Portal - Access Link",
+        "html": html,
+    })
 
 
 class InviteRequest(BaseModel):
