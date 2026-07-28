@@ -393,7 +393,8 @@ def send_magic_link_email(employer_email: str, employer_name: str, token: str):
     </div>
     """
 
-    logger.info(f"Attempting to send email to {employer_email} via {SMTP_SERVER}:{SMTP_PORT} as {SMTP_USER}")
+    print(f"[EMAIL] Step 1: Preparing message to {employer_email}")
+    print(f"[EMAIL] SMTP_SERVER={SMTP_SERVER}, SMTP_PORT={SMTP_PORT}, SMTP_USER={SMTP_USER}")
 
     msg = MIMEMultipart("alternative")
     msg["Subject"] = "Employer Feedback Portal - Access Link"
@@ -401,12 +402,16 @@ def send_magic_link_email(employer_email: str, employer_name: str, token: str):
     msg["To"] = employer_email
     msg.attach(MIMEText(html, "html"))
 
-    with smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=15) as server:
-        server.set_debuglevel(1)
-        server.starttls()
-        server.login(SMTP_USER, SMTP_PASSWORD)
-        server.sendmail(SMTP_USER, employer_email, msg.as_string())
-        logger.info(f"Email sent successfully to {employer_email}")
+    print(f"[EMAIL] Step 2: Connecting to {SMTP_SERVER}:{SMTP_PORT}...")
+    server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=15)
+    print(f"[EMAIL] Step 3: Connected. Starting TLS...")
+    server.starttls()
+    print(f"[EMAIL] Step 4: TLS started. Logging in as {SMTP_USER}...")
+    server.login(SMTP_USER, SMTP_PASSWORD)
+    print(f"[EMAIL] Step 5: Logged in. Sending email to {employer_email}...")
+    server.sendmail(SMTP_USER, employer_email, msg.as_string())
+    print(f"[EMAIL] Step 6: Email sent successfully!")
+    server.quit()
 
 
 class InviteRequest(BaseModel):
