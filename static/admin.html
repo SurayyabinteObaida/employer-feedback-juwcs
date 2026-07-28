@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin - Employer Feedback Portal</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --primary: #1e3a5f;
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --surface: #ffffff;
+  --bg: #f5f7fa;
+  --border: #e2e6ed;
+  --border-strong: #cdd3dc;
+  --text: #1a1f2e;
+  --text-secondary: #5a6274;
+  --text-muted: #8a91a0;
+  --success-bg: #dcfce7;
+  --success-text: #15603a;
+  --danger-bg: #fee2e2;
+  --danger-text: #991b1b;
+  --radius: 6px;
+  --radius-lg: 10px;
+}
+body {
+  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  min-height: 100vh;
+}
+.header {
+  background: var(--primary);
+  color: #fff;
+  padding: 0 2rem;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.header h1 { font-size: 17px; font-weight: 600; }
+.header a { color: rgba(255,255,255,0.8); font-size: 13px; text-decoration: none; }
+.header a:hover { color: #fff; }
+.container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+}
+.page-heading { margin-bottom: 1.5rem; }
+.page-heading h2 { font-size: 20px; font-weight: 600; }
+.page-heading p { font-size: 14px; color: var(--text-secondary); margin-top: 0.25rem; }
+
+/* Card */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.75rem;
+  margin-bottom: 1.5rem;
+}
+.card h3 {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--primary);
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Form */
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+.form-group { margin-bottom: 1.25rem; }
+.form-group label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+.form-group input {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--text);
+}
+.form-group input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+.form-group .hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 20px;
+  border-radius: var(--radius);
+  font-size: 14px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-primary:disabled { background: #93c5fd; cursor: not-allowed; }
+.btn-secondary { background: transparent; color: var(--accent); border: 1px solid var(--border-strong); }
+.btn-sm { padding: 5px 10px; font-size: 12px; }
+
+/* Alert */
+.alert {
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius);
+  font-size: 13px;
+  margin-bottom: 1rem;
+  display: none;
+}
+.alert.visible { display: block; }
+.alert-success { background: var(--success-bg); color: var(--success-text); border: 1px solid #bbf7d0; }
+.alert-error { background: var(--danger-bg); color: var(--danger-text); border: 1px solid #fecaca; }
+
+/* Table */
+.table-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+thead th {
+  background: #f8f9fb;
+  padding: 0.75rem 1rem;
+  text-align: left;
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  border-bottom: 1px solid var(--border);
+}
+tbody td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: #f8f9fb; }
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.badge-count { background: #dbeafe; color: #1e40af; }
+.empty { text-align: center; padding: 2rem; color: var(--text-muted); font-size: 14px; }
+
+@media (max-width: 640px) {
+  .form-row { grid-template-columns: 1fr; }
+  .container { padding: 1rem; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Admin Panel</h1>
+  <a href="/">Employer portal</a>
+</div>
+
+<div class="container">
+  <div class="page-heading">
+    <h2>Invite employer</h2>
+    <p>Add an employer and send them a secure access link via email.</p>
+  </div>
+
+  <div id="alert" class="alert"></div>
+
+  <div class="card">
+    <h3>Employer details</h3>
+    <div class="form-group">
+      <label for="email">Work email</label>
+      <input type="email" id="email" placeholder="employer@company.com" required>
+      <p class="hint">The magic link will be sent to this address.</p>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label for="name">Name</label>
+        <input type="text" id="name" placeholder="e.g. Ahmed Khan">
+      </div>
+      <div class="form-group">
+        <label for="designation">Designation</label>
+        <input type="text" id="designation" placeholder="e.g. Engineering Manager">
+      </div>
+    </div>
+    <button class="btn btn-primary" id="sendBtn" onclick="sendInvite()">Send invitation</button>
+  </div>
+
+  <div class="page-heading" style="margin-top:2rem">
+    <h2>Employers</h2>
+    <p>All registered employers and their feedback status.</p>
+  </div>
+
+  <div class="table-card">
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Email</th>
+          <th>Designation</th>
+          <th>Engagements</th>
+          <th>Surveys done</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="employerTable">
+        <tr><td colspan="6" class="empty">Loading...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const API = window.location.origin + '/api';
+
+document.addEventListener('DOMContentLoaded', loadEmployers);
+
+async function sendInvite() {
+  const btn = document.getElementById('sendBtn');
+  const email = document.getElementById('email').value.trim();
+  const name = document.getElementById('name').value.trim();
+  const designation = document.getElementById('designation').value.trim();
+
+  if (!email) {
+    showAlert('Please enter an email address.', 'error');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Sending...';
+  hideAlert();
+
+  try {
+    const res = await fetch(API + '/admin/invite', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, name, designation })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Failed to send invite');
+
+    if (data.sent) {
+      showAlert(`Invitation sent to ${email}`, 'success');
+      document.getElementById('email').value = '';
+      document.getElementById('name').value = '';
+      document.getElementById('designation').value = '';
+      loadEmployers();
+    } else {
+      showAlert(`Employer created but email failed. Manual URL: ${data.manual_url}`, 'error');
+      loadEmployers();
+    }
+  } catch (err) {
+    showAlert(err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Send invitation';
+  }
+}
+
+async function loadEmployers() {
+  const tbody = document.getElementById('employerTable');
+  try {
+    const res = await fetch(API + '/admin/employers');
+    if (!res.ok) throw new Error('Failed to load employers');
+    const data = await res.json();
+
+    if (data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" class="empty">No employers yet.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = data.map(emp => `
+      <tr>
+        <td style="font-weight:500">${emp.name || '—'}</td>
+        <td style="color:var(--text-secondary)">${emp.work_email}</td>
+        <td style="color:var(--text-secondary)">${emp.designation || '—'}</td>
+        <td><span class="badge badge-count">${emp.total_engagements}</span></td>
+        <td><span class="badge badge-count">${emp.surveys_submitted}</span></td>
+        <td>
+          <button class="btn btn-secondary btn-sm" onclick="resendLink('${emp.work_email}')">Resend link</button>
+        </td>
+      </tr>
+    `).join('');
+  } catch (err) {
+    tbody.innerHTML = '<tr><td colspan="6" class="empty">Failed to load.</td></tr>';
+  }
+}
+
+async function resendLink(email) {
+  try {
+    const res = await fetch(API + '/admin/invite', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Failed');
+    showAlert(data.sent ? `Link resent to ${email}` : `Email failed. URL: ${data.manual_url}`, data.sent ? 'success' : 'error');
+  } catch (err) {
+    showAlert(err.message, 'error');
+  }
+}
+
+function showAlert(msg, type) {
+  const el = document.getElementById('alert');
+  el.textContent = msg;
+  el.className = `alert alert-${type} visible`;
+  if (type === 'success') setTimeout(() => el.className = 'alert', 5000);
+}
+function hideAlert() { document.getElementById('alert').className = 'alert'; }
+</script>
+</body>
+</html>

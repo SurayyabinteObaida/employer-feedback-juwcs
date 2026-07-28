@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Employer Feedback Portal</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --primary: #1e3a5f;
+  --primary-light: #2a5a8f;
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --surface: #ffffff;
+  --bg: #f5f7fa;
+  --border: #e2e6ed;
+  --border-strong: #cdd3dc;
+  --text: #1a1f2e;
+  --text-secondary: #5a6274;
+  --text-muted: #8a91a0;
+  --success: #16a34a;
+  --success-bg: #dcfce7;
+  --success-text: #15603a;
+  --warning: #d97706;
+  --warning-bg: #fef3c7;
+  --warning-text: #854d0e;
+  --danger: #dc2626;
+  --danger-bg: #fee2e2;
+  --danger-text: #991b1b;
+  --radius: 6px;
+  --radius-lg: 10px;
+}
+
+body {
+  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+/* --- Header --- */
+.header {
+  background: var(--primary);
+  color: #fff;
+  padding: 0 2rem;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.header h1 {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  font-size: 13px;
+  color: rgba(255,255,255,0.8);
+}
+.btn-logout {
+  background: rgba(255,255,255,0.15);
+  border: 1px solid rgba(255,255,255,0.25);
+  color: #fff;
+  padding: 6px 14px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 0.15s;
+}
+.btn-logout:hover { background: rgba(255,255,255,0.25); }
+
+/* --- Layout --- */
+.container {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 1.75rem 1.5rem;
+}
+
+/* --- Login --- */
+.login-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 1rem;
+}
+.login-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 2.5rem;
+  max-width: 420px;
+  width: 100%;
+}
+.login-card h1 {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--primary);
+  margin-bottom: 0.5rem;
+}
+.login-card p {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: 1.5rem;
+  line-height: 1.6;
+}
+.login-card .help {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 1rem;
+}
+
+/* --- Alert --- */
+.alert {
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius);
+  font-size: 13px;
+  margin-bottom: 1rem;
+  display: none;
+}
+.alert.visible { display: block; }
+.alert-error { background: var(--danger-bg); color: var(--danger-text); border: 1px solid #fecaca; }
+.alert-success { background: var(--success-bg); color: var(--success-text); border: 1px solid #bbf7d0; }
+.alert-info { background: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe; }
+
+/* --- Page heading --- */
+.page-heading {
+  margin-bottom: 1.5rem;
+}
+.page-heading h2 {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text);
+}
+.page-heading p {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-top: 0.25rem;
+}
+
+/* --- Table card --- */
+.table-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+thead th {
+  background: #f8f9fb;
+  padding: 0.75rem 1rem;
+  text-align: left;
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+tbody td {
+  padding: 0.875rem 1rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: #f8f9fb; }
+
+/* --- Badge --- */
+.badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.badge-pending { background: var(--warning-bg); color: var(--warning-text); }
+.badge-submitted { background: var(--success-bg); color: var(--success-text); }
+.badge-confirmed { background: var(--success-bg); color: var(--success-text); }
+.badge-unconfirmed { background: #f3f4f6; color: var(--text-secondary); }
+.badge-rejected { background: var(--danger-bg); color: var(--danger-text); }
+.badge-intern { background: #dbeafe; color: #1e40af; }
+.badge-graduate { background: #f3e8ff; color: #6b21a8; }
+
+/* --- Buttons --- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 7px 14px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+  font-family: inherit;
+}
+.btn-sm { padding: 5px 10px; font-size: 12px; }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-primary:disabled { background: #93c5fd; cursor: not-allowed; }
+.btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border-strong); }
+.btn-secondary:hover { background: #f3f4f6; }
+.btn-success { background: var(--success); color: #fff; }
+.btn-success:hover { background: #15803d; }
+.btn-danger-outline { background: transparent; color: var(--danger); border: 1px solid #fecaca; }
+.btn-danger-outline:hover { background: var(--danger-bg); }
+.btn-ghost { background: transparent; color: var(--accent); border: none; padding: 5px 8px; }
+.btn-ghost:hover { background: #eff6ff; }
+
+.action-btns {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+/* --- Expandable detail --- */
+.detail-row { display: none; }
+.detail-row.open { display: table-row; }
+.detail-row td {
+  padding: 0;
+  background: #f8f9fb;
+}
+.detail-content {
+  padding: 1.25rem 1rem;
+  border-top: 1px solid var(--border);
+}
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+.detail-field label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-bottom: 3px;
+}
+.detail-field p {
+  font-size: 14px;
+  color: var(--text);
+}
+.detail-actions {
+  display: flex;
+  gap: 0.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+/* --- Feedback form page --- */
+.form-page {
+  display: none;
+}
+.form-page.active {
+  display: block;
+}
+.dashboard-page.active {
+  display: block;
+}
+.form-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 2rem;
+  margin-bottom: 1.5rem;
+}
+.form-card h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--primary);
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+.form-group {
+  margin-bottom: 1.25rem;
+}
+.form-group label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+.form-group input,
+.form-group textarea,
+.form-group select {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--text);
+  background: var(--surface);
+  transition: border-color 0.15s;
+}
+.form-group input:focus,
+.form-group textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+.form-group textarea { resize: vertical; min-height: 100px; }
+
+/* --- Rating row --- */
+.rating-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.rating-table th {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  padding: 0.5rem 0.75rem;
+  text-align: center;
+  background: #f8f9fb;
+  border-bottom: 1px solid var(--border);
+}
+.rating-table th:first-child { text-align: left; width: 40%; }
+.rating-table td {
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--border);
+  text-align: center;
+  font-size: 14px;
+}
+.rating-table td:first-child {
+  text-align: left;
+  font-weight: 500;
+  color: var(--text);
+}
+.rating-table tbody tr:hover { background: #f8f9fb; }
+.rating-table input[type="radio"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--accent);
+}
+.rating-scale-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 0 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+/* --- Form actions --- */
+.form-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+}
+
+/* --- Student info (read-only on form) --- */
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1rem;
+}
+.info-item label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-bottom: 2px;
+}
+.info-item span {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+/* --- Empty state --- */
+.empty-state {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: var(--text-muted);
+}
+.empty-state p { font-size: 14px; }
+
+/* --- Loading --- */
+.loading {
+  text-align: center;
+  padding: 3rem;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+/* --- Back link --- */
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--accent);
+  text-decoration: none;
+  cursor: pointer;
+  margin-bottom: 1rem;
+  font-weight: 500;
+}
+.back-link:hover { text-decoration: underline; }
+
+/* --- Responsive --- */
+@media (max-width: 768px) {
+  .container { padding: 1rem; }
+  .header { padding: 0 1rem; }
+  .form-row { grid-template-columns: 1fr; }
+  .detail-grid { grid-template-columns: 1fr 1fr; }
+  .info-grid { grid-template-columns: 1fr 1fr; }
+  .rating-table th, .rating-table td { padding: 0.5rem 0.25rem; font-size: 13px; }
+  table { font-size: 13px; }
+  thead th, tbody td { padding: 0.625rem 0.5rem; }
+}
+@media (max-width: 480px) {
+  .detail-grid { grid-template-columns: 1fr; }
+  .info-grid { grid-template-columns: 1fr; }
+  .action-btns { flex-direction: column; }
+}
+</style>
+</head>
+<body>
+
+<!-- ===== LOGIN PAGE ===== -->
+<div id="loginPage" class="login-wrapper">
+  <div class="login-card">
+    <h1>Employer Feedback Portal</h1>
+    <p>Access the portal using the secure link sent to your registered email address.</p>
+    <div id="loginAlert" class="alert alert-error"></div>
+    <div id="loginLoading" class="alert alert-info" style="display:none">Authenticating your access...</div>
+    <p class="help">If you have not received an email or your link has expired, please contact the Internship Coordinator.</p>
+  </div>
+</div>
+
+<!-- ===== MAIN APP (hidden until login) ===== -->
+<div id="appShell" style="display:none">
+
+  <!-- Header -->
+  <div class="header">
+    <h1>Employer Feedback Portal</h1>
+    <div class="header-right">
+      <span id="employerName"></span>
+      <button class="btn-logout" onclick="logout()">Log out</button>
+    </div>
+  </div>
+
+  <!-- ===== DASHBOARD ===== -->
+  <div id="dashboardPage" class="dashboard-page active">
+    <div class="container">
+      <div class="page-heading">
+        <h2>Your students</h2>
+        <p>Review student details and provide performance feedback.</p>
+      </div>
+
+      <div id="dashboardAlert" class="alert"></div>
+
+      <div class="table-card">
+        <table>
+          <thead>
+            <tr>
+              <th>Student</th>
+              <th>Enrollment</th>
+              <th>Type</th>
+              <th>Role</th>
+              <th>Details</th>
+              <th>Feedback</th>
+              <th style="text-align:center">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="engagementTable">
+            <tr><td colspan="7" class="loading">Loading engagements...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div id="emptyState" class="empty-state" style="display:none">
+        <p>No student engagements found for your account.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== FEEDBACK FORM PAGE ===== -->
+  <div id="formPage" class="form-page">
+    <div class="container">
+      <a class="back-link" onclick="showDashboard()">&#8592; Back to dashboard</a>
+
+      <div class="page-heading">
+        <h2>Performance feedback</h2>
+        <p>Please evaluate the student based on their performance during the engagement period.</p>
+      </div>
+
+      <div id="formAlert" class="alert"></div>
+
+      <!-- Student Info -->
+      <div class="form-card">
+        <h3>Student information</h3>
+        <div class="info-grid" id="studentInfoGrid"></div>
+      </div>
+
+      <!-- Employment Context -->
+      <div class="form-card">
+        <h3>Employment context</h3>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="current_job_role">Current job role</label>
+            <input type="text" id="current_job_role" placeholder="e.g. Junior Software Engineer">
+          </div>
+          <div class="form-group">
+            <label for="employment_department">Department</label>
+            <input type="text" id="employment_department" placeholder="e.g. Software Development">
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="employment_duration">Duration of employment / internship</label>
+          <input type="text" id="employment_duration" placeholder="e.g. 6 weeks, 3 months, ongoing">
+        </div>
+      </div>
+
+      <!-- Ratings -->
+      <div class="form-card">
+        <h3>Performance ratings</h3>
+        <p style="font-size:13px; color:var(--text-secondary); margin-bottom:1rem;">
+          Rate the student on each competency using a scale of 1 (Poor) to 5 (Excellent).
+        </p>
+        <div style="overflow-x:auto">
+          <table class="rating-table">
+            <thead>
+              <tr>
+                <th>Competency</th>
+                <th>1<br><span style="font-weight:400;text-transform:none">Poor</span></th>
+                <th>2<br><span style="font-weight:400;text-transform:none">Below avg</span></th>
+                <th>3<br><span style="font-weight:400;text-transform:none">Average</span></th>
+                <th>4<br><span style="font-weight:400;text-transform:none">Good</span></th>
+                <th>5<br><span style="font-weight:400;text-transform:none">Excellent</span></th>
+              </tr>
+            </thead>
+            <tbody id="ratingsBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Comments -->
+      <div class="form-card">
+        <h3>Additional comments</h3>
+        <div class="form-group">
+          <label for="comments">Share any additional observations about the student's performance, strengths, or areas for improvement.</label>
+          <textarea id="comments" rows="5" placeholder="Your feedback helps us improve our academic programs..."></textarea>
+        </div>
+
+        <div class="form-actions">
+          <button class="btn btn-secondary" onclick="showDashboard()">Cancel</button>
+          <button class="btn btn-primary" id="submitBtn" onclick="submitFeedback()">Submit feedback</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = window.location.origin + '/api';
+let sessionToken = null;
+let currentEngagementId = null;
+let engagementsData = [];
+
+const RATING_FIELDS = [
+  { key: 'rating_core_knowledge', label: 'Core knowledge and expertise' },
+  { key: 'rating_knowledge_application', label: 'Application of knowledge' },
+  { key: 'rating_problem_solving', label: 'Problem-solving skills' },
+  { key: 'rating_dev_contribution', label: 'Development and contribution' },
+  { key: 'rating_tool_usage', label: 'Technical tool proficiency' },
+  { key: 'rating_teamwork', label: 'Teamwork and collaboration' },
+  { key: 'rating_communication', label: 'Communication skills' },
+  { key: 'rating_professionalism', label: 'Professionalism and conduct' },
+  { key: 'rating_ethics', label: 'Professional ethics' },
+  { key: 'rating_learning_attitude', label: 'Learning attitude and initiative' },
+];
+
+// --- Init ---
+document.addEventListener('DOMContentLoaded', () => {
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get('token');
+  if (token) {
+    authenticate(token);
+  }
+  buildRatingRows();
+});
+
+// --- Auth ---
+async function authenticate(token) {
+  const loginAlert = document.getElementById('loginAlert');
+  const loginLoading = document.getElementById('loginLoading');
+  loginAlert.style.display = 'none';
+  loginLoading.style.display = 'block';
+
+  try {
+    const res = await fetch(API + '/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Authentication failed');
+
+    sessionToken = data.session_token;
+    document.getElementById('employerName').textContent = data.employer?.name || data.employer?.email || '';
+    document.getElementById('loginPage').style.display = 'none';
+    document.getElementById('appShell').style.display = 'block';
+
+    // Clean URL
+    window.history.replaceState({}, '', window.location.pathname);
+    loadDashboard();
+  } catch (err) {
+    loginLoading.style.display = 'none';
+    loginAlert.textContent = err.message;
+    loginAlert.style.display = 'block';
+    loginAlert.className = 'alert alert-error visible';
+  }
+}
+
+function logout() {
+  fetch(API + '/auth/logout', {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + sessionToken }
+  }).catch(() => {});
+  sessionToken = null;
+  document.getElementById('appShell').style.display = 'none';
+  document.getElementById('loginPage').style.display = 'flex';
+}
+
+function authHeaders() {
+  return { 'Authorization': 'Bearer ' + sessionToken, 'Content-Type': 'application/json' };
+}
+
+// --- Dashboard ---
+async function loadDashboard() {
+  const tbody = document.getElementById('engagementTable');
+  tbody.innerHTML = '<tr><td colspan="7" class="loading">Loading...</td></tr>';
+
+  try {
+    const res = await fetch(API + '/dashboard', { headers: authHeaders() });
+    if (!res.ok) throw new Error('Failed to load dashboard');
+    const data = await res.json();
+    engagementsData = data.engagements || [];
+
+    if (data.employer?.name) {
+      document.getElementById('employerName').textContent = data.employer.name;
+    }
+
+    if (engagementsData.length === 0) {
+      tbody.innerHTML = '';
+      document.getElementById('emptyState').style.display = 'block';
+      return;
+    }
+
+    document.getElementById('emptyState').style.display = 'none';
+    renderTable(engagementsData);
+  } catch (err) {
+    showAlert('dashboardAlert', err.message, 'error');
+    tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><p>Failed to load data.</p></td></tr>';
+  }
+}
+
+function renderTable(engagements) {
+  const tbody = document.getElementById('engagementTable');
+  tbody.innerHTML = '';
+
+  engagements.forEach((eng, idx) => {
+    // Main row
+    const tr = document.createElement('tr');
+    const typeBadge = eng.engagement_type === 'intern'
+      ? '<span class="badge badge-intern">Intern</span>'
+      : '<span class="badge badge-graduate">Graduate</span>';
+    const feedbackBadge = eng.feedback_status === 'submitted'
+      ? '<span class="badge badge-submitted">Submitted</span>'
+      : '<span class="badge badge-pending">Pending</span>';
+
+    let validationBadge = '<span class="badge badge-unconfirmed">Not confirmed</span>';
+    if (eng.validation_status === 'validated') validationBadge = '<span class="badge badge-confirmed">Confirmed</span>';
+    else if (eng.validation_status === 'rejected') validationBadge = '<span class="badge badge-rejected">Rejected</span>';
+
+    tr.innerHTML = `
+      <td style="font-weight:500">${eng.full_name || '—'}</td>
+      <td style="color:var(--text-secondary)">${eng.enrollment_number || '—'}</td>
+      <td>${typeBadge}</td>
+      <td style="color:var(--text-secondary)">${eng.role_designation || '—'}</td>
+      <td>${validationBadge}</td>
+      <td>${feedbackBadge}</td>
+      <td style="text-align:center">
+        <div class="action-btns">
+          <button class="btn btn-sm btn-secondary" onclick="toggleDetail('detail-${idx}')">View</button>
+          <button class="btn btn-sm btn-primary" onclick="openFeedbackForm('${eng.engagement_id}')" ${eng.feedback_status === 'submitted' ? '' : ''}>
+            ${eng.feedback_status === 'submitted' ? 'Edit' : 'Feedback'}
+          </button>
+        </div>
+      </td>
+    `;
+    tbody.appendChild(tr);
+
+    // Detail row
+    const detailTr = document.createElement('tr');
+    detailTr.className = 'detail-row';
+    detailTr.id = 'detail-' + idx;
+    detailTr.innerHTML = `
+      <td colspan="7">
+        <div class="detail-content">
+          <div class="detail-grid">
+            <div class="detail-field"><label>Organization</label><p>${eng.organization_name || '—'}</p></div>
+            <div class="detail-field"><label>Department</label><p>${eng.department_served || '—'}</p></div>
+            <div class="detail-field"><label>Role / Position</label><p>${eng.role_designation || '—'}</p></div>
+            <div class="detail-field"><label>Supervisor</label><p>${eng.supervisor_name || '—'}</p></div>
+            <div class="detail-field"><label>Supervisor designation</label><p>${eng.supervisor_designation || '—'}</p></div>
+            <div class="detail-field"><label>Contact email</label><p>${eng.contact_email || '—'}</p></div>
+            <div class="detail-field"><label>Contact phone</label><p>${eng.contact_phone || '—'}</p></div>
+            <div class="detail-field"><label>Start date</label><p>${formatDate(eng.start_date)}</p></div>
+            <div class="detail-field"><label>End date</label><p>${formatDate(eng.end_date)}</p></div>
+          </div>
+          ${eng.validation_status !== 'validated' ? `
+          <div class="detail-actions">
+            <button class="btn btn-sm btn-success" onclick="validateProforma('${eng.engagement_id}', 'validated')">Confirm details</button>
+            <button class="btn btn-sm btn-danger-outline" onclick="validateProforma('${eng.engagement_id}', 'rejected')">Report incorrect</button>
+          </div>
+          ` : '<p style="font-size:13px;color:var(--success);">Details confirmed.</p>'}
+        </div>
+      </td>
+    `;
+    tbody.appendChild(detailTr);
+  });
+}
+
+function toggleDetail(id) {
+  const row = document.getElementById(id);
+  if (row) row.classList.toggle('open');
+}
+
+async function validateProforma(engagementId, status) {
+  try {
+    const res = await fetch(API + '/validate', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ engagement_id: engagementId, status })
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.detail || 'Validation failed');
+    }
+    showAlert('dashboardAlert', status === 'validated' ? 'Details confirmed successfully.' : 'Details reported as incorrect.', 'success');
+    loadDashboard();
+  } catch (err) {
+    showAlert('dashboardAlert', err.message, 'error');
+  }
+}
+
+// --- Feedback Form ---
+async function openFeedbackForm(engagementId) {
+  currentEngagementId = engagementId;
+
+  // Switch page
+  document.getElementById('dashboardPage').style.display = 'none';
+  document.getElementById('formPage').style.display = 'block';
+  document.getElementById('formPage').className = 'form-page active';
+  document.getElementById('formAlert').style.display = 'none';
+  window.scrollTo(0, 0);
+
+  try {
+    const res = await fetch(API + '/survey/' + engagementId, { headers: authHeaders() });
+    if (!res.ok) throw new Error('Failed to load form data');
+    const data = await res.json();
+
+    // Populate student info
+    const grid = document.getElementById('studentInfoGrid');
+    const s = data.student || {};
+    grid.innerHTML = `
+      <div class="info-item"><label>Name</label><span>${s.full_name || '—'}</span></div>
+      <div class="info-item"><label>Enrollment</label><span>${s.enrollment_number || '—'}</span></div>
+      <div class="info-item"><label>Batch</label><span>${s.batch || '—'}</span></div>
+      <div class="info-item"><label>Program</label><span>${s.degree_program || '—'}</span></div>
+      <div class="info-item"><label>Organization</label><span>${s.organization_name || '—'}</span></div>
+      <div class="info-item"><label>Role</label><span>${s.role_designation || '—'}</span></div>
+      <div class="info-item"><label>Period</label><span>${formatDate(s.start_date)} — ${formatDate(s.end_date)}</span></div>
+    `;
+
+    // Pre-fill form if survey exists
+    const sv = data.survey || {};
+    document.getElementById('current_job_role').value = sv.current_job_role || '';
+    document.getElementById('employment_department').value = sv.employment_department || '';
+    document.getElementById('employment_duration').value = sv.employment_duration || '';
+    document.getElementById('comments').value = sv.comments || '';
+
+    RATING_FIELDS.forEach(f => {
+      const val = sv[f.key] || 3;
+      const radios = document.querySelectorAll(`input[name="${f.key}"]`);
+      radios.forEach(r => { r.checked = parseInt(r.value) === val; });
+    });
+
+  } catch (err) {
+    showAlert('formAlert', err.message, 'error');
+  }
+}
+
+async function submitFeedback() {
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  btn.textContent = 'Submitting...';
+  document.getElementById('formAlert').style.display = 'none';
+
+  const payload = {
+    engagement_id: currentEngagementId,
+    current_job_role: document.getElementById('current_job_role').value,
+    employment_department: document.getElementById('employment_department').value,
+    employment_duration: document.getElementById('employment_duration').value,
+    comments: document.getElementById('comments').value,
+  };
+
+  // Collect ratings
+  let allRated = true;
+  RATING_FIELDS.forEach(f => {
+    const checked = document.querySelector(`input[name="${f.key}"]:checked`);
+    if (checked) {
+      payload[f.key] = parseInt(checked.value);
+    } else {
+      allRated = false;
+    }
+  });
+
+  if (!allRated) {
+    showAlert('formAlert', 'Please provide a rating for all competencies.', 'error');
+    btn.disabled = false;
+    btn.textContent = 'Submit feedback';
+    return;
+  }
+
+  try {
+    const res = await fetch(API + '/survey/submit', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.detail || 'Submission failed');
+    }
+    showAlert('dashboardAlert', 'Feedback submitted successfully.', 'success');
+    showDashboard();
+    loadDashboard();
+  } catch (err) {
+    showAlert('formAlert', err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Submit feedback';
+  }
+}
+
+function showDashboard() {
+  document.getElementById('formPage').style.display = 'none';
+  document.getElementById('formPage').className = 'form-page';
+  document.getElementById('dashboardPage').style.display = 'block';
+  currentEngagementId = null;
+  window.scrollTo(0, 0);
+}
+
+// --- Helpers ---
+function buildRatingRows() {
+  const tbody = document.getElementById('ratingsBody');
+  RATING_FIELDS.forEach(f => {
+    const tr = document.createElement('tr');
+    let radios = '';
+    for (let i = 1; i <= 5; i++) {
+      radios += `<td><input type="radio" name="${f.key}" value="${i}" ${i === 3 ? 'checked' : ''}></td>`;
+    }
+    tr.innerHTML = `<td>${f.label}</td>${radios}`;
+    tbody.appendChild(tr);
+  });
+}
+
+function formatDate(d) {
+  if (!d) return '—';
+  return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function showAlert(id, message, type) {
+  const el = document.getElementById(id);
+  el.textContent = message;
+  el.className = `alert alert-${type} visible`;
+  el.style.display = 'block';
+  if (type === 'success') {
+    setTimeout(() => { el.style.display = 'none'; }, 5000);
+  }
+}
+</script>
+</body>
+</html>
