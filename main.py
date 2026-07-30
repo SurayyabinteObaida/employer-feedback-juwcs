@@ -47,21 +47,28 @@ def verify_password(password: str, stored_hash: str) -> bool:
 # --- Ensure password_hash column exists ---
 
 @app.on_event("startup")
-def ensure_password_column():
-    """Add password_hash column if it doesn't exist yet."""
+def ensure_columns():
+    """Add any missing columns on startup — no manual migration needed."""
     db = SessionLocal()
     try:
-        db.execute(text("""
-            DO $$
-            BEGIN
-                IF NOT EXISTS (
-                    SELECT 1 FROM information_schema.columns
-                    WHERE table_name = 'employers' AND column_name = 'password_hash'
-                ) THEN
-                    ALTER TABLE employers ADD COLUMN password_hash VARCHAR;
-                END IF;
-            END $$;
-        """))
+        migrations = [
+            ("employers", "password_hash", "VARCHAR"),
+            ("internship_evaluations", "rating_work_quality", "SMALLINT"),
+            ("internship_evaluations", "rating_task_completion", "SMALLINT"),
+            ("internship_evaluations", "rating_overall_competence", "SMALLINT"),
+            ("employer_surveys", "overall_performance", "VARCHAR"),
+        ]
+        for table, col, coltype in migrations:
+            db.execute(text(f"""
+                DO $$ BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name = '{table}' AND column_name = '{col}'
+                    ) THEN
+                        ALTER TABLE {table} ADD COLUMN {col} {coltype};
+                    END IF;
+                END $$;
+            """))
         db.commit()
     except Exception as e:
         print(f"[STARTUP] Column migration note: {e}")
@@ -113,6 +120,7 @@ class PasswordLoginRequest(BaseModel):
     password: str
 
 class SurveySubmission(BaseModel):
+    """Employer Survey — for graduate/job engagements (10 GA-rated questions)."""
     engagement_id: str
     current_job_role: Optional[str] = ""
     employment_department: Optional[str] = ""
@@ -127,6 +135,27 @@ class SurveySubmission(BaseModel):
     rating_professionalism: int
     rating_ethics: int
     rating_learning_attitude: int
+    overall_performance: Optional[str] = ""  # outstanding / above_average / average / below_average
+    comments: Optional[str] = ""
+
+
+class InternshipEvalSubmission(BaseModel):
+    """Internship Evaluation Proforma — for internship engagements (9 GA-rated + Section D)."""
+    engagement_id: str
+    # Section C — 9 indicators (1-5)
+    rating_core_knowledge: int
+    rating_problem_solving: int
+    rating_work_quality: int
+    rating_tool_usage: int
+    rating_teamwork: int
+    rating_communication: int
+    rating_societal_awareness: int
+    rating_ethics: int
+    rating_learning_attitude: int
+    # Section D
+    rating_task_completion: int       # 1-5
+    rating_overall_competence: int    # 1-5
+    attendance_bracket: str           # above_80 / 71_80 / 61_70 / 50_60 / below_50
     comments: Optional[str] = ""
 
 class ValidationUpdate(BaseModel):
@@ -299,12 +328,17 @@ def get_dashboard(employer: dict = Depends(get_current_employer), db: DBSession 
                 op.linkedin_url,
                 op.validation_status,
                 op.submitted_by_student_at,
-                CASE WHEN es.submitted_at IS NOT NULL THEN 'submitted' ELSE 'pending' END AS feedback_status,
-                es.submitted_at AS feedback_submitted_at
+                CASE
+                    WHEN e.type = 'internship' AND ie.submitted_at IS NOT NULL THEN 'submitted'
+                    WHEN e.type = 'job' AND es.submitted_at IS NOT NULL THEN 'submitted'
+                    ELSE 'pending'
+                END AS feedback_status,
+                COALESCE(ie.submitted_at, es.submitted_at) AS feedback_submitted_at
             FROM engagements e
             JOIN students s ON e.student_id = s.id
             LEFT JOIN org_proformas op ON e.id = op.engagement_id
             LEFT JOIN employer_surveys es ON e.id = es.engagement_id
+            LEFT JOIN internship_evaluations ie ON e.id = ie.engagement_id
             WHERE e.employer_id = :employer_id
             ORDER BY e.created_at DESC
         """),
@@ -370,6 +404,120 @@ def edit_proforma(data: ProformaEdit, employer: dict = Depends(get_current_emplo
 
 
 # --- Feedback Form ---
+
+# --- Internship Evaluation (for internship engagements) ---
+
+@app.get("/api/internship-eval/{engagement_id}")
+def get_internship_eval(engagement_id: str, employer: dict = Depends(get_current_employer), db: DBSession = Depends(get_db)):
+    eng = db.execute(
+        text("SELECT id, type FROM engagements WHERE id = :id AND employer_id = :employer_id"),
+        {"id": engagement_id, "employer_id": employer["employer_id"]}
+    ).mappings().first()
+    if not eng:
+        raise HTTPException(status_code=404, detail="Engagement not found")
+    if eng["type"] != "internship":
+        raise HTTPException(status_code=400, detail="This engagement is not an internship")
+
+    evaluation = db.execute(
+        text("SELECT * FROM internship_evaluations WHERE engagement_id = :engagement_id"),
+        {"engagement_id": engagement_id}
+    ).mappings().first()
+
+    student = db.execute(
+        text("""
+            SELECT s.full_name, s.enrollment_number, s.batch, s.degree_program, s.current_semester,
+                   op.organization_name, op.role_designation, op.department_served,
+                   op.start_date, op.end_date
+            FROM engagements e
+            JOIN students s ON e.student_id = s.id
+            LEFT JOIN org_proformas op ON e.id = op.engagement_id
+            WHERE e.id = :engagement_id
+        """),
+        {"engagement_id": engagement_id}
+    ).mappings().first()
+
+    return {
+        "student": dict(student) if student else None,
+        "evaluation": dict(evaluation) if evaluation else None,
+    }
+
+
+@app.post("/api/internship-eval/submit")
+def submit_internship_eval(data: InternshipEvalSubmission, employer: dict = Depends(get_current_employer), db: DBSession = Depends(get_db)):
+    eng = db.execute(
+        text("SELECT id, type FROM engagements WHERE id = :id AND employer_id = :employer_id"),
+        {"id": data.engagement_id, "employer_id": employer["employer_id"]}
+    ).mappings().first()
+    if not eng:
+        raise HTTPException(status_code=404, detail="Engagement not found")
+    if eng["type"] != "internship":
+        raise HTTPException(status_code=400, detail="This engagement is not an internship")
+
+    existing = db.execute(
+        text("SELECT id, submitted_at FROM internship_evaluations WHERE engagement_id = :engagement_id"),
+        {"engagement_id": data.engagement_id}
+    ).mappings().first()
+
+    if existing and existing["submitted_at"] is not None:
+        raise HTTPException(status_code=409, detail="This evaluation has already been submitted and cannot be edited.")
+
+    eval_id = existing["id"] if existing else str(uuid.uuid4())
+    params = {
+        "id": eval_id,
+        "engagement_id": data.engagement_id,
+        "rating_core_knowledge": data.rating_core_knowledge,
+        "rating_problem_solving": data.rating_problem_solving,
+        "rating_work_quality": data.rating_work_quality,
+        "rating_tool_usage": data.rating_tool_usage,
+        "rating_teamwork": data.rating_teamwork,
+        "rating_communication": data.rating_communication,
+        "rating_societal_awareness": data.rating_societal_awareness,
+        "rating_ethics": data.rating_ethics,
+        "rating_learning_attitude": data.rating_learning_attitude,
+        "rating_task_completion": data.rating_task_completion,
+        "rating_overall_competence": data.rating_overall_competence,
+        "attendance_bracket": data.attendance_bracket,
+        "comments": data.comments,
+    }
+
+    if existing:
+        db.execute(text("""
+            UPDATE internship_evaluations SET
+                rating_core_knowledge = :rating_core_knowledge,
+                rating_problem_solving = :rating_problem_solving,
+                rating_work_quality = :rating_work_quality,
+                rating_tool_usage = :rating_tool_usage,
+                rating_teamwork = :rating_teamwork,
+                rating_communication = :rating_communication,
+                rating_societal_awareness = :rating_societal_awareness,
+                rating_ethics = :rating_ethics,
+                rating_learning_attitude = :rating_learning_attitude,
+                rating_task_completion = :rating_task_completion,
+                rating_overall_competence = :rating_overall_competence,
+                attendance_bracket = :attendance_bracket,
+                comments = :comments,
+                submitted_at = NOW()
+            WHERE id = :id
+        """), params)
+    else:
+        db.execute(text("""
+            INSERT INTO internship_evaluations
+                (id, engagement_id, rating_core_knowledge, rating_problem_solving, rating_work_quality,
+                 rating_tool_usage, rating_teamwork, rating_communication, rating_societal_awareness,
+                 rating_ethics, rating_learning_attitude, rating_task_completion, rating_overall_competence,
+                 attendance_bracket, comments, submitted_at)
+            VALUES
+                (:id, :engagement_id, :rating_core_knowledge, :rating_problem_solving, :rating_work_quality,
+                 :rating_tool_usage, :rating_teamwork, :rating_communication, :rating_societal_awareness,
+                 :rating_ethics, :rating_learning_attitude, :rating_task_completion, :rating_overall_competence,
+                 :attendance_bracket, :comments, NOW())
+        """), params)
+
+    db.commit()
+    return {"eval_id": eval_id, "message": "Internship evaluation submitted successfully"}
+
+
+# --- Employer Survey (for graduate/job engagements) ---
 
 @app.get("/api/survey/{engagement_id}")
 def get_survey(engagement_id: str, employer: dict = Depends(get_current_employer), db: DBSession = Depends(get_db)):
@@ -450,6 +598,7 @@ def submit_survey(data: SurveySubmission, employer: dict = Depends(get_current_e
                     rating_professionalism = :rating_professionalism,
                     rating_ethics = :rating_ethics,
                     rating_learning_attitude = :rating_learning_attitude,
+                    overall_performance = :overall_performance,
                     comments = :comments,
                     submitted_at = NOW()
                 WHERE id = :id
@@ -469,6 +618,7 @@ def submit_survey(data: SurveySubmission, employer: dict = Depends(get_current_e
                 "rating_professionalism": data.rating_professionalism,
                 "rating_ethics": data.rating_ethics,
                 "rating_learning_attitude": data.rating_learning_attitude,
+                "overall_performance": data.overall_performance,
                 "comments": data.comments,
             }
         )
@@ -481,12 +631,12 @@ def submit_survey(data: SurveySubmission, employer: dict = Depends(get_current_e
                     (id, engagement_id, survey_year, current_job_role, employment_department, employment_duration,
                      rating_core_knowledge, rating_knowledge_application, rating_problem_solving,
                      rating_dev_contribution, rating_tool_usage, rating_teamwork, rating_communication,
-                     rating_professionalism, rating_ethics, rating_learning_attitude, comments, submitted_at)
+                     rating_professionalism, rating_ethics, rating_learning_attitude, overall_performance, comments, submitted_at)
                 VALUES
                     (:id, :engagement_id, :survey_year, :current_job_role, :employment_department, :employment_duration,
                      :rating_core_knowledge, :rating_knowledge_application, :rating_problem_solving,
                      :rating_dev_contribution, :rating_tool_usage, :rating_teamwork, :rating_communication,
-                     :rating_professionalism, :rating_ethics, :rating_learning_attitude, :comments, NOW())
+                     :rating_professionalism, :rating_ethics, :rating_learning_attitude, :overall_performance, :comments, NOW())
             """),
             {
                 "id": survey_id,
@@ -505,6 +655,7 @@ def submit_survey(data: SurveySubmission, employer: dict = Depends(get_current_e
                 "rating_professionalism": data.rating_professionalism,
                 "rating_ethics": data.rating_ethics,
                 "rating_learning_attitude": data.rating_learning_attitude,
+                "overall_performance": data.overall_performance,
                 "comments": data.comments,
             }
         )
@@ -533,9 +684,20 @@ SMTP_USER = os.getenv("SMTP_USER")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
 APP_URL = os.getenv("APP_URL", "http://127.0.0.1:8000")
 
-def send_magic_link_email(employer_email: str, employer_name: str, token: str, password: str = None):
+def send_magic_link_email(employer_email: str, employer_name: str, token: str, password: str = None, engagement_type: str = None):
     access_url = f"{APP_URL}/?token={token}"
     login_url = APP_URL
+
+    # Tailor message for intern vs graduate
+    if engagement_type == "internship":
+        context_line = "You are invited to evaluate the performance of an <strong>intern</strong> who completed their internship under your supervision."
+        subject_suffix = "Internship Evaluation"
+    elif engagement_type == "job":
+        context_line = "You are invited to provide feedback on a <strong>graduate</strong> of our program who is currently employed at your organization."
+        subject_suffix = "Graduate Feedback"
+    else:
+        context_line = "You are invited to provide feedback on students who have completed their internship or employment under your supervision."
+        subject_suffix = "Access Link"
 
     credentials_block = ""
     if password:
@@ -559,7 +721,7 @@ def send_magic_link_email(employer_email: str, employer_name: str, token: str, p
         <div style="background: #ffffff; border: 1px solid #e2e6ed; border-top: none; padding: 2rem 1.5rem; border-radius: 0 0 8px 8px;">
             <p style="font-size: 15px; color: #1a1f2e; margin: 0 0 1rem;">Dear {employer_name or 'Employer'},</p>
             <p style="font-size: 14px; color: #5a6274; line-height: 1.6; margin: 0 0 1.5rem;">
-                You are invited to provide feedback on the students who have completed their internship or employment under your supervision.
+                {context_line}
             </p>
 
             <p style="font-size: 13px; font-weight: 600; color: #1a1f2e; margin: 0 0 0.5rem;">Quick access (one-click sign in):</p>
@@ -589,7 +751,7 @@ def send_magic_link_email(employer_email: str, employer_name: str, token: str, p
     print(f"[EMAIL] SMTP_SERVER={SMTP_SERVER}, SMTP_PORT={SMTP_PORT}, SMTP_USER={SMTP_USER}")
 
     msg = MIMEMultipart("alternative")
-    msg["Subject"] = "Employer Feedback Portal - Access Link"
+    msg["Subject"] = f"Employer Feedback Portal - {subject_suffix}"
     msg["From"] = SMTP_USER
     msg["To"] = employer_email
     msg.attach(MIMEText(html, "html"))
@@ -610,6 +772,7 @@ class InviteRequest(BaseModel):
     email: str
     name: Optional[str] = ""
     designation: Optional[str] = ""
+    engagement_type: Optional[str] = ""  # "internship" or "job"
 
 @app.post("/api/admin/invite")
 def invite_employer(data: InviteRequest, db: DBSession = Depends(get_db)):
@@ -664,7 +827,7 @@ def invite_employer(data: InviteRequest, db: DBSession = Depends(get_db)):
     # Send email
     access_url = f"{APP_URL}/?token={token}"
     try:
-        send_magic_link_email(data.email, employer_name, token, plain_password)
+        send_magic_link_email(data.email, employer_name, token, plain_password, data.engagement_type or None)
         return {"message": f"Invitation sent to {data.email}", "sent": True}
     except Exception as e:
         import traceback
