@@ -788,14 +788,13 @@ def invite_employer(data: InviteRequest, db: DBSession = Depends(get_db)):
     if emp:
         employer_id = emp["id"]
         employer_name = emp["name"]
-        # Update name/designation if provided
         if data.name:
             db.execute(
                 text("UPDATE employers SET name = :name, designation = :designation WHERE id = :id"),
                 {"name": data.name, "designation": data.designation, "id": employer_id}
             )
             employer_name = data.name
-        # Generate password if they don't have one yet
+        # Generate password only if they don't have one yet
         if not emp["password_hash"]:
             plain_password = generate_password()
             db.execute(
@@ -844,14 +843,149 @@ def list_employers(db: DBSession = Depends(get_db)):
     rows = db.execute(text("""
         SELECT e.id, e.work_email, e.name, e.designation, e.created_at,
                COUNT(DISTINCT eng.id) AS total_engagements,
-               COUNT(DISTINCT es.id) AS surveys_submitted
+               COUNT(DISTINCT es.id) AS surveys_submitted,
+               COUNT(DISTINCT ie.id) AS evals_submitted
         FROM employers e
         LEFT JOIN engagements eng ON e.id = eng.employer_id
         LEFT JOIN employer_surveys es ON eng.id = es.engagement_id AND es.submitted_at IS NOT NULL
+        LEFT JOIN internship_evaluations ie ON eng.id = ie.engagement_id AND ie.submitted_at IS NOT NULL
         GROUP BY e.id
         ORDER BY e.created_at DESC
     """)).mappings().all()
     return [dict(r) for r in rows]
+
+
+@app.get("/api/admin/students")
+def list_students(q: str = "", db: DBSession = Depends(get_db)):
+    """Search students by name or enrollment number."""
+    if q:
+        rows = db.execute(text("""
+            SELECT id, full_name, enrollment_number, degree_program, batch
+            FROM students
+            WHERE LOWER(full_name) LIKE :q OR LOWER(enrollment_number) LIKE :q
+            ORDER BY full_name
+            LIMIT 20
+        """), {"q": f"%{q.lower()}%"}).mappings().all()
+    else:
+        rows = db.execute(text("""
+            SELECT id, full_name, enrollment_number, degree_program, batch
+            FROM students ORDER BY full_name LIMIT 50
+        """)).mappings().all()
+    return [dict(r) for r in rows]
+
+
+@app.get("/api/admin/engagements")
+def list_engagements(db: DBSession = Depends(get_db)):
+    """List all engagements with student, employer, and feedback status."""
+    rows = db.execute(text("""
+        SELECT
+            eng.id, eng.type, eng.status, eng.created_at,
+            s.full_name AS student_name, s.enrollment_number, s.degree_program, s.batch,
+            e.work_email AS employer_email, e.name AS employer_name,
+            op.validation_status,
+            CASE
+                WHEN eng.type = 'internship' AND ie.submitted_at IS NOT NULL THEN 'submitted'
+                WHEN eng.type = 'job' AND es.submitted_at IS NOT NULL THEN 'submitted'
+                ELSE 'pending'
+            END AS feedback_status
+        FROM engagements eng
+        JOIN students s ON eng.student_id = s.id
+        JOIN employers e ON eng.employer_id = e.id
+        LEFT JOIN org_proformas op ON eng.id = op.engagement_id
+        LEFT JOIN employer_surveys es ON eng.id = es.engagement_id
+        LEFT JOIN internship_evaluations ie ON eng.id = ie.engagement_id
+        ORDER BY eng.created_at DESC
+    """)).mappings().all()
+    return [dict(r) for r in rows]
+
+
+class CreateEngagementRequest(BaseModel):
+    student_id: str
+    employer_email: str
+    engagement_type: str  # "internship" or "job"
+    organization_name: Optional[str] = ""
+    role_designation: Optional[str] = ""
+    department_served: Optional[str] = ""
+    supervisor_name: Optional[str] = ""
+    supervisor_designation: Optional[str] = ""
+    contact_email: Optional[str] = ""
+    contact_phone: Optional[str] = ""
+    start_date: Optional[str] = ""
+    end_date: Optional[str] = ""
+    send_invite: bool = True
+
+
+@app.post("/api/admin/engagements")
+def create_engagement(data: CreateEngagementRequest, db: DBSession = Depends(get_db)):
+    """Create engagement + proforma, optionally invite employer."""
+    # Find or create employer
+    emp = db.execute(
+        text("SELECT id, name, work_email, password_hash FROM employers WHERE work_email = :email"),
+        {"email": data.employer_email}
+    ).mappings().first()
+
+    plain_password = None
+    if emp:
+        employer_id = emp["id"]
+        employer_name = emp["name"]
+        if not emp["password_hash"]:
+            plain_password = generate_password()
+            db.execute(
+                text("UPDATE employers SET password_hash = :pw WHERE id = :id"),
+                {"pw": hash_password(plain_password), "id": employer_id}
+            )
+    else:
+        employer_id = str(uuid.uuid4())
+        employer_name = data.employer_email.split("@")[0]
+        plain_password = generate_password()
+        db.execute(
+            text("INSERT INTO employers (id, work_email, name, created_via, password_hash) VALUES (:id, :email, :name, 'admin_panel', :pw)"),
+            {"id": employer_id, "email": data.employer_email, "name": employer_name, "pw": hash_password(plain_password)}
+        )
+
+    # Create engagement
+    engagement_id = str(uuid.uuid4())
+    db.execute(
+        text("INSERT INTO engagements (id, student_id, employer_id, type, status) VALUES (:id, :sid, :eid, :type, 'active')"),
+        {"id": engagement_id, "sid": data.student_id, "eid": employer_id, "type": data.engagement_type}
+    )
+
+    # Create proforma
+    db.execute(
+        text("""INSERT INTO org_proformas (id, engagement_id, organization_name, role_designation, department_served,
+                supervisor_name, supervisor_designation, contact_email, contact_phone, start_date, end_date, validation_status)
+                VALUES (:id, :eid, :org, :role, :dept, :sname, :sdesig, :cemail, :cphone,
+                        NULLIF(:start, '')::date, NULLIF(:end, '')::date, 'pending')"""),
+        {
+            "id": str(uuid.uuid4()), "eid": engagement_id,
+            "org": data.organization_name, "role": data.role_designation, "dept": data.department_served,
+            "sname": data.supervisor_name, "sdesig": data.supervisor_designation,
+            "cemail": data.contact_email, "cphone": data.contact_phone,
+            "start": data.start_date, "end": data.end_date,
+        }
+    )
+    db.commit()
+
+    # Send invite email if requested
+    result = {"message": "Engagement created", "engagement_id": engagement_id, "sent": False}
+    if data.send_invite:
+        try:
+            token = secrets.token_urlsafe(32)
+            db.execute(
+                text("INSERT INTO magic_links (id, employer_id, token, expires_at) VALUES (:id, :eid, :token, :exp)"),
+                {"id": str(uuid.uuid4()), "eid": employer_id, "token": token, "exp": datetime.now(timezone.utc) + timedelta(hours=48)}
+            )
+            db.commit()
+            send_magic_link_email(data.employer_email, employer_name, token, plain_password, data.engagement_type)
+            result["sent"] = True
+            result["message"] = f"Engagement created and invitation sent to {data.employer_email}"
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            result["message"] = f"Engagement created but email failed: {str(e)}"
+            result["manual_url"] = f"{APP_URL}/?token={token}"
+
+    return result
 
 # --- Serve frontend (static files) ---
 

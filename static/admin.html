@@ -17,160 +17,110 @@
   --text: #1a1f2e;
   --text-secondary: #5a6274;
   --text-muted: #8a91a0;
+  --success: #16a34a;
   --success-bg: #dcfce7;
-  --success-text: #15603a;
+  --warning: #d97706;
+  --warning-bg: #fef3c7;
+  --danger: #dc2626;
   --danger-bg: #fee2e2;
-  --danger-text: #991b1b;
   --radius: 6px;
-  --radius-lg: 10px;
 }
-body {
-  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
-  background: var(--bg);
-  color: var(--text);
-  line-height: 1.5;
-  min-height: 100vh;
-}
+
+body { font-family: 'Segoe UI', -apple-system, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; }
+
 .header {
-  background: var(--primary);
-  color: #fff;
-  padding: 0 2rem;
-  height: 60px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  background: var(--primary); color: #fff; padding: 0 2rem; height: 60px;
+  display: flex; align-items: center; justify-content: space-between;
 }
-.header h1 { font-size: 17px; font-weight: 600; }
-.header a { color: rgba(255,255,255,0.8); font-size: 13px; text-decoration: none; }
+.header h1 { font-size: 16px; font-weight: 600; }
+.header a { color: rgba(255,255,255,0.8); text-decoration: none; font-size: 13px; }
 .header a:hover { color: #fff; }
-.container {
-  max-width: 900px;
-  margin: 0 auto;
-  padding: 2rem 1.5rem;
-}
-.page-heading { margin-bottom: 1.5rem; }
-.page-heading h2 { font-size: 20px; font-weight: 600; }
-.page-heading p { font-size: 14px; color: var(--text-secondary); margin-top: 0.25rem; }
 
-/* Card */
+.container { max-width: 1200px; margin: 0 auto; padding: 1.5rem 2rem; }
+
+/* Tabs */
+.tabs { display: flex; gap: 0; border-bottom: 2px solid var(--border); margin-bottom: 1.5rem; }
+.tab {
+  padding: 10px 20px; font-size: 14px; font-weight: 500; cursor: pointer;
+  border: none; background: none; color: var(--text-muted);
+  border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all 0.15s;
+}
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* Cards */
 .card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 1.75rem;
-  margin-bottom: 1.5rem;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 1.5rem; margin-bottom: 1rem;
 }
-.card h3 {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--primary);
-  margin-bottom: 1.25rem;
-  padding-bottom: 0.75rem;
-  border-bottom: 1px solid var(--border);
-}
+.card h3 { font-size: 15px; font-weight: 600; margin-bottom: 1rem; }
 
-/* Form */
-.form-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1.25rem;
-  margin-bottom: 1.25rem;
+/* Forms */
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.form-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
+.form-group { margin-bottom: 1rem; }
+.form-group label { display: block; font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+.form-group input, .form-group select {
+  width: 100%; padding: 9px 12px; border: 1px solid var(--border-strong);
+  border-radius: var(--radius); font-size: 14px; font-family: inherit;
 }
-.form-group { margin-bottom: 1.25rem; }
-.form-group label {
-  display: block;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text);
-  margin-bottom: 6px;
-}
-.form-group input {
-  width: 100%;
-  padding: 9px 12px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius);
-  font-size: 14px;
-  font-family: inherit;
-  color: var(--text);
-}
-.form-group input:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-}
-.form-group .hint {
-  font-size: 12px;
-  color: var(--text-muted);
-  margin-top: 4px;
-}
+.form-group input:focus, .form-group select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(37,99,235,0.1); }
+
+/* Buttons */
 .btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 10px 20px;
-  border-radius: var(--radius);
-  font-size: 14px;
-  font-weight: 600;
-  border: none;
-  cursor: pointer;
-  font-family: inherit;
-  transition: all 0.15s;
+  padding: 9px 18px; border: none; border-radius: var(--radius); font-size: 14px;
+  font-family: inherit; cursor: pointer; font-weight: 500; transition: all 0.15s;
 }
 .btn-primary { background: var(--accent); color: #fff; }
 .btn-primary:hover { background: var(--accent-hover); }
-.btn-primary:disabled { background: #93c5fd; cursor: not-allowed; }
-.btn-secondary { background: transparent; color: var(--accent); border: 1px solid var(--border-strong); }
-.btn-sm { padding: 5px 10px; font-size: 12px; }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-secondary { background: var(--bg); color: var(--text); border: 1px solid var(--border-strong); }
+.btn-sm { padding: 5px 12px; font-size: 13px; }
 
 /* Alert */
-.alert {
-  padding: 0.75rem 1rem;
-  border-radius: var(--radius);
-  font-size: 13px;
-  margin-bottom: 1rem;
-  display: none;
-}
+.alert { padding: 10px 14px; border-radius: var(--radius); font-size: 13px; margin-bottom: 1rem; display: none; }
 .alert.visible { display: block; }
-.alert-success { background: var(--success-bg); color: var(--success-text); border: 1px solid #bbf7d0; }
-.alert-error { background: var(--danger-bg); color: var(--danger-text); border: 1px solid #fecaca; }
+.alert-success { background: var(--success-bg); color: #15603a; }
+.alert-error { background: var(--danger-bg); color: #991b1b; }
+.alert-warning { background: var(--warning-bg); color: #854d0e; }
 
 /* Table */
-.table-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-}
-table { width: 100%; border-collapse: collapse; font-size: 14px; }
-thead th {
-  background: #f8f9fb;
-  padding: 0.75rem 1rem;
-  text-align: left;
-  font-weight: 600;
-  font-size: 12px;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-  border-bottom: 1px solid var(--border);
-}
-tbody td {
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid var(--border);
-}
-tbody tr:last-child td { border-bottom: none; }
-tbody tr:hover { background: #f8f9fb; }
-.badge {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 20px;
-  font-size: 12px;
-  font-weight: 500;
-}
-.badge-count { background: #dbeafe; color: #1e40af; }
-.empty { text-align: center; padding: 2rem; color: var(--text-muted); font-size: 14px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; padding: 10px 12px; background: var(--bg); color: var(--text-secondary); font-weight: 600; border-bottom: 1px solid var(--border); }
+td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+tr:hover td { background: #f8fafc; }
 
-@media (max-width: 640px) {
-  .form-row { grid-template-columns: 1fr; }
+/* Badge */
+.badge { padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
+.badge-intern { background: #dbeafe; color: #1e40af; }
+.badge-graduate { background: #f3e8ff; color: #7c3aed; }
+.badge-submitted { background: var(--success-bg); color: #15603a; }
+.badge-pending { background: var(--warning-bg); color: #854d0e; }
+
+/* Student search */
+.student-results { max-height: 200px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius); margin-top: 4px; }
+.student-results .student-item {
+  padding: 8px 12px; cursor: pointer; font-size: 13px; border-bottom: 1px solid var(--border);
+}
+.student-results .student-item:hover { background: #f0f4ff; }
+.student-results .student-item .sub { font-size: 12px; color: var(--text-muted); }
+.selected-student {
+  background: #f0f4ff; border: 1px solid #93b5f0; border-radius: var(--radius);
+  padding: 8px 12px; font-size: 13px; display: flex; justify-content: space-between; align-items: center;
+}
+
+/* Manual link box */
+.manual-link { background: var(--warning-bg); border: 1px solid #f59e0b; border-radius: var(--radius); padding: 12px; margin-top: 8px; word-break: break-all; font-size: 12px; font-family: monospace; }
+
+/* Checkbox */
+.checkbox-group { display: flex; align-items: center; gap: 8px; margin-top: 0.5rem; }
+.checkbox-group label { font-size: 13px; font-weight: 400; margin-bottom: 0; }
+
+@media (max-width: 768px) {
+  .form-row, .form-row-3 { grid-template-columns: 1fr; }
   .container { padding: 1rem; }
 }
 </style>
@@ -178,160 +128,438 @@ tbody tr:hover { background: #f8f9fb; }
 <body>
 
 <div class="header">
-  <h1>Admin Panel</h1>
-  <a href="/">Employer portal</a>
+  <h1>Admin Panel - Employer Feedback Portal</h1>
+  <a href="/">Back to portal</a>
 </div>
 
 <div class="container">
-  <div class="page-heading">
-    <h2>Invite employer</h2>
-    <p>Add an employer and send them a secure access link via email.</p>
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('create')">Create engagement</button>
+    <button class="tab" onclick="switchTab('invite')">Invite employer</button>
+    <button class="tab" onclick="switchTab('engagements')">All engagements</button>
+    <button class="tab" onclick="switchTab('employers')">Employers</button>
   </div>
 
-  <div id="alert" class="alert"></div>
+  <!-- TAB: Create Engagement -->
+  <div class="tab-content active" id="tab-create">
+    <div class="card">
+      <h3>Create a new engagement</h3>
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:1.25rem;">
+        Link a student to an employer, create the proforma, and optionally send the invitation email.
+      </p>
+      <div id="createAlert" class="alert"></div>
 
-  <div class="card">
-    <h3>Employer details</h3>
-    <div class="form-group">
-      <label for="email">Work email</label>
-      <input type="email" id="email" placeholder="employer@company.com" required>
-      <p class="hint">The magic link will be sent to this address.</p>
-    </div>
-    <div class="form-row">
-      <div class="form-group">
-        <label for="name">Name</label>
-        <input type="text" id="name" placeholder="e.g. Ahmed Khan">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Engagement type</label>
+          <select id="engType">
+            <option value="">Select type</option>
+            <option value="internship">Internship</option>
+            <option value="job">Graduate / Job</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Employer email</label>
+          <input type="email" id="engEmployerEmail" placeholder="employer@company.com">
+        </div>
       </div>
+
       <div class="form-group">
-        <label for="designation">Designation</label>
-        <input type="text" id="designation" placeholder="e.g. Engineering Manager">
+        <label>Search student</label>
+        <input type="text" id="studentSearch" placeholder="Type name or enrollment number..." oninput="searchStudents(this.value)">
+        <div id="studentResults" class="student-results" style="display:none;"></div>
+        <div id="selectedStudent" style="display:none;"></div>
       </div>
+
+      <h3 style="margin-top:1.5rem;">Organization proforma (optional — student can fill later)</h3>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Organization name</label>
+          <input type="text" id="engOrg" placeholder="e.g. TechVentures Pvt Ltd">
+        </div>
+        <div class="form-group">
+          <label>Role / Designation</label>
+          <input type="text" id="engRole" placeholder="e.g. Software Engineer Intern">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Department</label>
+          <input type="text" id="engDept" placeholder="e.g. Software Development">
+        </div>
+        <div class="form-group">
+          <label>Supervisor name</label>
+          <input type="text" id="engSupervisor" placeholder="e.g. Ali Hassan">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Supervisor designation</label>
+          <input type="text" id="engSupervisorDesig" placeholder="e.g. Engineering Manager">
+        </div>
+        <div class="form-group">
+          <label>Contact email</label>
+          <input type="email" id="engContactEmail" placeholder="supervisor@company.com">
+        </div>
+      </div>
+      <div class="form-row-3">
+        <div class="form-group">
+          <label>Contact phone</label>
+          <input type="text" id="engPhone" placeholder="+92-xxx-xxxxxxx">
+        </div>
+        <div class="form-group">
+          <label>Start date</label>
+          <input type="date" id="engStart">
+        </div>
+        <div class="form-group">
+          <label>End date</label>
+          <input type="date" id="engEnd">
+        </div>
+      </div>
+
+      <div class="checkbox-group">
+        <input type="checkbox" id="sendInvite" checked>
+        <label for="sendInvite">Send invitation email to employer after creating</label>
+      </div>
+
+      <div style="margin-top:1.25rem;">
+        <button class="btn btn-primary" id="createEngBtn" onclick="createEngagement()">Create engagement</button>
+      </div>
+      <div id="createManualLink" class="manual-link" style="display:none;"></div>
     </div>
-    <button class="btn btn-primary" id="sendBtn" onclick="sendInvite()">Send invitation</button>
   </div>
 
-  <div class="page-heading" style="margin-top:2rem">
-    <h2>Employers</h2>
-    <p>All registered employers and their feedback status.</p>
+  <!-- TAB: Invite Employer -->
+  <div class="tab-content" id="tab-invite">
+    <div class="card">
+      <h3>Send invitation to an existing employer</h3>
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:1.25rem;">
+        Re-send a magic link to an employer who already has engagements.
+      </p>
+      <div id="inviteAlert" class="alert"></div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Employer email</label>
+          <input type="email" id="inviteEmail" placeholder="employer@company.com">
+        </div>
+        <div class="form-group">
+          <label>Name</label>
+          <input type="text" id="inviteName" placeholder="Full name">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Designation</label>
+          <input type="text" id="inviteDesig" placeholder="e.g. Engineering Manager">
+        </div>
+        <div class="form-group">
+          <label>Email context</label>
+          <select id="inviteType">
+            <option value="">Generic (no specific type)</option>
+            <option value="internship">Internship evaluation</option>
+            <option value="job">Graduate feedback</option>
+          </select>
+        </div>
+      </div>
+
+      <button class="btn btn-primary" id="inviteBtn" onclick="sendInvite()">Send invitation</button>
+      <div id="inviteManualLink" class="manual-link" style="display:none;"></div>
+    </div>
   </div>
 
-  <div class="table-card">
-    <table>
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Email</th>
-          <th>Designation</th>
-          <th>Engagements</th>
-          <th>Surveys done</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody id="employerTable">
-        <tr><td colspan="6" class="empty">Loading...</td></tr>
-      </tbody>
-    </table>
+  <!-- TAB: All Engagements -->
+  <div class="tab-content" id="tab-engagements">
+    <div class="card">
+      <h3>All engagements</h3>
+      <div id="engagementsLoading" style="font-size:13px;color:var(--text-muted);padding:1rem 0;">Loading...</div>
+      <div style="overflow-x:auto;">
+        <table id="engagementsTable" style="display:none;">
+          <thead>
+            <tr>
+              <th>Student</th>
+              <th>Enrollment</th>
+              <th>Program / Batch</th>
+              <th>Employer</th>
+              <th>Type</th>
+              <th>Proforma</th>
+              <th>Feedback</th>
+              <th>Created</th>
+            </tr>
+          </thead>
+          <tbody id="engagementsBody"></tbody>
+        </table>
+      </div>
+      <p id="engagementsEmpty" style="display:none;font-size:13px;color:var(--text-muted);padding:1rem 0;">No engagements yet.</p>
+    </div>
+  </div>
+
+  <!-- TAB: Employers -->
+  <div class="tab-content" id="tab-employers">
+    <div class="card">
+      <h3>Registered employers</h3>
+      <div id="employersLoading" style="font-size:13px;color:var(--text-muted);padding:1rem 0;">Loading...</div>
+      <div style="overflow-x:auto;">
+        <table id="employersTable" style="display:none;">
+          <thead>
+            <tr>
+              <th>Email</th>
+              <th>Name</th>
+              <th>Designation</th>
+              <th>Engagements</th>
+              <th>Feedback</th>
+              <th>Joined</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="employersBody"></tbody>
+        </table>
+      </div>
+      <p id="employersEmpty" style="display:none;font-size:13px;color:var(--text-muted);padding:1rem 0;">No employers yet.</p>
+    </div>
   </div>
 </div>
 
 <script>
 const API = window.location.origin + '/api';
+let selectedStudentId = null;
 
-document.addEventListener('DOMContentLoaded', loadEmployers);
+// --- Tabs ---
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelector(`.tab-content#tab-${tab}`).classList.add('active');
+  event.target.classList.add('active');
 
-async function sendInvite() {
-  const btn = document.getElementById('sendBtn');
-  const email = document.getElementById('email').value.trim();
-  const name = document.getElementById('name').value.trim();
-  const designation = document.getElementById('designation').value.trim();
+  if (tab === 'engagements') loadEngagements();
+  if (tab === 'employers') loadEmployers();
+}
 
-  if (!email) {
-    showAlert('Please enter an email address.', 'error');
+function showAlert(id, msg, type) {
+  const el = document.getElementById(id);
+  el.className = `alert alert-${type} visible`;
+  el.textContent = msg;
+}
+
+// --- Student Search ---
+let searchTimeout;
+function searchStudents(q) {
+  clearTimeout(searchTimeout);
+  if (q.length < 2) {
+    document.getElementById('studentResults').style.display = 'none';
     return;
   }
+  searchTimeout = setTimeout(async () => {
+    try {
+      const res = await fetch(API + '/admin/students?q=' + encodeURIComponent(q));
+      const students = await res.json();
+      const container = document.getElementById('studentResults');
+      if (!students.length) {
+        container.innerHTML = '<div class="student-item" style="color:var(--text-muted);">No students found</div>';
+      } else {
+        container.innerHTML = students.map(s => `
+          <div class="student-item" onclick="selectStudent('${s.id}', '${s.full_name}', '${s.enrollment_number}', '${s.degree_program}', '${s.batch}')">
+            <strong>${s.full_name}</strong><br>
+            <span class="sub">${s.enrollment_number} &middot; ${s.degree_program} &middot; Batch ${s.batch}</span>
+          </div>
+        `).join('');
+      }
+      container.style.display = 'block';
+    } catch (err) {
+      console.error(err);
+    }
+  }, 300);
+}
 
+function selectStudent(id, name, enrollment, program, batch) {
+  selectedStudentId = id;
+  document.getElementById('studentResults').style.display = 'none';
+  document.getElementById('studentSearch').style.display = 'none';
+  document.getElementById('selectedStudent').style.display = 'flex';
+  document.getElementById('selectedStudent').innerHTML = `
+    <div class="selected-student" style="width:100%;">
+      <span><strong>${name}</strong> &middot; ${enrollment} &middot; ${program} &middot; Batch ${batch}</span>
+      <button class="btn btn-sm btn-secondary" onclick="clearStudent()">Change</button>
+    </div>
+  `;
+}
+
+function clearStudent() {
+  selectedStudentId = null;
+  document.getElementById('selectedStudent').style.display = 'none';
+  document.getElementById('studentSearch').style.display = 'block';
+  document.getElementById('studentSearch').value = '';
+}
+
+// --- Create Engagement ---
+async function createEngagement() {
+  const type = document.getElementById('engType').value;
+  const email = document.getElementById('engEmployerEmail').value.trim();
+
+  if (!type) { showAlert('createAlert', 'Select engagement type.', 'error'); return; }
+  if (!email) { showAlert('createAlert', 'Enter employer email.', 'error'); return; }
+  if (!selectedStudentId) { showAlert('createAlert', 'Search and select a student.', 'error'); return; }
+
+  const btn = document.getElementById('createEngBtn');
+  btn.disabled = true;
+  btn.textContent = 'Creating...';
+
+  const payload = {
+    student_id: selectedStudentId,
+    employer_email: email,
+    engagement_type: type,
+    organization_name: document.getElementById('engOrg').value,
+    role_designation: document.getElementById('engRole').value,
+    department_served: document.getElementById('engDept').value,
+    supervisor_name: document.getElementById('engSupervisor').value,
+    supervisor_designation: document.getElementById('engSupervisorDesig').value,
+    contact_email: document.getElementById('engContactEmail').value,
+    contact_phone: document.getElementById('engPhone').value,
+    start_date: document.getElementById('engStart').value,
+    end_date: document.getElementById('engEnd').value,
+    send_invite: document.getElementById('sendInvite').checked,
+  };
+
+  try {
+    const res = await fetch(API + '/admin/engagements', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Creation failed');
+
+    showAlert('createAlert', data.message, data.sent ? 'success' : 'warning');
+    if (data.manual_url) {
+      const linkEl = document.getElementById('createManualLink');
+      linkEl.style.display = 'block';
+      linkEl.innerHTML = `<strong>Manual link (email failed):</strong><br>${data.manual_url}`;
+    }
+
+    // Reset form
+    clearStudent();
+    ['engType', 'engEmployerEmail', 'engOrg', 'engRole', 'engDept', 'engSupervisor',
+     'engSupervisorDesig', 'engContactEmail', 'engPhone', 'engStart', 'engEnd'].forEach(id => {
+      document.getElementById(id).value = '';
+    });
+  } catch (err) {
+    showAlert('createAlert', err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Create engagement';
+  }
+}
+
+// --- Invite Employer ---
+async function sendInvite() {
+  const email = document.getElementById('inviteEmail').value.trim();
+  if (!email) { showAlert('inviteAlert', 'Enter employer email.', 'error'); return; }
+
+  const btn = document.getElementById('inviteBtn');
   btn.disabled = true;
   btn.textContent = 'Sending...';
-  hideAlert();
 
   try {
     const res = await fetch(API + '/admin/invite', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, name, designation })
+      body: JSON.stringify({
+        email,
+        name: document.getElementById('inviteName').value,
+        designation: document.getElementById('inviteDesig').value,
+        engagement_type: document.getElementById('inviteType').value,
+      })
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || 'Failed to send invite');
+    if (!res.ok) throw new Error(data.detail || 'Invite failed');
 
-    if (data.sent) {
-      showAlert(`Invitation sent to ${email}`, 'success');
-      document.getElementById('email').value = '';
-      document.getElementById('name').value = '';
-      document.getElementById('designation').value = '';
-      loadEmployers();
-    } else {
-      showAlert(`Employer created but email failed. Manual URL: ${data.manual_url}`, 'error');
-      loadEmployers();
+    showAlert('inviteAlert', data.message, data.sent ? 'success' : 'warning');
+    if (data.manual_url) {
+      const linkEl = document.getElementById('inviteManualLink');
+      linkEl.style.display = 'block';
+      linkEl.innerHTML = `<strong>Manual link:</strong><br>${data.manual_url}`;
     }
   } catch (err) {
-    showAlert(err.message, 'error');
+    showAlert('inviteAlert', err.message, 'error');
   } finally {
     btn.disabled = false;
     btn.textContent = 'Send invitation';
   }
 }
 
-async function loadEmployers() {
-  const tbody = document.getElementById('employerTable');
+// --- Load Engagements ---
+async function loadEngagements() {
   try {
-    const res = await fetch(API + '/admin/employers');
-    if (!res.ok) throw new Error('Failed to load employers');
+    const res = await fetch(API + '/admin/engagements');
     const data = await res.json();
+    const tbody = document.getElementById('engagementsBody');
+    const table = document.getElementById('engagementsTable');
+    const empty = document.getElementById('engagementsEmpty');
+    document.getElementById('engagementsLoading').style.display = 'none';
 
-    if (data.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="6" class="empty">No employers yet.</td></tr>';
-      return;
-    }
+    if (!data.length) { empty.style.display = 'block'; return; }
 
-    tbody.innerHTML = data.map(emp => `
+    tbody.innerHTML = data.map(e => `
       <tr>
-        <td style="font-weight:500">${emp.name || '—'}</td>
-        <td style="color:var(--text-secondary)">${emp.work_email}</td>
-        <td style="color:var(--text-secondary)">${emp.designation || '—'}</td>
-        <td><span class="badge badge-count">${emp.total_engagements}</span></td>
-        <td><span class="badge badge-count">${emp.surveys_submitted}</span></td>
-        <td>
-          <button class="btn btn-secondary btn-sm" onclick="resendLink('${emp.work_email}')">Resend link</button>
-        </td>
+        <td>${e.student_name}</td>
+        <td>${e.enrollment_number}</td>
+        <td>${e.degree_program} / ${e.batch}</td>
+        <td>${e.employer_name || e.employer_email}</td>
+        <td><span class="badge ${e.type === 'internship' ? 'badge-intern' : 'badge-graduate'}">${e.type === 'internship' ? 'Intern' : 'Graduate'}</span></td>
+        <td><span class="badge ${e.validation_status === 'validated' || e.validation_status === 'edited' ? 'badge-submitted' : 'badge-pending'}">${e.validation_status || 'pending'}</span></td>
+        <td><span class="badge ${e.feedback_status === 'submitted' ? 'badge-submitted' : 'badge-pending'}">${e.feedback_status}</span></td>
+        <td>${new Date(e.created_at).toLocaleDateString()}</td>
       </tr>
     `).join('');
+    table.style.display = 'table';
   } catch (err) {
-    tbody.innerHTML = '<tr><td colspan="6" class="empty">Failed to load.</td></tr>';
+    console.error(err);
   }
 }
 
-async function resendLink(email) {
+// --- Load Employers ---
+async function loadEmployers() {
   try {
-    const res = await fetch(API + '/admin/invite', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email })
-    });
+    const res = await fetch(API + '/admin/employers');
     const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || 'Failed');
-    showAlert(data.sent ? `Link resent to ${email}` : `Email failed. URL: ${data.manual_url}`, data.sent ? 'success' : 'error');
+    const tbody = document.getElementById('employersBody');
+    const table = document.getElementById('employersTable');
+    const empty = document.getElementById('employersEmpty');
+    document.getElementById('employersLoading').style.display = 'none';
+
+    if (!data.length) { empty.style.display = 'block'; return; }
+
+    tbody.innerHTML = data.map(e => `
+      <tr>
+        <td>${e.work_email}</td>
+        <td>${e.name || '---'}</td>
+        <td>${e.designation || '---'}</td>
+        <td>${e.total_engagements}</td>
+        <td>${(e.surveys_submitted || 0) + (e.evals_submitted || 0)} submitted</td>
+        <td>${new Date(e.created_at).toLocaleDateString()}</td>
+        <td><button class="btn btn-sm btn-secondary" onclick="prefillInvite('${e.work_email}', '${e.name || ''}')">Re-invite</button></td>
+      </tr>
+    `).join('');
+    table.style.display = 'table';
   } catch (err) {
-    showAlert(err.message, 'error');
+    console.error(err);
   }
 }
 
-function showAlert(msg, type) {
-  const el = document.getElementById('alert');
-  el.textContent = msg;
-  el.className = `alert alert-${type} visible`;
-  if (type === 'success') setTimeout(() => el.className = 'alert', 5000);
+function prefillInvite(email, name) {
+  switchTabDirect('invite');
+  document.getElementById('inviteEmail').value = email;
+  document.getElementById('inviteName').value = name;
 }
-function hideAlert() { document.getElementById('alert').className = 'alert'; }
+
+function switchTabDirect(tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelector(`.tab-content#tab-${tab}`).classList.add('active');
+  document.querySelectorAll('.tab').forEach(t => {
+    if (t.textContent.toLowerCase().includes(tab === 'invite' ? 'invite' : tab)) t.classList.add('active');
+  });
+}
 </script>
 </body>
 </html>
