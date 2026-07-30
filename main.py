@@ -10,6 +10,8 @@ from typing import Optional
 import uuid
 import os
 import secrets
+import string
+import hashlib
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -21,6 +23,50 @@ engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(bind=engine)
 
 app = FastAPI(title="Employer Feedback Panel")
+
+# --- Password helpers ---
+
+def generate_password(length=10):
+    """Generate a readable random password."""
+    chars = string.ascii_letters + string.digits
+    return ''.join(secrets.choice(chars) for _ in range(length))
+
+def hash_password(password: str) -> str:
+    """Hash password using SHA-256 with salt."""
+    salt = secrets.token_hex(16)
+    hashed = hashlib.sha256((salt + password).encode()).hexdigest()
+    return f"{salt}${hashed}"
+
+def verify_password(password: str, stored_hash: str) -> bool:
+    """Verify password against stored hash."""
+    if not stored_hash or '$' not in stored_hash:
+        return False
+    salt, hashed = stored_hash.split('$', 1)
+    return hashlib.sha256((salt + password).encode()).hexdigest() == hashed
+
+# --- Ensure password_hash column exists ---
+
+@app.on_event("startup")
+def ensure_password_column():
+    """Add password_hash column if it doesn't exist yet."""
+    db = SessionLocal()
+    try:
+        db.execute(text("""
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'employers' AND column_name = 'password_hash'
+                ) THEN
+                    ALTER TABLE employers ADD COLUMN password_hash VARCHAR;
+                END IF;
+            END $$;
+        """))
+        db.commit()
+    except Exception as e:
+        print(f"[STARTUP] Column migration note: {e}")
+    finally:
+        db.close()
 
 app.add_middleware(
     CORSMiddleware,
@@ -59,6 +105,13 @@ def get_current_employer(token: str = Depends(get_session_token), db: DBSession 
 class LoginRequest(BaseModel):
     token: str
 
+class RequestLinkRequest(BaseModel):
+    email: str
+
+class PasswordLoginRequest(BaseModel):
+    email: str
+    password: str
+
 class SurveySubmission(BaseModel):
     engagement_id: str
     current_job_role: Optional[str] = ""
@@ -92,6 +145,82 @@ class ProformaEdit(BaseModel):
     linkedin_url: Optional[str] = None
 
 # --- Auth ---
+
+@app.post("/api/auth/request-link")
+def request_magic_link(data: RequestLinkRequest, db: DBSession = Depends(get_db)):
+    """Employer requests a sign-in link by email. Always returns success
+    to avoid leaking whether the email exists in the system."""
+    email = data.email.strip().lower()
+
+    emp = db.execute(
+        text("SELECT id, name, work_email FROM employers WHERE work_email = :email"),
+        {"email": email}
+    ).mappings().first()
+
+    if emp:
+        # Generate magic link
+        token = secrets.token_urlsafe(32)
+        db.execute(
+            text("INSERT INTO magic_links (id, employer_id, token, expires_at) VALUES (:id, :employer_id, :token, :expires_at)"),
+            {
+                "id": str(uuid.uuid4()),
+                "employer_id": emp["id"],
+                "token": token,
+                "expires_at": datetime.now(timezone.utc) + timedelta(hours=48),
+            }
+        )
+        db.commit()
+
+        # Send email (fail silently — don't reveal email status to caller)
+        try:
+            send_magic_link_email(emp["work_email"], emp["name"], token)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+
+    # Always return success
+    return {"message": "If this email is registered, a sign-in link has been sent."}
+
+
+@app.post("/api/auth/login-password")
+def login_with_password(data: PasswordLoginRequest, db: DBSession = Depends(get_db)):
+    """Authenticate employer with email + password."""
+    email = data.email.strip().lower()
+
+    emp = db.execute(
+        text("SELECT id, name, work_email, designation, password_hash FROM employers WHERE work_email = :email"),
+        {"email": email}
+    ).mappings().first()
+
+    if not emp or not emp["password_hash"]:
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    if not verify_password(data.password, emp["password_hash"]):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    # Create session
+    session_token = secrets.token_urlsafe(32)
+    session_id = str(uuid.uuid4())
+    db.execute(
+        text("INSERT INTO sessions (id, employer_id, token, expires_at) VALUES (:id, :employer_id, :token, :expires_at)"),
+        {
+            "id": session_id,
+            "employer_id": emp["id"],
+            "token": session_token,
+            "expires_at": datetime.now(timezone.utc) + timedelta(days=7)
+        }
+    )
+    db.commit()
+
+    return {
+        "session_token": session_token,
+        "employer": {
+            "name": emp["name"],
+            "email": emp["work_email"],
+            "designation": emp["designation"],
+        }
+    }
+
 
 @app.post("/api/auth/login")
 def login(request: LoginRequest, db: DBSession = Depends(get_db)):
@@ -404,8 +533,23 @@ SMTP_USER = os.getenv("SMTP_USER")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
 APP_URL = os.getenv("APP_URL", "http://127.0.0.1:8000")
 
-def send_magic_link_email(employer_email: str, employer_name: str, token: str):
+def send_magic_link_email(employer_email: str, employer_name: str, token: str, password: str = None):
     access_url = f"{APP_URL}/?token={token}"
+    login_url = APP_URL
+
+    credentials_block = ""
+    if password:
+        credentials_block = f"""
+            <div style="background: #f8f9fb; border: 1px solid #e2e6ed; border-radius: 6px; padding: 1.25rem; margin: 1.25rem 0;">
+                <p style="font-size: 13px; font-weight: 600; color: #1a1f2e; margin: 0 0 0.75rem;">Your login credentials</p>
+                <table style="font-size: 14px; color: #1a1f2e;">
+                    <tr><td style="padding: 2px 0; color: #5a6274; width: 80px;">Portal:</td><td style="padding: 2px 0;"><a href="{login_url}" style="color: #2563eb;">{login_url}</a></td></tr>
+                    <tr><td style="padding: 2px 0; color: #5a6274;">Email:</td><td style="padding: 2px 0; font-family: monospace;">{employer_email}</td></tr>
+                    <tr><td style="padding: 2px 0; color: #5a6274;">Password:</td><td style="padding: 2px 0; font-family: monospace; font-weight: 600;">{password}</td></tr>
+                </table>
+                <p style="font-size: 12px; color: #8a91a0; margin: 0.75rem 0 0;">You can use these credentials to log in anytime, even after the magic link expires.</p>
+            </div>
+        """
 
     html = f"""
     <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 560px; margin: 0 auto; padding: 2rem;">
@@ -416,17 +560,22 @@ def send_magic_link_email(employer_email: str, employer_name: str, token: str):
             <p style="font-size: 15px; color: #1a1f2e; margin: 0 0 1rem;">Dear {employer_name or 'Employer'},</p>
             <p style="font-size: 14px; color: #5a6274; line-height: 1.6; margin: 0 0 1.5rem;">
                 You are invited to provide feedback on the students who have completed their internship or employment under your supervision.
-                Please use the secure link below to access the portal.
             </p>
-            <div style="text-align: center; margin: 1.5rem 0;">
+
+            <p style="font-size: 13px; font-weight: 600; color: #1a1f2e; margin: 0 0 0.5rem;">Quick access (one-click sign in):</p>
+            <div style="text-align: center; margin: 1rem 0 1.5rem;">
                 <a href="{access_url}"
                    style="display: inline-block; background: #2563eb; color: #ffffff; text-decoration: none;
                           padding: 12px 28px; border-radius: 6px; font-size: 14px; font-weight: 600;">
                     Access feedback portal
                 </a>
             </div>
+            <p style="font-size: 12px; color: #8a91a0; margin: 0 0 1.5rem;">This link expires in 48 hours and can only be used once.</p>
+
+            {credentials_block}
+
             <p style="font-size: 13px; color: #8a91a0; margin: 1.5rem 0 0; line-height: 1.5;">
-                This link expires in 48 hours. If you have any questions, please contact the Internship Coordinator
+                If you have any questions, please contact the Internship Coordinator
                 at the Department of Computer Science and Software Engineering, Jinnah University for Women.
             </p>
         </div>
@@ -464,12 +613,14 @@ class InviteRequest(BaseModel):
 
 @app.post("/api/admin/invite")
 def invite_employer(data: InviteRequest, db: DBSession = Depends(get_db)):
-    """Create employer (if not exists) and send magic link email."""
+    """Create employer (if not exists) and send magic link email with login credentials."""
     # Find or create employer
     emp = db.execute(
-        text("SELECT id, name, work_email FROM employers WHERE work_email = :email"),
+        text("SELECT id, name, work_email, password_hash FROM employers WHERE work_email = :email"),
         {"email": data.email}
     ).mappings().first()
+
+    plain_password = None  # Only set for new employers or those without a password
 
     if emp:
         employer_id = emp["id"]
@@ -481,12 +632,20 @@ def invite_employer(data: InviteRequest, db: DBSession = Depends(get_db)):
                 {"name": data.name, "designation": data.designation, "id": employer_id}
             )
             employer_name = data.name
+        # Generate password if they don't have one yet
+        if not emp["password_hash"]:
+            plain_password = generate_password()
+            db.execute(
+                text("UPDATE employers SET password_hash = :pw WHERE id = :id"),
+                {"pw": hash_password(plain_password), "id": employer_id}
+            )
     else:
         employer_id = str(uuid.uuid4())
         employer_name = data.name
+        plain_password = generate_password()
         db.execute(
-            text("INSERT INTO employers (id, work_email, name, designation, created_via) VALUES (:id, :email, :name, :designation, 'admin_invite')"),
-            {"id": employer_id, "email": data.email, "name": data.name, "designation": data.designation}
+            text("INSERT INTO employers (id, work_email, name, designation, created_via, password_hash) VALUES (:id, :email, :name, :designation, 'admin_invite', :pw)"),
+            {"id": employer_id, "email": data.email, "name": data.name, "designation": data.designation, "pw": hash_password(plain_password)}
         )
 
     # Create magic link
@@ -505,7 +664,7 @@ def invite_employer(data: InviteRequest, db: DBSession = Depends(get_db)):
     # Send email
     access_url = f"{APP_URL}/?token={token}"
     try:
-        send_magic_link_email(data.email, employer_name, token)
+        send_magic_link_email(data.email, employer_name, token, plain_password)
         return {"message": f"Invitation sent to {data.email}", "sent": True}
     except Exception as e:
         import traceback

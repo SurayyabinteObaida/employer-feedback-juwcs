@@ -455,10 +455,27 @@ tbody tr:hover { background: #f8f9fb; }
 <div id="loginPage" class="login-wrapper">
   <div class="login-card">
     <h1>Employer Feedback Portal</h1>
-    <p>Access the portal using the secure link sent to your registered email address.</p>
-    <div id="loginAlert" class="alert alert-error"></div>
-    <div id="loginLoading" class="alert alert-info" style="display:none">Authenticating your access...</div>
-    <p class="help">If you have not received an email or your link has expired, please contact the Internship Coordinator.</p>
+    <p style="margin-bottom:1.25rem;">Department of Computer Science &amp; Software Engineering<br>Jinnah University for Women, Karachi</p>
+    <div id="loginAlert" class="alert"></div>
+    <div id="loginLoading" class="alert alert-info" style="display:none">Signing you in...</div>
+
+    <!-- Login form -->
+    <div id="loginForm">
+      <div class="form-group" style="margin-bottom:1rem;">
+        <label for="loginEmail" style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px;display:block;">Work email</label>
+        <input type="email" id="loginEmail" placeholder="Enter your registered work email" style="width:100%;padding:10px 12px;border:1px solid var(--border-strong);border-radius:var(--radius);font-size:14px;font-family:inherit;">
+      </div>
+      <div class="form-group" style="margin-bottom:1.25rem;">
+        <label for="loginPassword" style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px;display:block;">Password</label>
+        <input type="password" id="loginPassword" placeholder="Enter your password" style="width:100%;padding:10px 12px;border:1px solid var(--border-strong);border-radius:var(--radius);font-size:14px;font-family:inherit;">
+      </div>
+      <button class="btn btn-primary" id="loginBtn" onclick="loginWithPassword()" style="width:100%;padding:10px;font-size:14px;">
+        Sign in
+      </button>
+      <p style="font-size:13px;color:var(--text-muted);text-align:center;margin-top:1rem;">
+        Your login credentials were shared via email when you were invited to the portal.
+      </p>
+    </div>
   </div>
 </div>
 
@@ -613,9 +630,59 @@ document.addEventListener('DOMContentLoaded', () => {
     authenticate(token);
   }
   buildRatingRows();
+
+  // Enter key on login fields
+  const emailInput = document.getElementById('loginEmail');
+  const passInput = document.getElementById('loginPassword');
+  if (emailInput) {
+    emailInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') passInput.focus();
+    });
+  }
+  if (passInput) {
+    passInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') loginWithPassword();
+    });
+  }
 });
 
 // --- Auth ---
+async function loginWithPassword() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+
+  if (!email || !password) {
+    showAlert('loginAlert', 'Please enter both email and password.', 'error');
+    return;
+  }
+
+  const btn = document.getElementById('loginBtn');
+  btn.disabled = true;
+  btn.textContent = 'Signing in...';
+  document.getElementById('loginAlert').style.display = 'none';
+
+  try {
+    const res = await fetch(API + '/auth/login-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Login failed');
+
+    sessionToken = data.session_token;
+    document.getElementById('employerName').textContent = data.employer?.name || data.employer?.email || '';
+    document.getElementById('loginPage').style.display = 'none';
+    document.getElementById('appShell').style.display = 'block';
+    loadDashboard();
+  } catch (err) {
+    showAlert('loginAlert', err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Sign in';
+  }
+}
+
 async function authenticate(token) {
   const loginAlert = document.getElementById('loginAlert');
   const loginLoading = document.getElementById('loginLoading');
