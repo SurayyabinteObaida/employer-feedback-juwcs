@@ -5,7 +5,7 @@ from fastapi.responses import HTMLResponse, FileResponse
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session as DBSession
 from pydantic import BaseModel
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 import uuid
 import os
@@ -80,6 +80,17 @@ class ValidationUpdate(BaseModel):
     engagement_id: str
     status: str  # "confirmed" or "rejected"
 
+class ProformaEdit(BaseModel):
+    engagement_id: str
+    organization_name: Optional[str] = None
+    role_designation: Optional[str] = None
+    department_served: Optional[str] = None
+    supervisor_name: Optional[str] = None
+    supervisor_designation: Optional[str] = None
+    contact_email: Optional[str] = None
+    contact_phone: Optional[str] = None
+    linkedin_url: Optional[str] = None
+
 # --- Auth ---
 
 @app.post("/api/auth/login")
@@ -107,7 +118,7 @@ def login(request: LoginRequest, db: DBSession = Depends(get_db)):
             "id": session_id,
             "employer_id": row["employer_id"],
             "token": session_token,
-            "expires_at": datetime.utcnow() + timedelta(days=7)
+            "expires_at": datetime.now(timezone.utc) + timedelta(days=7)
         }
     )
     db.commit()
@@ -204,6 +215,31 @@ def validate_proforma(data: ValidationUpdate, employer: dict = Depends(get_curre
 
     return {"message": f"Details {data.status} successfully"}
 
+
+@app.post("/api/proforma/edit")
+def edit_proforma(data: ProformaEdit, employer: dict = Depends(get_current_employer), db: DBSession = Depends(get_db)):
+    """Employer edits student-submitted proforma fields, then auto-validates as 'edited'."""
+    eng = db.execute(
+        text("SELECT id FROM engagements WHERE id = :id AND employer_id = :employer_id"),
+        {"id": data.engagement_id, "employer_id": employer["employer_id"]}
+    ).mappings().first()
+    if not eng:
+        raise HTTPException(status_code=404, detail="Engagement not found")
+
+    updates = data.model_dump(exclude={"engagement_id"}, exclude_none=True)
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+
+    set_clauses = ", ".join(f"{k} = :{k}" for k in updates)
+    updates["engagement_id"] = data.engagement_id
+    db.execute(
+        text(f"UPDATE org_proformas SET {set_clauses}, validation_status = 'edited', validated_by_employer_at = NOW() WHERE engagement_id = :engagement_id"),
+        updates
+    )
+    db.commit()
+    return {"message": "Details updated and confirmed"}
+
+
 # --- Feedback Form ---
 
 @app.get("/api/survey/{engagement_id}")
@@ -255,11 +291,18 @@ def submit_survey(data: SurveySubmission, employer: dict = Depends(get_current_e
 
     # Check for existing survey
     existing = db.execute(
-        text("SELECT id FROM employer_surveys WHERE engagement_id = :engagement_id"),
+        text("SELECT id, submitted_at FROM employer_surveys WHERE engagement_id = :engagement_id"),
         {"engagement_id": data.engagement_id}
     ).mappings().first()
 
-    survey_year = str(datetime.utcnow().year)
+    # Block re-editing after submission
+    if existing and existing["submitted_at"] is not None:
+        raise HTTPException(
+            status_code=409,
+            detail="Feedback has already been submitted for this student and cannot be edited. Contact the institution if corrections are needed."
+        )
+
+    survey_year = str(datetime.now(timezone.utc).year)
 
     if existing:
         db.execute(
@@ -454,7 +497,7 @@ def invite_employer(data: InviteRequest, db: DBSession = Depends(get_db)):
             "id": str(uuid.uuid4()),
             "employer_id": employer_id,
             "token": token,
-            "expires_at": datetime.utcnow() + timedelta(hours=48),
+            "expires_at": datetime.now(timezone.utc) + timedelta(hours=48),
         }
     )
     db.commit()

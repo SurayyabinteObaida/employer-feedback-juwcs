@@ -718,8 +718,8 @@ function renderTable(engagements) {
       <td style="text-align:center">
         <div class="action-btns">
           <button class="btn btn-sm btn-secondary" onclick="toggleDetail('detail-${idx}')">View</button>
-          <button class="btn btn-sm btn-primary" onclick="openFeedbackForm('${eng.engagement_id}')" ${eng.feedback_status === 'submitted' ? '' : ''}>
-            ${eng.feedback_status === 'submitted' ? 'Edit' : 'Feedback'}
+          <button class="btn btn-sm btn-primary" onclick="openFeedbackForm('${eng.engagement_id}')" ${eng.feedback_status === 'submitted' ? 'disabled title="Already submitted"' : ''}>
+            ${eng.feedback_status === 'submitted' ? 'Submitted' : 'Feedback'}
           </button>
         </div>
       </td>
@@ -730,23 +730,27 @@ function renderTable(engagements) {
     const detailTr = document.createElement('tr');
     detailTr.className = 'detail-row';
     detailTr.id = 'detail-' + idx;
+    const isConfirmed = eng.validation_status === 'validated' || eng.validation_status === 'edited';
+    const editable = !isConfirmed;
+
     detailTr.innerHTML = `
       <td colspan="7">
         <div class="detail-content">
           <div class="detail-grid">
-            <div class="detail-field"><label>Organization</label><p>${eng.organization_name || '—'}</p></div>
-            <div class="detail-field"><label>Department</label><p>${eng.department_served || '—'}</p></div>
-            <div class="detail-field"><label>Role / Position</label><p>${eng.role_designation || '—'}</p></div>
-            <div class="detail-field"><label>Supervisor</label><p>${eng.supervisor_name || '—'}</p></div>
-            <div class="detail-field"><label>Supervisor designation</label><p>${eng.supervisor_designation || '—'}</p></div>
-            <div class="detail-field"><label>Contact email</label><p>${eng.contact_email || '—'}</p></div>
-            <div class="detail-field"><label>Contact phone</label><p>${eng.contact_phone || '—'}</p></div>
+            <div class="detail-field"><label>Organization</label>${editable ? `<input type="text" class="proforma-input" data-field="organization_name" data-eng="${eng.engagement_id}" value="${eng.organization_name || ''}" style="width:100%;padding:6px 8px;border:1px solid var(--border-strong);border-radius:4px;font-size:13px;">` : `<p>${eng.organization_name || '—'}</p>`}</div>
+            <div class="detail-field"><label>Department</label>${editable ? `<input type="text" class="proforma-input" data-field="department_served" data-eng="${eng.engagement_id}" value="${eng.department_served || ''}" style="width:100%;padding:6px 8px;border:1px solid var(--border-strong);border-radius:4px;font-size:13px;">` : `<p>${eng.department_served || '—'}</p>`}</div>
+            <div class="detail-field"><label>Role / Position</label>${editable ? `<input type="text" class="proforma-input" data-field="role_designation" data-eng="${eng.engagement_id}" value="${eng.role_designation || ''}" style="width:100%;padding:6px 8px;border:1px solid var(--border-strong);border-radius:4px;font-size:13px;">` : `<p>${eng.role_designation || '—'}</p>`}</div>
+            <div class="detail-field"><label>Supervisor</label>${editable ? `<input type="text" class="proforma-input" data-field="supervisor_name" data-eng="${eng.engagement_id}" value="${eng.supervisor_name || ''}" style="width:100%;padding:6px 8px;border:1px solid var(--border-strong);border-radius:4px;font-size:13px;">` : `<p>${eng.supervisor_name || '—'}</p>`}</div>
+            <div class="detail-field"><label>Supervisor designation</label>${editable ? `<input type="text" class="proforma-input" data-field="supervisor_designation" data-eng="${eng.engagement_id}" value="${eng.supervisor_designation || ''}" style="width:100%;padding:6px 8px;border:1px solid var(--border-strong);border-radius:4px;font-size:13px;">` : `<p>${eng.supervisor_designation || '—'}</p>`}</div>
+            <div class="detail-field"><label>Contact email</label>${editable ? `<input type="text" class="proforma-input" data-field="contact_email" data-eng="${eng.engagement_id}" value="${eng.contact_email || ''}" style="width:100%;padding:6px 8px;border:1px solid var(--border-strong);border-radius:4px;font-size:13px;">` : `<p>${eng.contact_email || '—'}</p>`}</div>
+            <div class="detail-field"><label>Contact phone</label>${editable ? `<input type="text" class="proforma-input" data-field="contact_phone" data-eng="${eng.engagement_id}" value="${eng.contact_phone || ''}" style="width:100%;padding:6px 8px;border:1px solid var(--border-strong);border-radius:4px;font-size:13px;">` : `<p>${eng.contact_phone || '—'}</p>`}</div>
             <div class="detail-field"><label>Start date</label><p>${formatDate(eng.start_date)}</p></div>
             <div class="detail-field"><label>End date</label><p>${formatDate(eng.end_date)}</p></div>
           </div>
-          ${eng.validation_status !== 'validated' ? `
+          ${editable ? `
           <div class="detail-actions">
-            <button class="btn btn-sm btn-success" onclick="validateProforma('${eng.engagement_id}', 'validated')">Confirm details</button>
+            <button class="btn btn-sm btn-success" onclick="saveAndConfirmProforma('${eng.engagement_id}')">Save and confirm details</button>
+            <button class="btn btn-sm btn-secondary" onclick="validateProforma('${eng.engagement_id}', 'validated')">Confirm without changes</button>
             <button class="btn btn-sm btn-danger-outline" onclick="validateProforma('${eng.engagement_id}', 'rejected')">Report incorrect</button>
           </div>
           ` : '<p style="font-size:13px;color:var(--success);">Details confirmed.</p>'}
@@ -774,6 +778,28 @@ async function validateProforma(engagementId, status) {
       throw new Error(data.detail || 'Validation failed');
     }
     showAlert('dashboardAlert', status === 'validated' ? 'Details confirmed successfully.' : 'Details reported as incorrect.', 'success');
+    loadDashboard();
+  } catch (err) {
+    showAlert('dashboardAlert', err.message, 'error');
+  }
+}
+
+async function saveAndConfirmProforma(engagementId) {
+  const inputs = document.querySelectorAll(`.proforma-input[data-eng="${engagementId}"]`);
+  const payload = { engagement_id: engagementId };
+  inputs.forEach(inp => { payload[inp.dataset.field] = inp.value; });
+
+  try {
+    const res = await fetch(API + '/proforma/edit', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.detail || 'Update failed');
+    }
+    showAlert('dashboardAlert', 'Details updated and confirmed.', 'success');
     loadDashboard();
   } catch (err) {
     showAlert('dashboardAlert', err.message, 'error');
