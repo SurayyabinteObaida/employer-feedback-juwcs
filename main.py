@@ -48,7 +48,7 @@ def verify_password(password: str, stored_hash: str) -> bool:
 
 @app.on_event("startup")
 def ensure_columns():
-    """Add any missing columns on startup — no manual migration needed."""
+    """Add any missing columns/tables on startup — no manual migration needed."""
     db = SessionLocal()
     try:
         migrations = [
@@ -69,9 +69,32 @@ def ensure_columns():
                     END IF;
                 END $$;
             """))
+
+        # Create admins table if not exists
+        db.execute(text("""
+            CREATE TABLE IF NOT EXISTS admins (
+                id VARCHAR PRIMARY KEY,
+                email VARCHAR UNIQUE NOT NULL,
+                name VARCHAR,
+                password_hash VARCHAR NOT NULL,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """))
+
+        # Create admin_sessions table if not exists
+        db.execute(text("""
+            CREATE TABLE IF NOT EXISTS admin_sessions (
+                id VARCHAR PRIMARY KEY,
+                admin_id VARCHAR NOT NULL REFERENCES admins(id),
+                token VARCHAR UNIQUE NOT NULL,
+                expires_at TIMESTAMP NOT NULL,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """))
+
         db.commit()
     except Exception as e:
-        print(f"[STARTUP] Column migration note: {e}")
+        print(f"[STARTUP] Migration note: {e}")
     finally:
         db.close()
 
@@ -117,6 +140,15 @@ class RequestLinkRequest(BaseModel):
 
 class PasswordLoginRequest(BaseModel):
     email: str
+    password: str
+
+class AdminLoginRequest(BaseModel):
+    email: str
+    password: str
+
+class CreateAdminRequest(BaseModel):
+    email: str
+    name: str
     password: str
 
 class SurveySubmission(BaseModel):
@@ -774,8 +806,201 @@ class InviteRequest(BaseModel):
     designation: Optional[str] = ""
     engagement_type: Optional[str] = ""  # "internship" or "job"
 
+
+class BulkEmailRequest(BaseModel):
+    audience: str  # "all_employers", "intern_employers", "graduate_employers", "specific"
+    emails: Optional[list] = []
+    subject: str
+    body: str
+
+
+# --- Admin Auth ---
+
+def get_current_admin(request: Request, db: DBSession = Depends(get_db)):
+    token = request.headers.get("Authorization", "").replace("Bearer ", "")
+    if not token:
+        raise HTTPException(status_code=401, detail="Admin authentication required")
+    session = db.execute(
+        text("SELECT admin_id FROM admin_sessions WHERE token = :token AND expires_at > NOW()"),
+        {"token": token}
+    ).mappings().first()
+    if not session:
+        raise HTTPException(status_code=401, detail="Admin session expired or invalid")
+    admin = db.execute(
+        text("SELECT id, email, name FROM admins WHERE id = :id"),
+        {"id": session["admin_id"]}
+    ).mappings().first()
+    if not admin:
+        raise HTTPException(status_code=401, detail="Admin not found")
+    return dict(admin)
+
+
+@app.post("/api/admin/login")
+def admin_login(data: AdminLoginRequest, db: DBSession = Depends(get_db)):
+    admin = db.execute(
+        text("SELECT id, email, name, password_hash FROM admins WHERE email = :email"),
+        {"email": data.email.strip().lower()}
+    ).mappings().first()
+    if not admin or not verify_password(data.password, admin["password_hash"]):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    token = secrets.token_urlsafe(32)
+    db.execute(
+        text("INSERT INTO admin_sessions (id, admin_id, token, expires_at) VALUES (:id, :aid, :token, :exp)"),
+        {"id": str(uuid.uuid4()), "aid": admin["id"], "token": token, "exp": datetime.now(timezone.utc) + timedelta(days=7)}
+    )
+    db.commit()
+    return {"token": token, "admin": {"name": admin["name"], "email": admin["email"]}}
+
+
+@app.get("/api/admin/check-setup")
+def check_admin_setup(db: DBSession = Depends(get_db)):
+    """Check if any admin accounts exist."""
+    count = db.execute(text("SELECT COUNT(*) FROM admins")).scalar()
+    return {"has_admins": count > 0}
+
+
+@app.post("/api/admin/setup")
+def create_first_admin(data: CreateAdminRequest, db: DBSession = Depends(get_db)):
+    """Create the first admin account. Blocked after first admin exists."""
+    count = db.execute(text("SELECT COUNT(*) FROM admins")).scalar()
+    if count > 0:
+        raise HTTPException(status_code=403, detail="Admin already exists. Log in and use Settings to add more.")
+    admin_id = str(uuid.uuid4())
+    db.execute(
+        text("INSERT INTO admins (id, email, name, password_hash) VALUES (:id, :email, :name, :pw)"),
+        {"id": admin_id, "email": data.email.strip().lower(), "name": data.name, "pw": hash_password(data.password)}
+    )
+    db.commit()
+    return {"message": f"Admin account created for {data.email}"}
+
+
+@app.post("/api/admin/create-admin")
+def create_additional_admin(data: CreateAdminRequest, admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
+    admin_id = str(uuid.uuid4())
+    db.execute(
+        text("INSERT INTO admins (id, email, name, password_hash) VALUES (:id, :email, :name, :pw)"),
+        {"id": admin_id, "email": data.email.strip().lower(), "name": data.name, "pw": hash_password(data.password)}
+    )
+    db.commit()
+    return {"message": f"Admin account created for {data.email}"}
+
+
+@app.get("/api/admin/me")
+def admin_me(admin: dict = Depends(get_current_admin)):
+    return admin
+
+
+@app.get("/api/admin/dashboard-stats")
+def admin_dashboard_stats(admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
+    stats = {}
+    stats["total_students"] = db.execute(text("SELECT COUNT(*) FROM students")).scalar()
+    stats["total_employers"] = db.execute(text("SELECT COUNT(*) FROM employers")).scalar()
+    stats["total_engagements"] = db.execute(text("SELECT COUNT(*) FROM engagements")).scalar()
+    stats["internship_engagements"] = db.execute(text("SELECT COUNT(*) FROM engagements WHERE type = 'internship'")).scalar()
+    stats["job_engagements"] = db.execute(text("SELECT COUNT(*) FROM engagements WHERE type = 'job'")).scalar()
+    stats["proformas_validated"] = db.execute(text("SELECT COUNT(*) FROM org_proformas WHERE validation_status IN ('validated', 'edited')")).scalar()
+    stats["proformas_pending"] = db.execute(text("SELECT COUNT(*) FROM org_proformas WHERE validation_status = 'pending'")).scalar()
+    stats["surveys_submitted"] = db.execute(text("SELECT COUNT(*) FROM employer_surveys WHERE submitted_at IS NOT NULL")).scalar()
+    stats["evals_submitted"] = db.execute(text("SELECT COUNT(*) FROM internship_evaluations WHERE submitted_at IS NOT NULL")).scalar()
+    return stats
+
+
+@app.get("/api/admin/students")
+def list_students(q: str = "", tag: str = "", admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
+    """List students with derived tags: graduate (has job engagement), intern (has internship engagement), enrolled (no engagement)."""
+    query = """
+        SELECT s.id, s.full_name, s.enrollment_number, s.degree_program, s.batch, s.current_semester,
+               BOOL_OR(e.type = 'job') AS is_graduate,
+               BOOL_OR(e.type = 'internship') AS is_intern
+        FROM students s
+        LEFT JOIN engagements e ON s.id = e.student_id
+    """
+    params = {}
+    conditions = []
+    if q:
+        conditions.append("(LOWER(s.full_name) LIKE :q OR LOWER(s.enrollment_number) LIKE :q)")
+        params["q"] = f"%{q.lower()}%"
+    if conditions:
+        query += " WHERE " + " AND ".join(conditions)
+    query += " GROUP BY s.id ORDER BY s.full_name"
+
+    rows = db.execute(text(query), params).mappings().all()
+    result = []
+    for r in rows:
+        d = dict(r)
+        if d["is_graduate"]:
+            d["tag"] = "graduate"
+        elif d["is_intern"]:
+            d["tag"] = "intern"
+        else:
+            d["tag"] = "enrolled"
+        result.append(d)
+
+    if tag:
+        result = [r for r in result if r["tag"] == tag]
+    return result
+
+
+@app.post("/api/admin/send-email")
+def send_bulk_email(data: BulkEmailRequest, admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
+    """Send email to selected audience."""
+    if data.audience == "all_employers":
+        rows = db.execute(text("SELECT DISTINCT work_email, name FROM employers")).mappings().all()
+    elif data.audience == "intern_employers":
+        rows = db.execute(text("""
+            SELECT DISTINCT e.work_email, e.name FROM employers e
+            JOIN engagements eng ON e.id = eng.employer_id WHERE eng.type = 'internship'
+        """)).mappings().all()
+    elif data.audience == "graduate_employers":
+        rows = db.execute(text("""
+            SELECT DISTINCT e.work_email, e.name FROM employers e
+            JOIN engagements eng ON e.id = eng.employer_id WHERE eng.type = 'job'
+        """)).mappings().all()
+    elif data.audience == "specific":
+        rows = [{"work_email": e, "name": e.split("@")[0]} for e in data.emails]
+    else:
+        raise HTTPException(status_code=400, detail="Invalid audience")
+
+    sent = 0
+    failed = 0
+    for r in rows:
+        try:
+            msg = MIMEMultipart("alternative")
+            msg["Subject"] = data.subject
+            msg["From"] = SMTP_FROM
+            msg["To"] = r["work_email"]
+            html = f"""
+            <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 560px; margin: 0 auto; padding: 2rem;">
+                <div style="background: #1e3a5f; padding: 1.25rem 1.5rem; border-radius: 8px 8px 0 0;">
+                    <h1 style="color: #ffffff; font-size: 18px; margin: 0;">Employer Feedback Portal</h1>
+                </div>
+                <div style="background: #ffffff; border: 1px solid #e2e6ed; border-top: none; padding: 2rem 1.5rem; border-radius: 0 0 8px 8px;">
+                    <p style="font-size: 15px; color: #1a1f2e; margin: 0 0 1rem;">Dear {r['name'] or 'Employer'},</p>
+                    <div style="font-size: 14px; color: #5a6274; line-height: 1.6;">{data.body}</div>
+                    <p style="font-size: 13px; color: #8a91a0; margin: 1.5rem 0 0; line-height: 1.5;">
+                        Department of Computer Science and Software Engineering, Jinnah University for Women, Karachi
+                    </p>
+                </div>
+            </div>
+            """
+            msg.attach(MIMEText(html, "html"))
+            with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+                server.starttls()
+                server.login(SMTP_USER, SMTP_PASSWORD)
+                server.sendmail(SMTP_USER, [r["work_email"]], msg.as_string())
+            sent += 1
+        except Exception as e:
+            print(f"Failed to send to {r['work_email']}: {e}")
+            failed += 1
+
+    return {"sent": sent, "failed": failed, "total": len(rows)}
+
+
+# --- Admin Protected Routes ---
+
 @app.post("/api/admin/invite")
-def invite_employer(data: InviteRequest, db: DBSession = Depends(get_db)):
+def invite_employer(data: InviteRequest, admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
     """Create employer (if not exists) and send magic link email with login credentials."""
     # Find or create employer
     emp = db.execute(
@@ -838,8 +1063,7 @@ def invite_employer(data: InviteRequest, db: DBSession = Depends(get_db)):
         }
 
 @app.get("/api/admin/employers")
-def list_employers(db: DBSession = Depends(get_db)):
-    """List all employers with their engagement counts and feedback status."""
+def list_employers(admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
     rows = db.execute(text("""
         SELECT e.id, e.work_email, e.name, e.designation, e.created_at,
                COUNT(DISTINCT eng.id) AS total_engagements,
@@ -855,28 +1079,8 @@ def list_employers(db: DBSession = Depends(get_db)):
     return [dict(r) for r in rows]
 
 
-@app.get("/api/admin/students")
-def list_students(q: str = "", db: DBSession = Depends(get_db)):
-    """Search students by name or enrollment number."""
-    if q:
-        rows = db.execute(text("""
-            SELECT id, full_name, enrollment_number, degree_program, batch
-            FROM students
-            WHERE LOWER(full_name) LIKE :q OR LOWER(enrollment_number) LIKE :q
-            ORDER BY full_name
-            LIMIT 20
-        """), {"q": f"%{q.lower()}%"}).mappings().all()
-    else:
-        rows = db.execute(text("""
-            SELECT id, full_name, enrollment_number, degree_program, batch
-            FROM students ORDER BY full_name LIMIT 50
-        """)).mappings().all()
-    return [dict(r) for r in rows]
-
-
 @app.get("/api/admin/engagements")
-def list_engagements(db: DBSession = Depends(get_db)):
-    """List all engagements with student, employer, and feedback status."""
+def list_engagements(admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
     rows = db.execute(text("""
         SELECT
             eng.id, eng.type, eng.status, eng.created_at,
@@ -899,24 +1103,8 @@ def list_engagements(db: DBSession = Depends(get_db)):
     return [dict(r) for r in rows]
 
 
-class CreateEngagementRequest(BaseModel):
-    student_id: str
-    employer_email: str
-    engagement_type: str  # "internship" or "job"
-    organization_name: Optional[str] = ""
-    role_designation: Optional[str] = ""
-    department_served: Optional[str] = ""
-    supervisor_name: Optional[str] = ""
-    supervisor_designation: Optional[str] = ""
-    contact_email: Optional[str] = ""
-    contact_phone: Optional[str] = ""
-    start_date: Optional[str] = ""
-    end_date: Optional[str] = ""
-    send_invite: bool = True
-
-
 @app.post("/api/admin/engagements")
-def create_engagement(data: CreateEngagementRequest, db: DBSession = Depends(get_db)):
+def create_engagement(data: CreateEngagementRequest, admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
     """Create engagement + proforma, optionally invite employer."""
     # Find or create employer
     emp = db.execute(

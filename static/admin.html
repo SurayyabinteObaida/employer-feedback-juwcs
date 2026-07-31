@@ -7,559 +7,616 @@
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
-  --primary: #1e3a5f;
-  --accent: #2563eb;
-  --accent-hover: #1d4ed8;
-  --surface: #ffffff;
-  --bg: #f5f7fa;
-  --border: #e2e6ed;
-  --border-strong: #cdd3dc;
-  --text: #1a1f2e;
-  --text-secondary: #5a6274;
-  --text-muted: #8a91a0;
-  --success: #16a34a;
-  --success-bg: #dcfce7;
-  --warning: #d97706;
-  --warning-bg: #fef3c7;
-  --danger: #dc2626;
-  --danger-bg: #fee2e2;
-  --radius: 6px;
+  --primary: #1e3a5f; --accent: #2563eb; --accent-hover: #1d4ed8;
+  --surface: #ffffff; --bg: #f5f7fa; --border: #e2e6ed; --border-strong: #cdd3dc;
+  --text: #1a1f2e; --text-secondary: #5a6274; --text-muted: #8a91a0;
+  --success: #16a34a; --success-bg: #dcfce7; --warning: #d97706; --warning-bg: #fef3c7;
+  --danger: #dc2626; --danger-bg: #fee2e2; --radius: 6px;
 }
+body { font-family: 'Segoe UI', -apple-system, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; margin: 0; }
 
-body { font-family: 'Segoe UI', -apple-system, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; }
+/* Login */
+.login-wrapper { display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 2rem; }
+.login-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 2.5rem; width: 100%; max-width: 400px; }
+.login-card h1 { font-size: 20px; margin-bottom: 4px; }
+.login-card .sub { font-size: 13px; color: var(--text-secondary); margin-bottom: 1.5rem; }
+.login-card .setup-note { font-size: 12px; color: var(--text-muted); margin-top: 1rem; text-align: center; }
 
-.header {
-  background: var(--primary); color: #fff; padding: 0 2rem; height: 60px;
-  display: flex; align-items: center; justify-content: space-between;
+/* App shell */
+.app-shell { display: none; min-height: 100vh; }
+.header { background: var(--primary); color: #fff; padding: 0 1.5rem; height: 56px; display: flex; align-items: center; justify-content: space-between; }
+.header h1 { font-size: 15px; font-weight: 600; }
+.header .admin-name { font-size: 13px; opacity: 0.8; }
+.header button { background: rgba(255,255,255,0.15); border: none; color: #fff; padding: 6px 14px; border-radius: var(--radius); font-size: 13px; cursor: pointer; }
+
+.layout { display: flex; min-height: calc(100vh - 56px); }
+
+/* Sidebar */
+.sidebar { width: 220px; background: var(--surface); border-right: 1px solid var(--border); padding: 1rem 0; flex-shrink: 0; }
+.sidebar .nav-item {
+  display: flex; align-items: center; gap: 10px; padding: 10px 1.25rem; font-size: 14px;
+  color: var(--text-secondary); cursor: pointer; border-left: 3px solid transparent; transition: all 0.15s;
 }
-.header h1 { font-size: 16px; font-weight: 600; }
-.header a { color: rgba(255,255,255,0.8); text-decoration: none; font-size: 13px; }
-.header a:hover { color: #fff; }
+.sidebar .nav-item:hover { background: var(--bg); color: var(--text); }
+.sidebar .nav-item.active { background: #f0f4ff; color: var(--accent); border-left-color: var(--accent); font-weight: 600; }
+.sidebar .nav-label { font-size: 11px; text-transform: uppercase; color: var(--text-muted); padding: 1.25rem 1.25rem 0.5rem; font-weight: 700; letter-spacing: 0.5px; }
 
-.container { max-width: 1200px; margin: 0 auto; padding: 1.5rem 2rem; }
+.main { flex: 1; padding: 1.5rem 2rem; overflow-x: hidden; }
+.page { display: none; }
+.page.active { display: block; }
+.page-title { font-size: 20px; font-weight: 600; margin-bottom: 0.25rem; }
+.page-sub { font-size: 13px; color: var(--text-secondary); margin-bottom: 1.5rem; }
 
-/* Tabs */
-.tabs { display: flex; gap: 0; border-bottom: 2px solid var(--border); margin-bottom: 1.5rem; }
-.tab {
-  padding: 10px 20px; font-size: 14px; font-weight: 500; cursor: pointer;
-  border: none; background: none; color: var(--text-muted);
-  border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all 0.15s;
-}
-.tab:hover { color: var(--text); }
-.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+/* Stat cards */
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+.stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem; }
+.stat-card .value { font-size: 28px; font-weight: 700; color: var(--primary); }
+.stat-card .label { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
 
-.tab-content { display: none; }
-.tab-content.active { display: block; }
-
-/* Cards */
-.card {
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 1.5rem; margin-bottom: 1rem;
-}
+/* Cards, forms, tables */
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; margin-bottom: 1rem; }
 .card h3 { font-size: 15px; font-weight: 600; margin-bottom: 1rem; }
-
-/* Forms */
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
 .form-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
 .form-group { margin-bottom: 1rem; }
 .form-group label { display: block; font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
-.form-group input, .form-group select {
+.form-group input, .form-group select, .form-group textarea {
   width: 100%; padding: 9px 12px; border: 1px solid var(--border-strong);
   border-radius: var(--radius); font-size: 14px; font-family: inherit;
 }
-.form-group input:focus, .form-group select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(37,99,235,0.1); }
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(37,99,235,0.1); }
 
-/* Buttons */
-.btn {
-  padding: 9px 18px; border: none; border-radius: var(--radius); font-size: 14px;
-  font-family: inherit; cursor: pointer; font-weight: 500; transition: all 0.15s;
-}
+.btn { padding: 9px 18px; border: none; border-radius: var(--radius); font-size: 14px; font-family: inherit; cursor: pointer; font-weight: 500; transition: all 0.15s; }
 .btn-primary { background: var(--accent); color: #fff; }
 .btn-primary:hover { background: var(--accent-hover); }
 .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-secondary { background: var(--bg); color: var(--text); border: 1px solid var(--border-strong); }
 .btn-sm { padding: 5px 12px; font-size: 13px; }
+.btn-danger { background: var(--danger); color: #fff; }
 
-/* Alert */
 .alert { padding: 10px 14px; border-radius: var(--radius); font-size: 13px; margin-bottom: 1rem; display: none; }
 .alert.visible { display: block; }
 .alert-success { background: var(--success-bg); color: #15603a; }
 .alert-error { background: var(--danger-bg); color: #991b1b; }
 .alert-warning { background: var(--warning-bg); color: #854d0e; }
 
-/* Table */
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th { text-align: left; padding: 10px 12px; background: var(--bg); color: var(--text-secondary); font-weight: 600; border-bottom: 1px solid var(--border); }
 td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
 tr:hover td { background: #f8fafc; }
 
-/* Badge */
 .badge { padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
 .badge-intern { background: #dbeafe; color: #1e40af; }
 .badge-graduate { background: #f3e8ff; color: #7c3aed; }
+.badge-enrolled { background: #e0f2fe; color: #0369a1; }
 .badge-submitted { background: var(--success-bg); color: #15603a; }
 .badge-pending { background: var(--warning-bg); color: #854d0e; }
 
-/* Student search */
 .student-results { max-height: 200px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius); margin-top: 4px; }
-.student-results .student-item {
-  padding: 8px 12px; cursor: pointer; font-size: 13px; border-bottom: 1px solid var(--border);
-}
+.student-results .student-item { padding: 8px 12px; cursor: pointer; font-size: 13px; border-bottom: 1px solid var(--border); }
 .student-results .student-item:hover { background: #f0f4ff; }
 .student-results .student-item .sub { font-size: 12px; color: var(--text-muted); }
-.selected-student {
-  background: #f0f4ff; border: 1px solid #93b5f0; border-radius: var(--radius);
-  padding: 8px 12px; font-size: 13px; display: flex; justify-content: space-between; align-items: center;
-}
-
-/* Manual link box */
+.selected-student { background: #f0f4ff; border: 1px solid #93b5f0; border-radius: var(--radius); padding: 8px 12px; font-size: 13px; display: flex; justify-content: space-between; align-items: center; }
 .manual-link { background: var(--warning-bg); border: 1px solid #f59e0b; border-radius: var(--radius); padding: 12px; margin-top: 8px; word-break: break-all; font-size: 12px; font-family: monospace; }
-
-/* Checkbox */
 .checkbox-group { display: flex; align-items: center; gap: 8px; margin-top: 0.5rem; }
-.checkbox-group label { font-size: 13px; font-weight: 400; margin-bottom: 0; }
+.tag-filters { display: flex; gap: 8px; margin-bottom: 1rem; }
+.tag-filter { padding: 6px 14px; border-radius: 16px; font-size: 13px; cursor: pointer; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text-secondary); transition: all 0.15s; }
+.tag-filter.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 
 @media (max-width: 768px) {
   .form-row, .form-row-3 { grid-template-columns: 1fr; }
-  .container { padding: 1rem; }
+  .sidebar { width: 180px; }
+  .main { padding: 1rem; }
+  .stat-grid { grid-template-columns: 1fr 1fr; }
 }
 </style>
 </head>
 <body>
 
-<div class="header">
-  <h1>Admin Panel - Employer Feedback Portal</h1>
-  <a href="/">Back to portal</a>
+<!-- ===== LOGIN ===== -->
+<div id="loginPage" class="login-wrapper">
+  <div class="login-card">
+    <h1>Admin Panel</h1>
+    <p class="sub">Employer Feedback Portal - CSSE, JUW</p>
+    <div id="loginAlert" class="alert"></div>
+
+    <div id="loginForm">
+      <div class="form-group">
+        <label for="loginEmail">Email</label>
+        <input type="email" id="loginEmail" placeholder="admin@juw.edu.pk">
+      </div>
+      <div class="form-group">
+        <label for="loginPassword">Password</label>
+        <input type="password" id="loginPassword" placeholder="Enter password">
+      </div>
+      <button class="btn btn-primary" id="loginBtn" onclick="adminLogin()" style="width:100%;">Sign in</button>
+    </div>
+
+    <!-- Setup form (only shown if no admins exist) -->
+    <div id="setupForm" style="display:none;">
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:1rem;">No admin account exists yet. Create the first one.</p>
+      <div class="form-group">
+        <label for="setupName">Name</label>
+        <input type="text" id="setupName" placeholder="Your name">
+      </div>
+      <div class="form-group">
+        <label for="setupEmail">Email</label>
+        <input type="email" id="setupEmail" placeholder="admin@juw.edu.pk">
+      </div>
+      <div class="form-group">
+        <label for="setupPassword">Password</label>
+        <input type="password" id="setupPassword" placeholder="Choose a password">
+      </div>
+      <button class="btn btn-primary" id="setupBtn" onclick="setupAdmin()" style="width:100%;">Create admin account</button>
+    </div>
+  </div>
 </div>
 
-<div class="container">
-  <div class="tabs">
-    <button class="tab active" onclick="switchTab('create')">Create engagement</button>
-    <button class="tab" onclick="switchTab('invite')">Invite employer</button>
-    <button class="tab" onclick="switchTab('engagements')">All engagements</button>
-    <button class="tab" onclick="switchTab('employers')">Employers</button>
-  </div>
-
-  <!-- TAB: Create Engagement -->
-  <div class="tab-content active" id="tab-create">
-    <div class="card">
-      <h3>Create a new engagement</h3>
-      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:1.25rem;">
-        Link a student to an employer, create the proforma, and optionally send the invitation email.
-      </p>
-      <div id="createAlert" class="alert"></div>
-
-      <div class="form-row">
-        <div class="form-group">
-          <label>Engagement type</label>
-          <select id="engType">
-            <option value="">Select type</option>
-            <option value="internship">Internship</option>
-            <option value="job">Graduate / Job</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Employer email</label>
-          <input type="email" id="engEmployerEmail" placeholder="employer@company.com">
-        </div>
-      </div>
-
-      <div class="form-group">
-        <label>Search student</label>
-        <input type="text" id="studentSearch" placeholder="Type name or enrollment number..." oninput="searchStudents(this.value)">
-        <div id="studentResults" class="student-results" style="display:none;"></div>
-        <div id="selectedStudent" style="display:none;"></div>
-      </div>
-
-      <h3 style="margin-top:1.5rem;">Organization proforma (optional — student can fill later)</h3>
-      <div class="form-row">
-        <div class="form-group">
-          <label>Organization name</label>
-          <input type="text" id="engOrg" placeholder="e.g. TechVentures Pvt Ltd">
-        </div>
-        <div class="form-group">
-          <label>Role / Designation</label>
-          <input type="text" id="engRole" placeholder="e.g. Software Engineer Intern">
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>Department</label>
-          <input type="text" id="engDept" placeholder="e.g. Software Development">
-        </div>
-        <div class="form-group">
-          <label>Supervisor name</label>
-          <input type="text" id="engSupervisor" placeholder="e.g. Ali Hassan">
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>Supervisor designation</label>
-          <input type="text" id="engSupervisorDesig" placeholder="e.g. Engineering Manager">
-        </div>
-        <div class="form-group">
-          <label>Contact email</label>
-          <input type="email" id="engContactEmail" placeholder="supervisor@company.com">
-        </div>
-      </div>
-      <div class="form-row-3">
-        <div class="form-group">
-          <label>Contact phone</label>
-          <input type="text" id="engPhone" placeholder="+92-xxx-xxxxxxx">
-        </div>
-        <div class="form-group">
-          <label>Start date</label>
-          <input type="date" id="engStart">
-        </div>
-        <div class="form-group">
-          <label>End date</label>
-          <input type="date" id="engEnd">
-        </div>
-      </div>
-
-      <div class="checkbox-group">
-        <input type="checkbox" id="sendInvite" checked>
-        <label for="sendInvite">Send invitation email to employer after creating</label>
-      </div>
-
-      <div style="margin-top:1.25rem;">
-        <button class="btn btn-primary" id="createEngBtn" onclick="createEngagement()">Create engagement</button>
-      </div>
-      <div id="createManualLink" class="manual-link" style="display:none;"></div>
+<!-- ===== APP SHELL ===== -->
+<div id="appShell" class="app-shell">
+  <div class="header">
+    <h1>Admin - Employer Feedback Portal</h1>
+    <div style="display:flex;align-items:center;gap:1rem;">
+      <span class="admin-name" id="adminName"></span>
+      <button onclick="logout()">Sign out</button>
     </div>
   </div>
 
-  <!-- TAB: Invite Employer -->
-  <div class="tab-content" id="tab-invite">
-    <div class="card">
-      <h3>Send invitation to an existing employer</h3>
-      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:1.25rem;">
-        Re-send a magic link to an employer who already has engagements.
-      </p>
-      <div id="inviteAlert" class="alert"></div>
-
-      <div class="form-row">
-        <div class="form-group">
-          <label>Employer email</label>
-          <input type="email" id="inviteEmail" placeholder="employer@company.com">
-        </div>
-        <div class="form-group">
-          <label>Name</label>
-          <input type="text" id="inviteName" placeholder="Full name">
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>Designation</label>
-          <input type="text" id="inviteDesig" placeholder="e.g. Engineering Manager">
-        </div>
-        <div class="form-group">
-          <label>Email context</label>
-          <select id="inviteType">
-            <option value="">Generic (no specific type)</option>
-            <option value="internship">Internship evaluation</option>
-            <option value="job">Graduate feedback</option>
-          </select>
-        </div>
-      </div>
-
-      <button class="btn btn-primary" id="inviteBtn" onclick="sendInvite()">Send invitation</button>
-      <div id="inviteManualLink" class="manual-link" style="display:none;"></div>
+  <div class="layout">
+    <div class="sidebar">
+      <div class="nav-label">Main</div>
+      <div class="nav-item active" onclick="navigate('dashboard')">Dashboard</div>
+      <div class="nav-item" onclick="navigate('students')">Students</div>
+      <div class="nav-item" onclick="navigate('engagements')">Engagements</div>
+      <div class="nav-item" onclick="navigate('employers')">Employers</div>
+      <div class="nav-label">Actions</div>
+      <div class="nav-item" onclick="navigate('create')">Create engagement</div>
+      <div class="nav-item" onclick="navigate('invite')">Invite employer</div>
+      <div class="nav-item" onclick="navigate('email')">Send email</div>
+      <div class="nav-label">System</div>
+      <div class="nav-item" onclick="navigate('settings')">Settings</div>
     </div>
-  </div>
 
-  <!-- TAB: All Engagements -->
-  <div class="tab-content" id="tab-engagements">
-    <div class="card">
-      <h3>All engagements</h3>
-      <div id="engagementsLoading" style="font-size:13px;color:var(--text-muted);padding:1rem 0;">Loading...</div>
-      <div style="overflow-x:auto;">
-        <table id="engagementsTable" style="display:none;">
-          <thead>
-            <tr>
-              <th>Student</th>
-              <th>Enrollment</th>
-              <th>Program / Batch</th>
-              <th>Employer</th>
-              <th>Type</th>
-              <th>Proforma</th>
-              <th>Feedback</th>
-              <th>Created</th>
-            </tr>
-          </thead>
-          <tbody id="engagementsBody"></tbody>
-        </table>
+    <div class="main">
+      <!-- Dashboard -->
+      <div class="page active" id="page-dashboard">
+        <h2 class="page-title">Dashboard</h2>
+        <p class="page-sub">Overview of all activity in the employer feedback system.</p>
+        <div class="stat-grid" id="statsGrid"></div>
+        <div class="card">
+          <h3>Recent engagements</h3>
+          <div id="recentEngagements" style="font-size:13px;color:var(--text-muted);">Loading...</div>
+        </div>
       </div>
-      <p id="engagementsEmpty" style="display:none;font-size:13px;color:var(--text-muted);padding:1rem 0;">No engagements yet.</p>
-    </div>
-  </div>
 
-  <!-- TAB: Employers -->
-  <div class="tab-content" id="tab-employers">
-    <div class="card">
-      <h3>Registered employers</h3>
-      <div id="employersLoading" style="font-size:13px;color:var(--text-muted);padding:1rem 0;">Loading...</div>
-      <div style="overflow-x:auto;">
-        <table id="employersTable" style="display:none;">
-          <thead>
-            <tr>
-              <th>Email</th>
-              <th>Name</th>
-              <th>Designation</th>
-              <th>Engagements</th>
-              <th>Feedback</th>
-              <th>Joined</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody id="employersBody"></tbody>
-        </table>
+      <!-- Students -->
+      <div class="page" id="page-students">
+        <h2 class="page-title">Students</h2>
+        <p class="page-sub">All students with their engagement status.</p>
+        <div style="display:flex;gap:1rem;align-items:center;margin-bottom:1rem;">
+          <input type="text" id="studentSearchInput" placeholder="Search by name or enrollment..." oninput="loadStudents()" style="flex:1;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius);font-size:14px;">
+        </div>
+        <div class="tag-filters">
+          <div class="tag-filter active" data-tag="" onclick="filterStudents(this, '')">All</div>
+          <div class="tag-filter" data-tag="enrolled" onclick="filterStudents(this, 'enrolled')">Enrolled</div>
+          <div class="tag-filter" data-tag="intern" onclick="filterStudents(this, 'intern')">Intern</div>
+          <div class="tag-filter" data-tag="graduate" onclick="filterStudents(this, 'graduate')">Graduate</div>
+        </div>
+        <div style="overflow-x:auto;">
+          <table><thead><tr><th>Name</th><th>Enrollment</th><th>Program</th><th>Batch</th><th>Semester</th><th>Status</th></tr></thead>
+          <tbody id="studentsBody"></tbody></table>
+        </div>
+        <p id="studentsEmpty" style="display:none;font-size:13px;color:var(--text-muted);padding:1rem 0;">No students found.</p>
       </div>
-      <p id="employersEmpty" style="display:none;font-size:13px;color:var(--text-muted);padding:1rem 0;">No employers yet.</p>
+
+      <!-- Engagements -->
+      <div class="page" id="page-engagements">
+        <h2 class="page-title">Engagements</h2>
+        <p class="page-sub">All student-employer engagements.</p>
+        <div style="overflow-x:auto;">
+          <table><thead><tr><th>Student</th><th>Enrollment</th><th>Program / Batch</th><th>Employer</th><th>Type</th><th>Proforma</th><th>Feedback</th><th>Created</th></tr></thead>
+          <tbody id="engagementsBody"></tbody></table>
+        </div>
+      </div>
+
+      <!-- Employers -->
+      <div class="page" id="page-employers">
+        <h2 class="page-title">Employers</h2>
+        <p class="page-sub">All registered employers.</p>
+        <div style="overflow-x:auto;">
+          <table><thead><tr><th>Email</th><th>Name</th><th>Designation</th><th>Engagements</th><th>Feedback</th><th>Joined</th><th>Action</th></tr></thead>
+          <tbody id="employersBody"></tbody></table>
+        </div>
+      </div>
+
+      <!-- Create Engagement -->
+      <div class="page" id="page-create">
+        <h2 class="page-title">Create engagement</h2>
+        <p class="page-sub">Link a student to an employer, create proforma, and send invitation.</p>
+        <div class="card">
+          <div id="createAlert" class="alert"></div>
+          <div class="form-row">
+            <div class="form-group"><label>Engagement type</label><select id="engType"><option value="">Select type</option><option value="internship">Internship</option><option value="job">Graduate / Job</option></select></div>
+            <div class="form-group"><label>Employer email</label><input type="email" id="engEmployerEmail" placeholder="employer@company.com"></div>
+          </div>
+          <div class="form-group">
+            <label>Search student</label>
+            <input type="text" id="engStudentSearch" placeholder="Type name or enrollment..." oninput="searchStudentsForEng(this.value)">
+            <div id="engStudentResults" class="student-results" style="display:none;"></div>
+            <div id="engSelectedStudent" style="display:none;"></div>
+          </div>
+          <h3 style="margin-top:1.5rem;">Organization proforma (optional)</h3>
+          <div class="form-row">
+            <div class="form-group"><label>Organization</label><input type="text" id="engOrg" placeholder="e.g. TechVentures"></div>
+            <div class="form-group"><label>Role</label><input type="text" id="engRole" placeholder="e.g. Software Engineer Intern"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Department</label><input type="text" id="engDept"></div>
+            <div class="form-group"><label>Supervisor</label><input type="text" id="engSupervisor"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Supervisor designation</label><input type="text" id="engSupervisorDesig"></div>
+            <div class="form-group"><label>Contact email</label><input type="email" id="engContactEmail"></div>
+          </div>
+          <div class="form-row-3">
+            <div class="form-group"><label>Phone</label><input type="text" id="engPhone"></div>
+            <div class="form-group"><label>Start date</label><input type="date" id="engStart"></div>
+            <div class="form-group"><label>End date</label><input type="date" id="engEnd"></div>
+          </div>
+          <div class="checkbox-group"><input type="checkbox" id="sendInvite" checked><label for="sendInvite">Send invitation email to employer</label></div>
+          <div style="margin-top:1.25rem;"><button class="btn btn-primary" id="createEngBtn" onclick="createEngagement()">Create engagement</button></div>
+          <div id="createManualLink" class="manual-link" style="display:none;"></div>
+        </div>
+      </div>
+
+      <!-- Invite Employer -->
+      <div class="page" id="page-invite">
+        <h2 class="page-title">Invite employer</h2>
+        <p class="page-sub">Send or re-send a magic link to an employer.</p>
+        <div class="card">
+          <div id="inviteAlert" class="alert"></div>
+          <div class="form-row">
+            <div class="form-group"><label>Employer email</label><input type="email" id="inviteEmail" placeholder="employer@company.com"></div>
+            <div class="form-group"><label>Name</label><input type="text" id="inviteName"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Designation</label><input type="text" id="inviteDesig"></div>
+            <div class="form-group"><label>Email context</label><select id="inviteType"><option value="">Generic</option><option value="internship">Internship evaluation</option><option value="job">Graduate feedback</option></select></div>
+          </div>
+          <button class="btn btn-primary" id="inviteBtn" onclick="sendInvite()">Send invitation</button>
+          <div id="inviteManualLink" class="manual-link" style="display:none;"></div>
+        </div>
+      </div>
+
+      <!-- Send Email -->
+      <div class="page" id="page-email">
+        <h2 class="page-title">Send email</h2>
+        <p class="page-sub">Compose and send email to a group of employers.</p>
+        <div class="card">
+          <div id="emailAlert" class="alert"></div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Audience</label>
+              <select id="emailAudience" onchange="toggleSpecificEmails()">
+                <option value="all_employers">All employers</option>
+                <option value="intern_employers">Intern employers only</option>
+                <option value="graduate_employers">Graduate employers only</option>
+                <option value="specific">Specific email addresses</option>
+              </select>
+            </div>
+            <div class="form-group"><label>Subject</label><input type="text" id="emailSubject" placeholder="Email subject line"></div>
+          </div>
+          <div class="form-group" id="specificEmailsGroup" style="display:none;">
+            <label>Email addresses (comma-separated)</label>
+            <input type="text" id="specificEmails" placeholder="email1@company.com, email2@company.com">
+          </div>
+          <div class="form-group">
+            <label>Message body (HTML supported)</label>
+            <textarea id="emailBody" rows="8" placeholder="Type your message here..."></textarea>
+          </div>
+          <button class="btn btn-primary" id="emailBtn" onclick="sendBulkEmail()">Send email</button>
+        </div>
+      </div>
+
+      <!-- Settings -->
+      <div class="page" id="page-settings">
+        <h2 class="page-title">Settings</h2>
+        <p class="page-sub">Manage admin accounts.</p>
+        <div class="card">
+          <h3>Add new admin</h3>
+          <div id="settingsAlert" class="alert"></div>
+          <div class="form-row-3">
+            <div class="form-group"><label>Name</label><input type="text" id="newAdminName"></div>
+            <div class="form-group"><label>Email</label><input type="email" id="newAdminEmail"></div>
+            <div class="form-group"><label>Password</label><input type="password" id="newAdminPassword"></div>
+          </div>
+          <button class="btn btn-primary" onclick="createNewAdmin()">Create admin</button>
+        </div>
+      </div>
     </div>
   </div>
 </div>
 
 <script>
 const API = window.location.origin + '/api';
+let adminToken = localStorage.getItem('admin_token');
 let selectedStudentId = null;
+let currentStudentTag = '';
 
-// --- Tabs ---
-function switchTab(tab) {
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-  document.querySelector(`.tab-content#tab-${tab}`).classList.add('active');
-  event.target.classList.add('active');
+function authHeaders() { return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + adminToken }; }
+function showAlert(id, msg, type) { const el = document.getElementById(id); el.className = `alert alert-${type} visible`; el.textContent = msg; }
 
-  if (tab === 'engagements') loadEngagements();
-  if (tab === 'employers') loadEmployers();
+// --- Auth ---
+async function checkAuth() {
+  if (!adminToken) { checkSetup(); return; }
+  try {
+    const res = await fetch(API + '/admin/me', { headers: authHeaders() });
+    if (!res.ok) throw new Error();
+    const admin = await res.json();
+    document.getElementById('adminName').textContent = admin.name;
+    document.getElementById('loginPage').style.display = 'none';
+    document.getElementById('appShell').style.display = 'block';
+    loadDashboard();
+  } catch { adminToken = null; localStorage.removeItem('admin_token'); checkSetup(); }
 }
 
-function showAlert(id, msg, type) {
-  const el = document.getElementById(id);
-  el.className = `alert alert-${type} visible`;
-  el.textContent = msg;
-}
-
-// --- Student Search ---
-let searchTimeout;
-function searchStudents(q) {
-  clearTimeout(searchTimeout);
-  if (q.length < 2) {
-    document.getElementById('studentResults').style.display = 'none';
-    return;
-  }
-  searchTimeout = setTimeout(async () => {
-    try {
-      const res = await fetch(API + '/admin/students?q=' + encodeURIComponent(q));
-      const students = await res.json();
-      const container = document.getElementById('studentResults');
-      if (!students.length) {
-        container.innerHTML = '<div class="student-item" style="color:var(--text-muted);">No students found</div>';
-      } else {
-        container.innerHTML = students.map(s => `
-          <div class="student-item" onclick="selectStudent('${s.id}', '${s.full_name}', '${s.enrollment_number}', '${s.degree_program}', '${s.batch}')">
-            <strong>${s.full_name}</strong><br>
-            <span class="sub">${s.enrollment_number} &middot; ${s.degree_program} &middot; Batch ${s.batch}</span>
-          </div>
-        `).join('');
-      }
-      container.style.display = 'block';
-    } catch (err) {
-      console.error(err);
+async function checkSetup() {
+  try {
+    const res = await fetch(API + '/admin/check-setup');
+    const data = await res.json();
+    if (data.has_admins) {
+      document.getElementById('loginForm').style.display = 'block';
+      document.getElementById('setupForm').style.display = 'none';
+    } else {
+      document.getElementById('loginForm').style.display = 'none';
+      document.getElementById('setupForm').style.display = 'block';
     }
+  } catch { document.getElementById('loginForm').style.display = 'block'; }
+}
+
+async function adminLogin() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  if (!email || !password) { showAlert('loginAlert', 'Enter email and password.', 'error'); return; }
+  const btn = document.getElementById('loginBtn');
+  btn.disabled = true; btn.textContent = 'Signing in...';
+  try {
+    const res = await fetch(API + '/admin/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Login failed');
+    adminToken = data.token;
+    localStorage.setItem('admin_token', adminToken);
+    document.getElementById('adminName').textContent = data.admin.name;
+    document.getElementById('loginPage').style.display = 'none';
+    document.getElementById('appShell').style.display = 'block';
+    loadDashboard();
+  } catch (err) { showAlert('loginAlert', err.message, 'error'); }
+  finally { btn.disabled = false; btn.textContent = 'Sign in'; }
+}
+
+async function setupAdmin() {
+  const name = document.getElementById('setupName').value.trim();
+  const email = document.getElementById('setupEmail').value.trim();
+  const password = document.getElementById('setupPassword').value;
+  if (!name || !email || !password) { showAlert('loginAlert', 'Fill all fields.', 'error'); return; }
+  try {
+    const res = await fetch(API + '/admin/setup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, name, password }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Setup failed');
+    showAlert('loginAlert', 'Admin created. Signing in...', 'success');
+    document.getElementById('loginEmail').value = email;
+    document.getElementById('loginPassword').value = password;
+    document.getElementById('setupForm').style.display = 'none';
+    document.getElementById('loginForm').style.display = 'block';
+    setTimeout(() => adminLogin(), 500);
+  } catch (err) { showAlert('loginAlert', err.message, 'error'); }
+}
+
+function logout() { adminToken = null; localStorage.removeItem('admin_token'); location.reload(); }
+
+// --- Navigation ---
+function navigate(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + page).classList.add('active');
+  event.target.classList.add('active');
+  if (page === 'dashboard') loadDashboard();
+  if (page === 'students') loadStudents();
+  if (page === 'engagements') loadEngagements();
+  if (page === 'employers') loadEmployers();
+}
+
+// --- Dashboard ---
+async function loadDashboard() {
+  try {
+    const res = await fetch(API + '/admin/dashboard-stats', { headers: authHeaders() });
+    const s = await res.json();
+    document.getElementById('statsGrid').innerHTML = `
+      <div class="stat-card"><div class="value">${s.total_students}</div><div class="label">Total students</div></div>
+      <div class="stat-card"><div class="value">${s.total_employers}</div><div class="label">Employers</div></div>
+      <div class="stat-card"><div class="value">${s.total_engagements}</div><div class="label">Engagements</div></div>
+      <div class="stat-card"><div class="value">${s.internship_engagements}</div><div class="label">Internships</div></div>
+      <div class="stat-card"><div class="value">${s.job_engagements}</div><div class="label">Graduate jobs</div></div>
+      <div class="stat-card"><div class="value">${s.proformas_validated}</div><div class="label">Proformas validated</div></div>
+      <div class="stat-card"><div class="value">${s.proformas_pending}</div><div class="label">Proformas pending</div></div>
+      <div class="stat-card"><div class="value">${s.evals_submitted + s.surveys_submitted}</div><div class="label">Feedback submitted</div></div>
+    `;
+
+    const engRes = await fetch(API + '/admin/engagements', { headers: authHeaders() });
+    const engs = await engRes.json();
+    const recent = engs.slice(0, 5);
+    if (!recent.length) { document.getElementById('recentEngagements').textContent = 'No engagements yet.'; return; }
+    document.getElementById('recentEngagements').innerHTML = '<table><thead><tr><th>Student</th><th>Employer</th><th>Type</th><th>Feedback</th></tr></thead><tbody>' +
+      recent.map(e => `<tr><td>${e.student_name}</td><td>${e.employer_name || e.employer_email}</td><td><span class="badge ${e.type === 'internship' ? 'badge-intern' : 'badge-graduate'}">${e.type === 'internship' ? 'Intern' : 'Graduate'}</span></td><td><span class="badge ${e.feedback_status === 'submitted' ? 'badge-submitted' : 'badge-pending'}">${e.feedback_status}</span></td></tr>`).join('') + '</tbody></table>';
+  } catch (err) { console.error(err); }
+}
+
+// --- Students ---
+function filterStudents(el, tag) {
+  currentStudentTag = tag;
+  document.querySelectorAll('.tag-filter').forEach(f => f.classList.remove('active'));
+  el.classList.add('active');
+  loadStudents();
+}
+
+async function loadStudents() {
+  const q = document.getElementById('studentSearchInput').value.trim();
+  try {
+    const res = await fetch(API + '/admin/students?q=' + encodeURIComponent(q) + '&tag=' + currentStudentTag, { headers: authHeaders() });
+    const students = await res.json();
+    const tbody = document.getElementById('studentsBody');
+    const empty = document.getElementById('studentsEmpty');
+    if (!students.length) { tbody.innerHTML = ''; empty.style.display = 'block'; return; }
+    empty.style.display = 'none';
+    tbody.innerHTML = students.map(s => {
+      const badgeClass = s.tag === 'graduate' ? 'badge-graduate' : s.tag === 'intern' ? 'badge-intern' : 'badge-enrolled';
+      return `<tr><td>${s.full_name}</td><td>${s.enrollment_number}</td><td>${s.degree_program}</td><td>${s.batch}</td><td>${s.current_semester || '---'}</td><td><span class="badge ${badgeClass}">${s.tag}</span></td></tr>`;
+    }).join('');
+  } catch (err) { console.error(err); }
+}
+
+// --- Engagements ---
+async function loadEngagements() {
+  try {
+    const res = await fetch(API + '/admin/engagements', { headers: authHeaders() });
+    const data = await res.json();
+    document.getElementById('engagementsBody').innerHTML = data.map(e => `
+      <tr><td>${e.student_name}</td><td>${e.enrollment_number}</td><td>${e.degree_program} / ${e.batch}</td><td>${e.employer_name || e.employer_email}</td>
+      <td><span class="badge ${e.type === 'internship' ? 'badge-intern' : 'badge-graduate'}">${e.type === 'internship' ? 'Intern' : 'Graduate'}</span></td>
+      <td><span class="badge ${e.validation_status === 'validated' || e.validation_status === 'edited' ? 'badge-submitted' : 'badge-pending'}">${e.validation_status || 'pending'}</span></td>
+      <td><span class="badge ${e.feedback_status === 'submitted' ? 'badge-submitted' : 'badge-pending'}">${e.feedback_status}</span></td>
+      <td>${new Date(e.created_at).toLocaleDateString()}</td></tr>
+    `).join('');
+  } catch (err) { console.error(err); }
+}
+
+// --- Employers ---
+async function loadEmployers() {
+  try {
+    const res = await fetch(API + '/admin/employers', { headers: authHeaders() });
+    const data = await res.json();
+    document.getElementById('employersBody').innerHTML = data.map(e => `
+      <tr><td>${e.work_email}</td><td>${e.name || '---'}</td><td>${e.designation || '---'}</td>
+      <td>${e.total_engagements}</td><td>${(e.surveys_submitted || 0) + (e.evals_submitted || 0)} submitted</td>
+      <td>${new Date(e.created_at).toLocaleDateString()}</td>
+      <td><button class="btn btn-sm btn-secondary" onclick="prefillInvite('${e.work_email}', '${e.name || ''}')">Re-invite</button></td></tr>
+    `).join('');
+  } catch (err) { console.error(err); }
+}
+
+function prefillInvite(email, name) {
+  navigate('invite');
+  document.getElementById('inviteEmail').value = email;
+  document.getElementById('inviteName').value = name;
+}
+
+// --- Student Search (for create engagement) ---
+let engSearchTimeout;
+function searchStudentsForEng(q) {
+  clearTimeout(engSearchTimeout);
+  if (q.length < 2) { document.getElementById('engStudentResults').style.display = 'none'; return; }
+  engSearchTimeout = setTimeout(async () => {
+    const res = await fetch(API + '/admin/students?q=' + encodeURIComponent(q), { headers: authHeaders() });
+    const students = await res.json();
+    const c = document.getElementById('engStudentResults');
+    c.innerHTML = students.length ? students.map(s => `<div class="student-item" onclick="selectStudentForEng('${s.id}','${s.full_name}','${s.enrollment_number}','${s.degree_program}','${s.batch}')"><strong>${s.full_name}</strong><br><span class="sub">${s.enrollment_number} - ${s.degree_program} - Batch ${s.batch}</span></div>`).join('') : '<div class="student-item" style="color:var(--text-muted)">No students found</div>';
+    c.style.display = 'block';
   }, 300);
 }
 
-function selectStudent(id, name, enrollment, program, batch) {
+function selectStudentForEng(id, name, enr, prog, batch) {
   selectedStudentId = id;
-  document.getElementById('studentResults').style.display = 'none';
-  document.getElementById('studentSearch').style.display = 'none';
-  document.getElementById('selectedStudent').style.display = 'flex';
-  document.getElementById('selectedStudent').innerHTML = `
-    <div class="selected-student" style="width:100%;">
-      <span><strong>${name}</strong> &middot; ${enrollment} &middot; ${program} &middot; Batch ${batch}</span>
-      <button class="btn btn-sm btn-secondary" onclick="clearStudent()">Change</button>
-    </div>
-  `;
+  document.getElementById('engStudentResults').style.display = 'none';
+  document.getElementById('engStudentSearch').style.display = 'none';
+  const el = document.getElementById('engSelectedStudent');
+  el.style.display = 'block';
+  el.innerHTML = `<div class="selected-student" style="width:100%"><span><strong>${name}</strong> - ${enr} - ${prog} - Batch ${batch}</span><button class="btn btn-sm btn-secondary" onclick="clearEngStudent()">Change</button></div>`;
 }
-
-function clearStudent() {
-  selectedStudentId = null;
-  document.getElementById('selectedStudent').style.display = 'none';
-  document.getElementById('studentSearch').style.display = 'block';
-  document.getElementById('studentSearch').value = '';
-}
+function clearEngStudent() { selectedStudentId = null; document.getElementById('engSelectedStudent').style.display = 'none'; document.getElementById('engStudentSearch').style.display = 'block'; document.getElementById('engStudentSearch').value = ''; }
 
 // --- Create Engagement ---
 async function createEngagement() {
   const type = document.getElementById('engType').value;
   const email = document.getElementById('engEmployerEmail').value.trim();
-
   if (!type) { showAlert('createAlert', 'Select engagement type.', 'error'); return; }
   if (!email) { showAlert('createAlert', 'Enter employer email.', 'error'); return; }
   if (!selectedStudentId) { showAlert('createAlert', 'Search and select a student.', 'error'); return; }
-
-  const btn = document.getElementById('createEngBtn');
-  btn.disabled = true;
-  btn.textContent = 'Creating...';
-
-  const payload = {
-    student_id: selectedStudentId,
-    employer_email: email,
-    engagement_type: type,
-    organization_name: document.getElementById('engOrg').value,
-    role_designation: document.getElementById('engRole').value,
-    department_served: document.getElementById('engDept').value,
-    supervisor_name: document.getElementById('engSupervisor').value,
-    supervisor_designation: document.getElementById('engSupervisorDesig').value,
-    contact_email: document.getElementById('engContactEmail').value,
-    contact_phone: document.getElementById('engPhone').value,
-    start_date: document.getElementById('engStart').value,
-    end_date: document.getElementById('engEnd').value,
-    send_invite: document.getElementById('sendInvite').checked,
-  };
-
+  const btn = document.getElementById('createEngBtn'); btn.disabled = true; btn.textContent = 'Creating...';
   try {
-    const res = await fetch(API + '/admin/engagements', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
+    const res = await fetch(API + '/admin/engagements', { method: 'POST', headers: authHeaders(), body: JSON.stringify({
+      student_id: selectedStudentId, employer_email: email, engagement_type: type,
+      organization_name: document.getElementById('engOrg').value, role_designation: document.getElementById('engRole').value,
+      department_served: document.getElementById('engDept').value, supervisor_name: document.getElementById('engSupervisor').value,
+      supervisor_designation: document.getElementById('engSupervisorDesig').value, contact_email: document.getElementById('engContactEmail').value,
+      contact_phone: document.getElementById('engPhone').value, start_date: document.getElementById('engStart').value,
+      end_date: document.getElementById('engEnd').value, send_invite: document.getElementById('sendInvite').checked,
+    })});
     const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || 'Creation failed');
-
+    if (!res.ok) throw new Error(data.detail || 'Failed');
     showAlert('createAlert', data.message, data.sent ? 'success' : 'warning');
-    if (data.manual_url) {
-      const linkEl = document.getElementById('createManualLink');
-      linkEl.style.display = 'block';
-      linkEl.innerHTML = `<strong>Manual link (email failed):</strong><br>${data.manual_url}`;
-    }
-
-    // Reset form
-    clearStudent();
-    ['engType', 'engEmployerEmail', 'engOrg', 'engRole', 'engDept', 'engSupervisor',
-     'engSupervisorDesig', 'engContactEmail', 'engPhone', 'engStart', 'engEnd'].forEach(id => {
-      document.getElementById(id).value = '';
-    });
-  } catch (err) {
-    showAlert('createAlert', err.message, 'error');
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'Create engagement';
-  }
+    if (data.manual_url) { const l = document.getElementById('createManualLink'); l.style.display = 'block'; l.innerHTML = `<strong>Manual link:</strong><br>${data.manual_url}`; }
+    clearEngStudent();
+    ['engType','engEmployerEmail','engOrg','engRole','engDept','engSupervisor','engSupervisorDesig','engContactEmail','engPhone','engStart','engEnd'].forEach(id => document.getElementById(id).value = '');
+  } catch (err) { showAlert('createAlert', err.message, 'error'); }
+  finally { btn.disabled = false; btn.textContent = 'Create engagement'; }
 }
 
-// --- Invite Employer ---
+// --- Invite ---
 async function sendInvite() {
   const email = document.getElementById('inviteEmail').value.trim();
   if (!email) { showAlert('inviteAlert', 'Enter employer email.', 'error'); return; }
-
-  const btn = document.getElementById('inviteBtn');
-  btn.disabled = true;
-  btn.textContent = 'Sending...';
-
+  const btn = document.getElementById('inviteBtn'); btn.disabled = true; btn.textContent = 'Sending...';
   try {
-    const res = await fetch(API + '/admin/invite', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email,
-        name: document.getElementById('inviteName').value,
-        designation: document.getElementById('inviteDesig').value,
-        engagement_type: document.getElementById('inviteType').value,
-      })
-    });
+    const res = await fetch(API + '/admin/invite', { method: 'POST', headers: authHeaders(), body: JSON.stringify({
+      email, name: document.getElementById('inviteName').value, designation: document.getElementById('inviteDesig').value,
+      engagement_type: document.getElementById('inviteType').value
+    })});
     const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || 'Invite failed');
-
+    if (!res.ok) throw new Error(data.detail || 'Failed');
     showAlert('inviteAlert', data.message, data.sent ? 'success' : 'warning');
-    if (data.manual_url) {
-      const linkEl = document.getElementById('inviteManualLink');
-      linkEl.style.display = 'block';
-      linkEl.innerHTML = `<strong>Manual link:</strong><br>${data.manual_url}`;
-    }
-  } catch (err) {
-    showAlert('inviteAlert', err.message, 'error');
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'Send invitation';
-  }
+    if (data.manual_url) { const l = document.getElementById('inviteManualLink'); l.style.display = 'block'; l.innerHTML = `<strong>Manual link:</strong><br>${data.manual_url}`; }
+  } catch (err) { showAlert('inviteAlert', err.message, 'error'); }
+  finally { btn.disabled = false; btn.textContent = 'Send invitation'; }
 }
 
-// --- Load Engagements ---
-async function loadEngagements() {
+// --- Send Email ---
+function toggleSpecificEmails() { document.getElementById('specificEmailsGroup').style.display = document.getElementById('emailAudience').value === 'specific' ? 'block' : 'none'; }
+
+async function sendBulkEmail() {
+  const audience = document.getElementById('emailAudience').value;
+  const subject = document.getElementById('emailSubject').value.trim();
+  const body = document.getElementById('emailBody').value.trim();
+  if (!subject || !body) { showAlert('emailAlert', 'Subject and body are required.', 'error'); return; }
+  const emails = audience === 'specific' ? document.getElementById('specificEmails').value.split(',').map(e => e.trim()).filter(Boolean) : [];
+  if (audience === 'specific' && !emails.length) { showAlert('emailAlert', 'Enter at least one email.', 'error'); return; }
+  const btn = document.getElementById('emailBtn'); btn.disabled = true; btn.textContent = 'Sending...';
   try {
-    const res = await fetch(API + '/admin/engagements');
+    const res = await fetch(API + '/admin/send-email', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ audience, subject, body, emails }) });
     const data = await res.json();
-    const tbody = document.getElementById('engagementsBody');
-    const table = document.getElementById('engagementsTable');
-    const empty = document.getElementById('engagementsEmpty');
-    document.getElementById('engagementsLoading').style.display = 'none';
-
-    if (!data.length) { empty.style.display = 'block'; return; }
-
-    tbody.innerHTML = data.map(e => `
-      <tr>
-        <td>${e.student_name}</td>
-        <td>${e.enrollment_number}</td>
-        <td>${e.degree_program} / ${e.batch}</td>
-        <td>${e.employer_name || e.employer_email}</td>
-        <td><span class="badge ${e.type === 'internship' ? 'badge-intern' : 'badge-graduate'}">${e.type === 'internship' ? 'Intern' : 'Graduate'}</span></td>
-        <td><span class="badge ${e.validation_status === 'validated' || e.validation_status === 'edited' ? 'badge-submitted' : 'badge-pending'}">${e.validation_status || 'pending'}</span></td>
-        <td><span class="badge ${e.feedback_status === 'submitted' ? 'badge-submitted' : 'badge-pending'}">${e.feedback_status}</span></td>
-        <td>${new Date(e.created_at).toLocaleDateString()}</td>
-      </tr>
-    `).join('');
-    table.style.display = 'table';
-  } catch (err) {
-    console.error(err);
-  }
+    if (!res.ok) throw new Error(data.detail || 'Failed');
+    showAlert('emailAlert', `Sent: ${data.sent}, Failed: ${data.failed} (out of ${data.total})`, data.failed > 0 ? 'warning' : 'success');
+  } catch (err) { showAlert('emailAlert', err.message, 'error'); }
+  finally { btn.disabled = false; btn.textContent = 'Send email'; }
 }
 
-// --- Load Employers ---
-async function loadEmployers() {
+// --- Settings ---
+async function createNewAdmin() {
+  const name = document.getElementById('newAdminName').value.trim();
+  const email = document.getElementById('newAdminEmail').value.trim();
+  const password = document.getElementById('newAdminPassword').value;
+  if (!name || !email || !password) { showAlert('settingsAlert', 'Fill all fields.', 'error'); return; }
   try {
-    const res = await fetch(API + '/admin/employers');
+    const res = await fetch(API + '/admin/create-admin', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ name, email, password }) });
     const data = await res.json();
-    const tbody = document.getElementById('employersBody');
-    const table = document.getElementById('employersTable');
-    const empty = document.getElementById('employersEmpty');
-    document.getElementById('employersLoading').style.display = 'none';
-
-    if (!data.length) { empty.style.display = 'block'; return; }
-
-    tbody.innerHTML = data.map(e => `
-      <tr>
-        <td>${e.work_email}</td>
-        <td>${e.name || '---'}</td>
-        <td>${e.designation || '---'}</td>
-        <td>${e.total_engagements}</td>
-        <td>${(e.surveys_submitted || 0) + (e.evals_submitted || 0)} submitted</td>
-        <td>${new Date(e.created_at).toLocaleDateString()}</td>
-        <td><button class="btn btn-sm btn-secondary" onclick="prefillInvite('${e.work_email}', '${e.name || ''}')">Re-invite</button></td>
-      </tr>
-    `).join('');
-    table.style.display = 'table';
-  } catch (err) {
-    console.error(err);
-  }
+    if (!res.ok) throw new Error(data.detail || 'Failed');
+    showAlert('settingsAlert', data.message, 'success');
+    ['newAdminName', 'newAdminEmail', 'newAdminPassword'].forEach(id => document.getElementById(id).value = '');
+  } catch (err) { showAlert('settingsAlert', err.message, 'error'); }
 }
 
-function prefillInvite(email, name) {
-  switchTabDirect('invite');
-  document.getElementById('inviteEmail').value = email;
-  document.getElementById('inviteName').value = name;
-}
-
-function switchTabDirect(tab) {
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-  document.querySelector(`.tab-content#tab-${tab}`).classList.add('active');
-  document.querySelectorAll('.tab').forEach(t => {
-    if (t.textContent.toLowerCase().includes(tab === 'invite' ? 'invite' : tab)) t.classList.add('active');
-  });
-}
+// --- Init ---
+document.getElementById('loginPassword').addEventListener('keydown', e => { if (e.key === 'Enter') adminLogin(); });
+checkAuth();
 </script>
 </body>
 </html>
