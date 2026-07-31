@@ -1103,6 +1103,22 @@ def list_engagements(admin: dict = Depends(get_current_admin), db: DBSession = D
     return [dict(r) for r in rows]
 
 
+class CreateEngagementRequest(BaseModel):
+    student_id: str
+    employer_email: str
+    engagement_type: str  # "internship" or "job"
+    organization_name: Optional[str] = ""
+    role_designation: Optional[str] = ""
+    department_served: Optional[str] = ""
+    supervisor_name: Optional[str] = ""
+    supervisor_designation: Optional[str] = ""
+    contact_email: Optional[str] = ""
+    contact_phone: Optional[str] = ""
+    start_date: Optional[str] = ""
+    end_date: Optional[str] = ""
+    send_invite: bool = True
+
+
 @app.post("/api/admin/engagements")
 def create_engagement(data: CreateEngagementRequest, admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
     """Create engagement + proforma, optionally invite employer."""
