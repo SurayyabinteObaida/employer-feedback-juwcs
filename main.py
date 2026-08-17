@@ -1436,7 +1436,7 @@ def _issue_alumni_action_link(db: DBSession, alumnus_id: str, full_name: str, em
         {
             "id": str(uuid.uuid4()), "alumnus_id": alumnus_id, "action_type": action_type,
             "target_id": target_id, "token": token,
-            "expires_at": datetime.now(timezone.utc) + timedelta(days=ALUMNI_ACTION_EXPIRE_DAYS),
+            "expires_at": datetime.utcnow() + timedelta(days=ALUMNI_ACTION_EXPIRE_DAYS),
         }
     )
     db.commit()
@@ -1461,7 +1461,10 @@ def _resolve_alumni_link(db: DBSession, token: str, expected_action: str) -> dic
         raise HTTPException(status_code=400, detail="This link is invalid, expired, or already used")
     if link["used_at"] is not None:
         raise HTTPException(status_code=400, detail="This link has already been used")
-    if link["expires_at"] < datetime.now(timezone.utc):
+    # expires_at comes back as a naive datetime (column is TIMESTAMP, not
+    # TIMESTAMPTZ) -- compare against another naive UTC value, same as the
+    # rest of the app does expiry checks in SQL via NOW() rather than here.
+    if link["expires_at"] < datetime.utcnow():
         raise HTTPException(status_code=400, detail="This link has expired")
     return dict(link)
 
