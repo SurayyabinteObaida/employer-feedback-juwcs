@@ -169,6 +169,7 @@ tr:hover td { background: #f8fafc; }
       <div class="nav-item" onclick="navigate('students')">Students</div>
       <div class="nav-item" onclick="navigate('engagements')">Engagements</div>
       <div class="nav-item" onclick="navigate('employers')">Employers</div>
+      <div class="nav-item" onclick="navigate('alumni')">Alumni</div>
       <div class="nav-label">Actions</div>
       <div class="nav-item" onclick="navigate('create')">Create engagement</div>
       <div class="nav-item" onclick="navigate('invite')">Invite employer</div>
@@ -226,6 +227,63 @@ tr:hover td { background: #f8fafc; }
         <div style="overflow-x:auto;">
           <table><thead><tr><th>Email</th><th>Name</th><th>Designation</th><th>Engagements</th><th>Feedback</th><th>Joined</th><th>Action</th></tr></thead>
           <tbody id="employersBody"></tbody></table>
+        </div>
+      </div>
+
+      <!-- Alumni -->
+      <div class="page" id="page-alumni">
+        <h2 class="page-title">Alumni</h2>
+        <p class="page-sub">Manage the alumni roster and send info confirmation, exit survey, and feedback form links batch-wise.</p>
+
+        <div class="card">
+          <h3>Add / update alumni contact record</h3>
+          <div id="alumniAddAlert" class="alert"></div>
+          <div class="form-group">
+            <label>Search student</label>
+            <input type="text" id="alumniStudentSearch" placeholder="Type name or enrollment..." oninput="searchStudentsForAlumni(this.value)">
+            <div id="alumniStudentResults" class="student-results" style="display:none;"></div>
+            <div id="alumniSelectedStudent" style="display:none;"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Email</label><input type="email" id="alumniEmail" placeholder="alumnus@example.com"></div>
+            <div class="form-group"><label>Contact number</label><input type="text" id="alumniContact"></div>
+          </div>
+          <div class="form-group"><label>LinkedIn profile</label><input type="text" id="alumniLinkedin" placeholder="linkedin.com/in/..."></div>
+          <button class="btn btn-primary" onclick="saveAlumniRecord()">Save alumni record</button>
+        </div>
+
+        <div class="card">
+          <h3>Send campaign</h3>
+          <div id="alumniCampaignAlert" class="alert"></div>
+          <div class="form-row">
+            <div class="form-group"><label>Batch</label><input type="text" id="alumniCampaignBatch" placeholder="e.g. 2022"></div>
+            <div class="form-group">
+              <label>Campaign</label>
+              <select id="alumniCampaignType" onchange="toggleAlumniSurveyYear()">
+                <option value="info-confirmation">Info confirmation</option>
+                <option value="exit-survey">Exit survey (requires info confirmed first)</option>
+                <option value="feedback-form">Alumni feedback form</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group" id="alumniSurveyYearGroup" style="display:none;">
+            <label>Survey year</label>
+            <input type="text" id="alumniSurveyYear" placeholder="e.g. 2025-2026">
+          </div>
+          <button class="btn btn-primary" onclick="sendAlumniCampaign()">Send campaign</button>
+        </div>
+
+        <div class="card">
+          <h3>Roster</h3>
+          <div class="form-group" style="max-width:240px;">
+            <label>Filter by batch</label>
+            <input type="text" id="alumniRosterBatchFilter" placeholder="e.g. 2022" oninput="loadAlumniRoster()">
+          </div>
+          <div style="overflow-x:auto;">
+            <table><thead><tr><th>Name</th><th>Enrollment</th><th>Program</th><th>Batch</th><th>Email</th><th>Info confirmation</th><th>Exit survey</th><th>Feedback forms</th></tr></thead>
+            <tbody id="alumniRosterBody"></tbody></table>
+          </div>
+          <p id="alumniRosterEmpty" style="display:none;font-size:13px;color:var(--text-muted);padding:1rem 0;">No alumni records found.</p>
         </div>
       </div>
 
@@ -342,6 +400,8 @@ const API = window.location.origin + '/api';
 let adminToken = localStorage.getItem('admin_token');
 let selectedStudentId = null;
 let currentStudentTag = '';
+let selectedAlumniStudentId = null;
+let alumniSearchTimeout;
 
 function authHeaders() { return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + adminToken }; }
 function showAlert(id, msg, type) { const el = document.getElementById(id); el.className = `alert alert-${type} visible`; el.textContent = msg; }
@@ -424,6 +484,7 @@ function navigate(page) {
   if (page === 'students') loadStudents();
   if (page === 'engagements') loadEngagements();
   if (page === 'employers') loadEmployers();
+  if (page === 'alumni') loadAlumniRoster();
 }
 
 // --- Dashboard ---
@@ -612,6 +673,92 @@ async function createNewAdmin() {
     showAlert('settingsAlert', data.message, 'success');
     ['newAdminName', 'newAdminEmail', 'newAdminPassword'].forEach(id => document.getElementById(id).value = '');
   } catch (err) { showAlert('settingsAlert', err.message, 'error'); }
+}
+
+// --- Alumni ---
+function searchStudentsForAlumni(q) {
+  clearTimeout(alumniSearchTimeout);
+  if (q.length < 2) { document.getElementById('alumniStudentResults').style.display = 'none'; return; }
+  alumniSearchTimeout = setTimeout(async () => {
+    const res = await fetch(API + '/admin/students?q=' + encodeURIComponent(q), { headers: authHeaders() });
+    const students = await res.json();
+    const c = document.getElementById('alumniStudentResults');
+    c.innerHTML = students.length ? students.map(s => `<div class="student-item" onclick="selectAlumniStudent('${s.id}','${s.full_name}','${s.enrollment_number}','${s.degree_program}','${s.batch}')"><strong>${s.full_name}</strong><br><span class="sub">${s.enrollment_number} - ${s.degree_program} - Batch ${s.batch}</span></div>`).join('') : '<div class="student-item" style="color:var(--text-muted)">No students found</div>';
+    c.style.display = 'block';
+  }, 300);
+}
+
+function selectAlumniStudent(id, name, enr, prog, batch) {
+  selectedAlumniStudentId = id;
+  document.getElementById('alumniStudentResults').style.display = 'none';
+  document.getElementById('alumniStudentSearch').style.display = 'none';
+  const el = document.getElementById('alumniSelectedStudent');
+  el.style.display = 'block';
+  el.innerHTML = `<div class="selected-student" style="width:100%"><span><strong>${name}</strong> - ${enr} - ${prog} - Batch ${batch}</span><button class="btn btn-sm btn-secondary" onclick="clearAlumniStudent()">Change</button></div>`;
+}
+
+function clearAlumniStudent() { selectedAlumniStudentId = null; document.getElementById('alumniSelectedStudent').style.display = 'none'; document.getElementById('alumniStudentSearch').style.display = 'block'; document.getElementById('alumniStudentSearch').value = ''; }
+
+async function saveAlumniRecord() {
+  const email = document.getElementById('alumniEmail').value.trim();
+  if (!selectedAlumniStudentId) { showAlert('alumniAddAlert', 'Search and select a student.', 'error'); return; }
+  if (!email) { showAlert('alumniAddAlert', 'Enter an email address.', 'error'); return; }
+  try {
+    const res = await fetch(API + '/admin/alumni/roster', { method: 'POST', headers: authHeaders(), body: JSON.stringify({
+      student_id: selectedAlumniStudentId, email,
+      contact_number: document.getElementById('alumniContact').value,
+      linkedin_url: document.getElementById('alumniLinkedin').value,
+    })});
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Failed');
+    showAlert('alumniAddAlert', data.message, 'success');
+    clearAlumniStudent();
+    ['alumniEmail', 'alumniContact', 'alumniLinkedin'].forEach(id => document.getElementById(id).value = '');
+    loadAlumniRoster();
+  } catch (err) { showAlert('alumniAddAlert', err.message, 'error'); }
+}
+
+function toggleAlumniSurveyYear() {
+  document.getElementById('alumniSurveyYearGroup').style.display = document.getElementById('alumniCampaignType').value === 'feedback-form' ? 'block' : 'none';
+}
+
+async function sendAlumniCampaign() {
+  const batch = document.getElementById('alumniCampaignBatch').value.trim();
+  const type = document.getElementById('alumniCampaignType').value;
+  if (!batch) { showAlert('alumniCampaignAlert', 'Enter a batch.', 'error'); return; }
+  const body = { batch };
+  if (type === 'feedback-form') {
+    const year = document.getElementById('alumniSurveyYear').value.trim();
+    if (!year) { showAlert('alumniCampaignAlert', 'Enter a survey year.', 'error'); return; }
+    body.survey_year = year;
+  }
+  try {
+    const res = await fetch(API + '/admin/alumni/campaigns/' + type, { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Failed');
+    const msg = 'skipped_already_has_form_for_year' in data
+      ? `Sent to ${data.sent} alumni (${data.skipped_already_has_form_for_year} already had a form for this year).`
+      : `Sent to ${data.sent} alumni.`;
+    showAlert('alumniCampaignAlert', msg, 'success');
+    loadAlumniRoster();
+  } catch (err) { showAlert('alumniCampaignAlert', err.message, 'error'); }
+}
+
+async function loadAlumniRoster() {
+  const batch = document.getElementById('alumniRosterBatchFilter').value.trim();
+  try {
+    const res = await fetch(API + '/admin/alumni/roster' + (batch ? '?batch=' + encodeURIComponent(batch) : ''), { headers: authHeaders() });
+    const rows = await res.json();
+    const tbody = document.getElementById('alumniRosterBody');
+    const empty = document.getElementById('alumniRosterEmpty');
+    if (!rows.length) { tbody.innerHTML = ''; empty.style.display = 'block'; return; }
+    empty.style.display = 'none';
+    tbody.innerHTML = rows.map(r => {
+      const infoBadge = r.info_status === 'pending' ? 'badge-pending' : 'badge-submitted';
+      const exitBadge = r.exit_survey_status === 'pending' ? 'badge-pending' : 'badge-submitted';
+      return `<tr><td>${r.full_name}</td><td>${r.enrollment_number}</td><td>${r.degree_program}</td><td>${r.batch}</td><td>${r.email}</td><td><span class="badge ${infoBadge}">${r.info_status}</span></td><td><span class="badge ${exitBadge}">${r.exit_survey_status}</span></td><td>${r.feedback_completed} / ${r.feedback_sent}</td></tr>`;
+    }).join('');
+  } catch (err) { console.error(err); }
 }
 
 // --- Init ---

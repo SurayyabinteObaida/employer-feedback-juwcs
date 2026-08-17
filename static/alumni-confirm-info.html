@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Confirm Your Details - JUW CSSE Alumni</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --primary: #1e3a5f;
+  --primary-light: #2a5a8f;
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --surface: #ffffff;
+  --bg: #f5f7fa;
+  --border: #e2e6ed;
+  --border-strong: #cdd3dc;
+  --text: #1a1f2e;
+  --text-secondary: #5a6274;
+  --text-muted: #8a91a0;
+  --success: #16a34a;
+  --success-bg: #dcfce7;
+  --success-text: #15603a;
+  --warning: #d97706;
+  --warning-bg: #fef3c7;
+  --warning-text: #854d0e;
+  --danger: #dc2626;
+  --danger-bg: #fee2e2;
+  --danger-text: #991b1b;
+  --radius: 6px;
+  --radius-lg: 10px;
+}
+
+body {
+  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+/* --- Header --- */
+.header {
+  background: var(--primary);
+  color: #fff;
+  padding: 0 2rem;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.header h1 {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  font-size: 13px;
+  color: rgba(255,255,255,0.8);
+}
+.btn-logout {
+  background: rgba(255,255,255,0.15);
+  border: 1px solid rgba(255,255,255,0.25);
+  color: #fff;
+  padding: 6px 14px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 0.15s;
+}
+.btn-logout:hover { background: rgba(255,255,255,0.25); }
+
+/* --- Layout --- */
+.container {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 1.75rem 1.5rem;
+}
+
+/* --- Login --- */
+.login-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 1rem;
+}
+.login-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 2.5rem;
+  max-width: 420px;
+  width: 100%;
+}
+.login-card h1 {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--primary);
+  margin-bottom: 0.5rem;
+}
+.login-card p {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: 1.5rem;
+  line-height: 1.6;
+}
+.login-card .help {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 1rem;
+}
+
+/* --- Alert --- */
+.alert {
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius);
+  font-size: 13px;
+  margin-bottom: 1rem;
+  display: none;
+}
+.alert.visible { display: block; }
+.alert-error { background: var(--danger-bg); color: var(--danger-text); border: 1px solid #fecaca; }
+.alert-success { background: var(--success-bg); color: var(--success-text); border: 1px solid #bbf7d0; }
+.alert-info { background: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe; }
+
+/* --- Page heading --- */
+.page-heading {
+  margin-bottom: 1.5rem;
+}
+.page-heading h2 {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text);
+}
+.page-heading p {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-top: 0.25rem;
+}
+
+/* --- Table card --- */
+.table-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+thead th {
+  background: #f8f9fb;
+  padding: 0.75rem 1rem;
+  text-align: left;
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+tbody td {
+  padding: 0.875rem 1rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: #f8f9fb; }
+
+/* --- Badge --- */
+.badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.badge-pending { background: var(--warning-bg); color: var(--warning-text); }
+.badge-submitted { background: var(--success-bg); color: var(--success-text); }
+.badge-confirmed { background: var(--success-bg); color: var(--success-text); }
+.badge-unconfirmed { background: #f3f4f6; color: var(--text-secondary); }
+.badge-rejected { background: var(--danger-bg); color: var(--danger-text); }
+.badge-intern { background: #dbeafe; color: #1e40af; }
+.badge-graduate { background: #f3e8ff; color: #6b21a8; }
+
+/* --- Buttons --- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 7px 14px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+  font-family: inherit;
+}
+.btn-sm { padding: 5px 10px; font-size: 12px; }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-primary:disabled { background: #93c5fd; cursor: not-allowed; }
+.btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border-strong); }
+.btn-secondary:hover { background: #f3f4f6; }
+.btn-success { background: var(--success); color: #fff; }
+.btn-success:hover { background: #15803d; }
+.btn-danger-outline { background: transparent; color: var(--danger); border: 1px solid #fecaca; }
+.btn-danger-outline:hover { background: var(--danger-bg); }
+.btn-ghost { background: transparent; color: var(--accent); border: none; padding: 5px 8px; }
+.btn-ghost:hover { background: #eff6ff; }
+
+.action-btns {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+/* --- Expandable detail --- */
+.detail-row { display: none; }
+.detail-row.open { display: table-row; }
+.detail-row td {
+  padding: 0;
+  background: #f8f9fb;
+}
+.detail-content {
+  padding: 1.25rem 1rem;
+  border-top: 1px solid var(--border);
+}
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+.detail-field label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-bottom: 3px;
+}
+.detail-field p {
+  font-size: 14px;
+  color: var(--text);
+}
+.detail-actions {
+  display: flex;
+  gap: 0.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+/* --- Feedback form page --- */
+.form-page {
+  display: none;
+}
+.form-page.active {
+  display: block;
+}
+.dashboard-page.active {
+  display: block;
+}
+.form-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 2rem;
+  margin-bottom: 1.5rem;
+}
+.form-card h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--primary);
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+.form-group {
+  margin-bottom: 1.25rem;
+}
+.form-group label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+.form-group input,
+.form-group textarea,
+.form-group select {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--text);
+  background: var(--surface);
+  transition: border-color 0.15s;
+}
+.form-group input:focus,
+.form-group textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+.form-group textarea { resize: vertical; min-height: 100px; }
+
+/* --- Rating row --- */
+.rating-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.rating-table th {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  padding: 0.5rem 0.75rem;
+  text-align: center;
+  background: #f8f9fb;
+  border-bottom: 1px solid var(--border);
+}
+.rating-table th:first-child { text-align: left; width: 40%; }
+.rating-table td {
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--border);
+  text-align: center;
+  font-size: 14px;
+}
+.rating-table td:first-child {
+  text-align: left;
+  font-weight: 500;
+  color: var(--text);
+}
+.rating-table tbody tr:hover { background: #f8f9fb; }
+.rating-table input[type="radio"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--accent);
+}
+.rating-scale-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 0 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+/* --- Form actions --- */
+.form-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+}
+
+/* --- Student info (read-only on form) --- */
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1rem;
+}
+.info-item label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-bottom: 2px;
+}
+.info-item span {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+/* --- Empty state --- */
+.empty-state {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: var(--text-muted);
+}
+.empty-state p { font-size: 14px; }
+
+/* --- Loading --- */
+.loading {
+  text-align: center;
+  padding: 3rem;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+/* --- Back link --- */
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--accent);
+  text-decoration: none;
+  cursor: pointer;
+  margin-bottom: 1rem;
+  font-weight: 500;
+}
+.back-link:hover { text-decoration: underline; }
+
+/* --- Responsive --- */
+@media (max-width: 768px) {
+  .container { padding: 1rem; }
+  .header { padding: 0 1rem; }
+  .form-row { grid-template-columns: 1fr; }
+  .detail-grid { grid-template-columns: 1fr 1fr; }
+  .info-grid { grid-template-columns: 1fr 1fr; }
+  .rating-table th, .rating-table td { padding: 0.5rem 0.25rem; font-size: 13px; }
+  table { font-size: 13px; }
+  thead th, tbody td { padding: 0.625rem 0.5rem; }
+}
+@media (max-width: 480px) {
+  .detail-grid { grid-template-columns: 1fr; }
+  .info-grid { grid-template-columns: 1fr; }
+  .action-btns { flex-direction: column; }
+}
+</style>
+</head>
+<body>
+
+<div id="loadingState" class="login-wrapper">
+  <div class="login-card">
+    <p class="loading">Loading...</p>
+  </div>
+</div>
+
+<div id="errorState" class="login-wrapper" style="display:none">
+  <div class="login-card">
+    <h1>Link not valid</h1>
+    <p id="errorMessage" style="margin-top:0.75rem;color:var(--text-secondary);"></p>
+  </div>
+</div>
+
+<div id="successState" class="login-wrapper" style="display:none">
+  <div class="login-card">
+    <h1>Thank you</h1>
+    <p style="margin-top:0.75rem;color:var(--text-secondary);">Your details are confirmed. You'll receive a separate email with your exit survey link shortly.</p>
+  </div>
+</div>
+
+<div id="formState" style="display:none">
+  <div class="header">
+    <h1>JUW CSSE Alumni</h1>
+  </div>
+  <div class="container" style="max-width:560px;">
+    <div class="page-heading">
+      <h2>Confirm your details</h2>
+      <p>We'd like to keep our alumni records up to date. Please review the details below — they're pre-filled from our records — and correct anything that's changed.</p>
+    </div>
+
+    <div id="formAlert" class="alert"></div>
+
+    <div class="form-card">
+      <div class="form-group">
+        <label for="confirmedName">Full name</label>
+        <input type="text" id="confirmedName">
+      </div>
+      <div class="form-group">
+        <label for="confirmedBatch">Batch (degree program &amp; year)</label>
+        <input type="text" id="confirmedBatch">
+      </div>
+      <div class="form-group">
+        <label for="confirmedEnrollment">Enrollment number</label>
+        <input type="text" id="confirmedEnrollment">
+      </div>
+      <div class="form-group">
+        <label for="confirmedEmail">Email</label>
+        <input type="email" id="confirmedEmail">
+      </div>
+      <div class="form-group">
+        <label for="confirmedLinkedin">LinkedIn profile</label>
+        <input type="text" id="confirmedLinkedin">
+      </div>
+      <div class="form-group">
+        <label for="confirmedContact">Contact number</label>
+        <input type="text" id="confirmedContact">
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-primary" id="submitBtn" onclick="submitConfirmation()" style="width:100%;">Confirm details</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = window.location.origin + '/api';
+const params = new URLSearchParams(window.location.search);
+const token = params.get('token');
+
+function showAlert(id, msg, type) { const el = document.getElementById(id); el.className = `alert alert-${type} visible`; el.textContent = msg; el.style.display = 'block'; }
+
+function showState(id) {
+  ['loadingState','errorState','successState','formState'].forEach(s => document.getElementById(s).style.display = s === id ? (id === 'formState' ? 'block' : 'flex') : 'none');
+}
+
+async function loadForm() {
+  if (!token) { document.getElementById('errorMessage').textContent = 'Missing link token.'; showState('errorState'); return; }
+  try {
+    const res = await fetch(API + '/alumni/confirm-info?token=' + encodeURIComponent(token));
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Unable to load your details.');
+    document.getElementById('confirmedName').value = data.confirmed_name || '';
+    document.getElementById('confirmedBatch').value = data.confirmed_batch || '';
+    document.getElementById('confirmedEnrollment').value = data.confirmed_enrollment_number || '';
+    document.getElementById('confirmedEmail').value = data.confirmed_email || '';
+    document.getElementById('confirmedLinkedin').value = data.confirmed_linkedin_url || '';
+    document.getElementById('confirmedContact').value = data.confirmed_contact_number || '';
+    showState('formState');
+  } catch (err) {
+    document.getElementById('errorMessage').textContent = err.message;
+    showState('errorState');
+  }
+}
+
+async function submitConfirmation() {
+  const btn = document.getElementById('submitBtn');
+  const payload = {
+    full_name: document.getElementById('confirmedName').value.trim(),
+    batch: document.getElementById('confirmedBatch').value.trim(),
+    enrollment_number: document.getElementById('confirmedEnrollment').value.trim(),
+    email: document.getElementById('confirmedEmail').value.trim(),
+    linkedin_url: document.getElementById('confirmedLinkedin').value.trim(),
+    contact_number: document.getElementById('confirmedContact').value.trim(),
+  };
+  if (!payload.full_name || !payload.batch || !payload.enrollment_number || !payload.email) {
+    showAlert('formAlert', 'Please fill in all required fields.', 'error'); return;
+  }
+  btn.disabled = true; btn.textContent = 'Saving...';
+  try {
+    const res = await fetch(API + '/alumni/confirm-info?token=' + encodeURIComponent(token), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Submission failed.');
+    showState('successState');
+  } catch (err) {
+    showAlert('formAlert', err.message, 'error');
+    btn.disabled = false; btn.textContent = 'Confirm details';
+  }
+}
+
+loadForm();
+</script>
+</body>
+</html>
