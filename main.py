@@ -92,6 +92,106 @@ def ensure_columns():
             )
         """))
 
+        # --- Alumni panel tables ---
+        # `alumni` extends an existing `students` row with contact info the
+        # OBE sync doesn't carry. Identity fields (name, enrollment_number,
+        # degree_program, batch) are read from `students` via student_id,
+        # never duplicated here. students.id is UUID, so student_id/alumnus_id
+        # FK columns must be UUID too (not VARCHAR).
+        db.execute(text("""
+            CREATE TABLE IF NOT EXISTS alumni (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                student_id UUID UNIQUE NOT NULL REFERENCES students(id),
+                email VARCHAR NOT NULL,
+                contact_number VARCHAR,
+                linkedin_url VARCHAR,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """))
+
+        db.execute(text("""
+            CREATE TABLE IF NOT EXISTS alumni_info_confirmations (
+                id VARCHAR PRIMARY KEY,
+                alumnus_id UUID UNIQUE NOT NULL REFERENCES alumni(id),
+                confirmed_name VARCHAR,
+                confirmed_batch VARCHAR,
+                confirmed_enrollment_number VARCHAR,
+                confirmed_email VARCHAR,
+                confirmed_linkedin_url VARCHAR,
+                confirmed_contact_number VARCHAR,
+                validation_status VARCHAR NOT NULL DEFAULT 'pending',
+                submitted_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """))
+
+        # Section B = GA2-GA10 only (GA1 excluded per department decision).
+        db.execute(text("""
+            CREATE TABLE IF NOT EXISTS alumni_exit_surveys (
+                id VARCHAR PRIMARY KEY,
+                alumnus_id UUID UNIQUE NOT NULL REFERENCES alumni(id),
+                rating_ga2 SMALLINT, rating_ga3 SMALLINT, rating_ga4 SMALLINT,
+                rating_ga5 SMALLINT, rating_ga6 SMALLINT, rating_ga7 SMALLINT,
+                rating_ga8 SMALLINT, rating_ga9 SMALLINT, rating_ga10 SMALLINT,
+                liked_most TEXT,
+                improvement_suggestions TEXT,
+                post_grad_plan VARCHAR,
+                job_offer_source VARCHAR,
+                intends_higher_studies VARCHAR,
+                higher_studies_specialization VARCHAR,
+                submitted_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """))
+
+        # Repeatable per survey_year -- admin spawns a new row each
+        # campaign; GA1-GA10 + single consolidated feedback field.
+        db.execute(text("""
+            CREATE TABLE IF NOT EXISTS alumni_feedback_forms (
+                id VARCHAR PRIMARY KEY,
+                alumnus_id UUID NOT NULL REFERENCES alumni(id),
+                survey_year VARCHAR NOT NULL,
+                current_status VARCHAR,
+                years_experience VARCHAR,
+                current_employer VARCHAR,
+                job_title VARCHAR,
+                is_first_job BOOLEAN,
+                working_as VARCHAR,
+                employment_region VARCHAR,
+                had_offer_before_graduation BOOLEAN,
+                first_job_source VARCHAR,
+                starting_salary_bracket VARCHAR,
+                pursuing_higher_studies BOOLEAN,
+                higher_studies_degree VARCHAR,
+                higher_studies_university VARCHAR,
+                higher_studies_country VARCHAR,
+                higher_studies_interest VARCHAR,
+                rating_ga1 SMALLINT, rating_ga2 SMALLINT, rating_ga3 SMALLINT, rating_ga4 SMALLINT,
+                rating_ga5 SMALLINT, rating_ga6 SMALLINT, rating_ga7 SMALLINT, rating_ga8 SMALLINT,
+                rating_ga9 SMALLINT, rating_ga10 SMALLINT,
+                feedback TEXT,
+                submitted_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT NOW(),
+                UNIQUE (alumnus_id, survey_year)
+            )
+        """))
+
+        # Single-use action tokens -- one per info-confirmation /
+        # exit-survey / feedback-form send. target_id points at the
+        # relevant alumni_feedback_forms row for repeatable actions.
+        db.execute(text("""
+            CREATE TABLE IF NOT EXISTS alumni_action_links (
+                id VARCHAR PRIMARY KEY,
+                alumnus_id UUID NOT NULL REFERENCES alumni(id),
+                action_type VARCHAR NOT NULL,
+                target_id VARCHAR,
+                token VARCHAR UNIQUE NOT NULL,
+                expires_at TIMESTAMP NOT NULL,
+                used_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """))
+
         db.commit()
     except Exception as e:
         print(f"[STARTUP] Migration note: {e}")
@@ -968,7 +1068,7 @@ def send_bulk_email(data: BulkEmailRequest, admin: dict = Depends(get_current_ad
         try:
             msg = MIMEMultipart("alternative")
             msg["Subject"] = data.subject
-            msg["From"] = SMTP_FROM
+            msg["From"] = SMTP_USER
             msg["To"] = r["work_email"]
             html = f"""
             <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 560px; margin: 0 auto; padding: 2rem;">
@@ -1190,6 +1290,530 @@ def create_engagement(data: CreateEngagementRequest, admin: dict = Depends(get_c
             result["manual_url"] = f"{APP_URL}/?token={token}"
 
     return result
+
+# ============================================================
+# --- Alumni Panel ---
+# Reuses the existing `students` table for identity (name,
+# enrollment_number, degree_program, batch) -- no duplication.
+# Alumni-specific contact info lives in a thin `alumni` table
+# keyed by student_id. Alumni don't have persistent logins;
+# each action (info confirmation, exit survey, feedback form)
+# is authorized by its own single-use token, consumed on submit.
+# ============================================================
+
+class AlumniInfoConfirmSubmission(BaseModel):
+    full_name: str
+    batch: str
+    enrollment_number: str
+    email: str
+    linkedin_url: Optional[str] = ""
+    contact_number: Optional[str] = ""
+
+class AlumniExitSurveySubmission(BaseModel):
+    # Section B -- GA2 through GA10 (GA1 intentionally excluded)
+    rating_ga2: int
+    rating_ga3: int
+    rating_ga4: int
+    rating_ga5: int
+    rating_ga6: int
+    rating_ga7: int
+    rating_ga8: int
+    rating_ga9: int
+    rating_ga10: int
+    liked_most: Optional[str] = ""
+    improvement_suggestions: Optional[str] = ""
+    # Section C -- career plans
+    post_grad_plan: Optional[str] = ""
+    job_offer_source: Optional[str] = ""
+    intends_higher_studies: Optional[str] = ""
+    higher_studies_specialization: Optional[str] = ""
+
+class AlumniFeedbackSubmission(BaseModel):
+    current_status: Optional[str] = ""
+    years_experience: Optional[str] = ""
+    current_employer: Optional[str] = ""
+    job_title: Optional[str] = ""
+    is_first_job: Optional[bool] = None
+    working_as: Optional[str] = ""
+    employment_region: Optional[str] = ""
+    had_offer_before_graduation: Optional[bool] = None
+    first_job_source: Optional[str] = ""
+    starting_salary_bracket: Optional[str] = ""
+    pursuing_higher_studies: Optional[bool] = None
+    higher_studies_degree: Optional[str] = ""
+    higher_studies_university: Optional[str] = ""
+    higher_studies_country: Optional[str] = ""
+    higher_studies_interest: Optional[str] = ""
+    rating_ga1: int
+    rating_ga2: int
+    rating_ga3: int
+    rating_ga4: int
+    rating_ga5: int
+    rating_ga6: int
+    rating_ga7: int
+    rating_ga8: int
+    rating_ga9: int
+    rating_ga10: int
+    feedback: Optional[str] = ""
+
+class AlumniRosterUpload(BaseModel):
+    student_id: str  # matches students.id -- student record must already exist
+    email: str
+    contact_number: Optional[str] = ""
+    linkedin_url: Optional[str] = ""
+
+class AlumniCampaignRequest(BaseModel):
+    batch: str
+
+class AlumniFeedbackCampaignRequest(BaseModel):
+    batch: str
+    survey_year: str
+
+
+ALUMNI_ACTION_EXPIRE_DAYS = 14  # alumni are off-campus, longer than the 48h employer link
+
+
+def _send_alumni_action_email(to_email: str, full_name: str, action_type: str, url: str):
+    copy = {
+        "info_confirmation": {
+            "subject": "Confirm your details - JUW CSSE Alumni Records",
+            "intro": "As we update our alumni records, please take a moment to confirm your contact details.",
+            "cta": "Confirm your details",
+        },
+        "exit_survey": {
+            "subject": "Graduating Class Exit Survey - JUW CSSE",
+            "intro": "As you complete your degree, we'd like your feedback on the program as part of our "
+                     "accreditation process. This should take about 10-15 minutes.",
+            "cta": "Start the exit survey",
+        },
+        "feedback_form": {
+            "subject": "Share Your Post-Graduate Journey - JUW CSSE Alumni Feedback",
+            "intro": "We'd love to hear how your career has progressed since graduation and how well the "
+                     "program prepared you for it.",
+            "cta": "Share your feedback",
+        },
+    }[action_type]
+
+    html = f"""
+    <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 560px; margin: 0 auto; padding: 2rem;">
+        <div style="background: #1e3a5f; padding: 1.25rem 1.5rem; border-radius: 8px 8px 0 0;">
+            <h1 style="color: #ffffff; font-size: 18px; margin: 0;">JUW CSSE Alumni</h1>
+        </div>
+        <div style="background: #ffffff; border: 1px solid #e2e6ed; border-top: none; padding: 2rem 1.5rem; border-radius: 0 0 8px 8px;">
+            <p style="font-size: 15px; color: #1a1f2e; margin: 0 0 1rem;">Dear {full_name or 'Alumnus'},</p>
+            <p style="font-size: 14px; color: #5a6274; line-height: 1.6; margin: 0 0 1.5rem;">{copy['intro']}</p>
+            <div style="text-align: center; margin: 1rem 0 1.5rem;">
+                <a href="{url}" style="display: inline-block; background: #2563eb; color: #ffffff; text-decoration: none;
+                      padding: 12px 28px; border-radius: 6px; font-size: 14px; font-weight: 600;">{copy['cta']}</a>
+            </div>
+            <p style="font-size: 12px; color: #8a91a0; margin: 0 0 1.5rem;">This link is valid for {ALUMNI_ACTION_EXPIRE_DAYS} days and can only be used once.</p>
+            <p style="font-size: 13px; color: #8a91a0; margin: 1.5rem 0 0; line-height: 1.5;">
+                Department of Computer Science &amp; Software Engineering, Jinnah University for Women.
+            </p>
+        </div>
+    </div>
+    """
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = copy["subject"]
+    msg["From"] = SMTP_USER
+    msg["To"] = to_email
+    msg.attach(MIMEText(html, "html"))
+
+    server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=15)
+    server.starttls()
+    server.login(SMTP_USER, SMTP_PASSWORD)
+    server.sendmail(SMTP_USER, to_email, msg.as_string())
+    server.quit()
+
+
+def _issue_alumni_action_link(db: DBSession, alumnus_id: str, full_name: str, email: str,
+                               action_type: str, target_id: str = None) -> str:
+    token = secrets.token_urlsafe(32)
+    db.execute(
+        text("""INSERT INTO alumni_action_links (id, alumnus_id, action_type, target_id, token, expires_at)
+                VALUES (:id, :alumnus_id, :action_type, :target_id, :token, :expires_at)"""),
+        {
+            "id": str(uuid.uuid4()), "alumnus_id": alumnus_id, "action_type": action_type,
+            "target_id": target_id, "token": token,
+            "expires_at": datetime.now(timezone.utc) + timedelta(days=ALUMNI_ACTION_EXPIRE_DAYS),
+        }
+    )
+    db.commit()
+
+    path = {"info_confirmation": "confirm-info", "exit_survey": "exit-survey", "feedback_form": "feedback"}[action_type]
+    url = f"{APP_URL}/alumni-{path}.html?token={token}"
+    try:
+        _send_alumni_action_email(email, full_name, action_type, url)
+    except Exception:
+        import traceback
+        traceback.print_exc()
+    return token
+
+
+def _resolve_alumni_link(db: DBSession, token: str, expected_action: str) -> dict:
+    link = db.execute(
+        text("""SELECT id, alumnus_id, action_type, target_id, expires_at, used_at
+                FROM alumni_action_links WHERE token = :token"""),
+        {"token": token}
+    ).mappings().first()
+    if not link or link["action_type"] != expected_action:
+        raise HTTPException(status_code=400, detail="This link is invalid, expired, or already used")
+    if link["used_at"] is not None:
+        raise HTTPException(status_code=400, detail="This link has already been used")
+    if link["expires_at"] < datetime.now(timezone.utc):
+        raise HTTPException(status_code=400, detail="This link has expired")
+    return dict(link)
+
+
+def _consume_alumni_link(db: DBSession, link_id: str):
+    db.execute(text("UPDATE alumni_action_links SET used_at = NOW() WHERE id = :id"), {"id": link_id})
+
+
+def _get_alumnus_with_student(db: DBSession, alumnus_id: str) -> dict:
+    row = db.execute(
+        text("""SELECT a.id, a.student_id, a.email, a.contact_number, a.linkedin_url,
+                        s.full_name, s.enrollment_number, s.degree_program, s.batch
+                 FROM alumni a JOIN students s ON a.student_id = s.id
+                 WHERE a.id = :id"""),
+        {"id": alumnus_id}
+    ).mappings().first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Alumnus record not found")
+    return dict(row)
+
+
+# --- Alumni-facing endpoints (token-gated, no login) ---
+
+@app.get("/api/alumni/confirm-info")
+def get_alumni_info_confirmation(token: str, db: DBSession = Depends(get_db)):
+    link = _resolve_alumni_link(db, token, "info_confirmation")
+    alumnus = _get_alumnus_with_student(db, link["alumnus_id"])
+
+    existing = db.execute(
+        text("SELECT * FROM alumni_info_confirmations WHERE alumnus_id = :aid"),
+        {"aid": alumnus["id"]}
+    ).mappings().first()
+
+    if existing:
+        return dict(existing)
+
+    confirmation_id = str(uuid.uuid4())
+    db.execute(
+        text("""INSERT INTO alumni_info_confirmations
+                (id, alumnus_id, confirmed_name, confirmed_batch, confirmed_enrollment_number,
+                 confirmed_email, confirmed_linkedin_url, confirmed_contact_number, validation_status)
+                VALUES (:id, :aid, :name, :batch, :enr, :email, :li, :contact, 'pending')"""),
+        {
+            "id": confirmation_id, "aid": alumnus["id"], "name": alumnus["full_name"],
+            "batch": alumnus["batch"], "enr": alumnus["enrollment_number"],
+            "email": alumnus["email"], "li": alumnus["linkedin_url"], "contact": alumnus["contact_number"],
+        }
+    )
+    db.commit()
+    return {
+        "confirmed_name": alumnus["full_name"], "confirmed_batch": alumnus["batch"],
+        "confirmed_enrollment_number": alumnus["enrollment_number"], "confirmed_email": alumnus["email"],
+        "confirmed_linkedin_url": alumnus["linkedin_url"], "confirmed_contact_number": alumnus["contact_number"],
+        "validation_status": "pending", "submitted_at": None,
+    }
+
+
+@app.post("/api/alumni/confirm-info")
+def submit_alumni_info_confirmation(data: AlumniInfoConfirmSubmission, token: str, db: DBSession = Depends(get_db)):
+    link = _resolve_alumni_link(db, token, "info_confirmation")
+    alumnus = _get_alumnus_with_student(db, link["alumnus_id"])
+
+    existing = db.execute(
+        text("SELECT id, confirmed_email, confirmed_linkedin_url, confirmed_contact_number, submitted_at FROM alumni_info_confirmations WHERE alumnus_id = :aid"),
+        {"aid": alumnus["id"]}
+    ).mappings().first()
+    if existing and existing["submitted_at"] is not None:
+        raise HTTPException(status_code=409, detail="This confirmation has already been submitted")
+
+    changed = (not existing) or (
+        existing["confirmed_email"] != data.email
+        or existing["confirmed_linkedin_url"] != data.linkedin_url
+        or existing["confirmed_contact_number"] != data.contact_number
+    )
+    status = "edited" if changed else "validated"
+
+    db.execute(
+        text("""UPDATE alumni_info_confirmations SET
+                confirmed_name = :name, confirmed_batch = :batch, confirmed_enrollment_number = :enr,
+                confirmed_email = :email, confirmed_linkedin_url = :li, confirmed_contact_number = :contact,
+                validation_status = :status, submitted_at = NOW()
+                WHERE alumnus_id = :aid"""),
+        {
+            "name": data.full_name, "batch": data.batch, "enr": data.enrollment_number,
+            "email": data.email, "li": data.linkedin_url, "contact": data.contact_number,
+            "status": status, "aid": alumnus["id"],
+        }
+    )
+    db.execute(
+        text("UPDATE alumni SET email = :email, contact_number = :contact, linkedin_url = :li WHERE id = :id"),
+        {"email": data.email, "contact": data.contact_number, "li": data.linkedin_url, "id": alumnus["id"]}
+    )
+    _consume_alumni_link(db, link["id"])
+    db.commit()
+    return {"message": "Details confirmed", "validation_status": status}
+
+
+@app.get("/api/alumni/exit-survey")
+def get_alumni_exit_survey_context(token: str, db: DBSession = Depends(get_db)):
+    link = _resolve_alumni_link(db, token, "exit_survey")
+    alumnus = _get_alumnus_with_student(db, link["alumnus_id"])
+    existing = db.execute(
+        text("SELECT submitted_at FROM alumni_exit_surveys WHERE alumnus_id = :aid"),
+        {"aid": alumnus["id"]}
+    ).mappings().first()
+    if existing and existing["submitted_at"] is not None:
+        raise HTTPException(status_code=409, detail="Exit survey already submitted")
+    return {"full_name": alumnus["full_name"], "batch": alumnus["batch"], "degree_program": alumnus["degree_program"]}
+
+
+@app.post("/api/alumni/exit-survey")
+def submit_alumni_exit_survey(data: AlumniExitSurveySubmission, token: str, db: DBSession = Depends(get_db)):
+    link = _resolve_alumni_link(db, token, "exit_survey")
+    alumnus = _get_alumnus_with_student(db, link["alumnus_id"])
+
+    existing = db.execute(
+        text("SELECT id, submitted_at FROM alumni_exit_surveys WHERE alumnus_id = :aid"),
+        {"aid": alumnus["id"]}
+    ).mappings().first()
+    if existing and existing["submitted_at"] is not None:
+        raise HTTPException(status_code=409, detail="Exit survey already submitted")
+
+    payload = data.dict()
+    payload["aid"] = alumnus["id"]
+
+    if existing:
+        db.execute(
+            text("""UPDATE alumni_exit_surveys SET
+                    rating_ga2 = :rating_ga2, rating_ga3 = :rating_ga3, rating_ga4 = :rating_ga4,
+                    rating_ga5 = :rating_ga5, rating_ga6 = :rating_ga6, rating_ga7 = :rating_ga7,
+                    rating_ga8 = :rating_ga8, rating_ga9 = :rating_ga9, rating_ga10 = :rating_ga10,
+                    liked_most = :liked_most, improvement_suggestions = :improvement_suggestions,
+                    post_grad_plan = :post_grad_plan, job_offer_source = :job_offer_source,
+                    intends_higher_studies = :intends_higher_studies,
+                    higher_studies_specialization = :higher_studies_specialization,
+                    submitted_at = NOW()
+                    WHERE alumnus_id = :aid"""),
+            payload
+        )
+    else:
+        payload["id"] = str(uuid.uuid4())
+        db.execute(
+            text("""INSERT INTO alumni_exit_surveys
+                    (id, alumnus_id, rating_ga2, rating_ga3, rating_ga4, rating_ga5, rating_ga6, rating_ga7,
+                     rating_ga8, rating_ga9, rating_ga10, liked_most, improvement_suggestions,
+                     post_grad_plan, job_offer_source, intends_higher_studies, higher_studies_specialization,
+                     submitted_at)
+                    VALUES (:id, :aid, :rating_ga2, :rating_ga3, :rating_ga4, :rating_ga5, :rating_ga6, :rating_ga7,
+                     :rating_ga8, :rating_ga9, :rating_ga10, :liked_most, :improvement_suggestions,
+                     :post_grad_plan, :job_offer_source, :intends_higher_studies, :higher_studies_specialization,
+                     NOW())"""),
+            payload
+        )
+
+    _consume_alumni_link(db, link["id"])
+    db.commit()
+    return {"message": "Exit survey submitted"}
+
+
+@app.get("/api/alumni/feedback")
+def get_alumni_feedback_context(token: str, db: DBSession = Depends(get_db)):
+    link = _resolve_alumni_link(db, token, "feedback_form")
+    alumnus = _get_alumnus_with_student(db, link["alumnus_id"])
+    form = db.execute(
+        text("SELECT survey_year, submitted_at FROM alumni_feedback_forms WHERE id = :id"),
+        {"id": link["target_id"]}
+    ).mappings().first()
+    if form and form["submitted_at"] is not None:
+        raise HTTPException(status_code=409, detail="This feedback form has already been submitted")
+    return {
+        "full_name": alumnus["full_name"], "batch": alumnus["batch"],
+        "degree_program": alumnus["degree_program"],
+        "survey_year": form["survey_year"] if form else None,
+    }
+
+
+@app.post("/api/alumni/feedback")
+def submit_alumni_feedback(data: AlumniFeedbackSubmission, token: str, db: DBSession = Depends(get_db)):
+    link = _resolve_alumni_link(db, token, "feedback_form")
+
+    form = db.execute(
+        text("SELECT id, submitted_at FROM alumni_feedback_forms WHERE id = :id"),
+        {"id": link["target_id"]}
+    ).mappings().first()
+    if not form:
+        raise HTTPException(status_code=404, detail="Feedback form record not found")
+    if form["submitted_at"] is not None:
+        raise HTTPException(status_code=409, detail="This feedback form has already been submitted")
+
+    payload = data.dict()
+    payload["id"] = form["id"]
+    db.execute(
+        text("""UPDATE alumni_feedback_forms SET
+                current_status = :current_status, years_experience = :years_experience,
+                current_employer = :current_employer, job_title = :job_title, is_first_job = :is_first_job,
+                working_as = :working_as, employment_region = :employment_region,
+                had_offer_before_graduation = :had_offer_before_graduation, first_job_source = :first_job_source,
+                starting_salary_bracket = :starting_salary_bracket, pursuing_higher_studies = :pursuing_higher_studies,
+                higher_studies_degree = :higher_studies_degree, higher_studies_university = :higher_studies_university,
+                higher_studies_country = :higher_studies_country, higher_studies_interest = :higher_studies_interest,
+                rating_ga1 = :rating_ga1, rating_ga2 = :rating_ga2, rating_ga3 = :rating_ga3, rating_ga4 = :rating_ga4,
+                rating_ga5 = :rating_ga5, rating_ga6 = :rating_ga6, rating_ga7 = :rating_ga7, rating_ga8 = :rating_ga8,
+                rating_ga9 = :rating_ga9, rating_ga10 = :rating_ga10, feedback = :feedback, submitted_at = NOW()
+                WHERE id = :id"""),
+        payload
+    )
+    _consume_alumni_link(db, link["id"])
+    db.commit()
+    return {"message": "Feedback submitted"}
+
+
+# --- Admin: alumni roster + campaigns ---
+
+@app.post("/api/admin/alumni/roster")
+def upsert_alumnus(data: AlumniRosterUpload, admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
+    student = db.execute(text("SELECT id FROM students WHERE id = :id"), {"id": data.student_id}).mappings().first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found - check the student ID")
+
+    existing = db.execute(text("SELECT id FROM alumni WHERE student_id = :sid"), {"sid": student["id"]}).mappings().first()
+    if existing:
+        db.execute(
+            text("UPDATE alumni SET email = :email, contact_number = :contact, linkedin_url = :li WHERE id = :id"),
+            {"email": data.email, "contact": data.contact_number, "li": data.linkedin_url, "id": existing["id"]}
+        )
+        alumnus_id = existing["id"]
+    else:
+        alumnus_id = str(uuid.uuid4())
+        db.execute(
+            text("""INSERT INTO alumni (id, student_id, email, contact_number, linkedin_url)
+                    VALUES (:id, :sid, :email, :contact, :li)"""),
+            {"id": alumnus_id, "sid": student["id"], "email": data.email,
+             "contact": data.contact_number, "li": data.linkedin_url}
+        )
+    db.commit()
+    return {"message": "Alumnus record saved", "alumnus_id": alumnus_id}
+
+
+@app.get("/api/admin/alumni/roster")
+def list_alumni_roster(batch: str = "", admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
+    query = """
+        SELECT a.id, s.full_name, s.enrollment_number, s.degree_program, s.batch, a.email,
+               ic.validation_status AS info_status, ic.submitted_at AS info_submitted_at,
+               es.submitted_at AS exit_survey_submitted_at,
+               (SELECT COUNT(*) FROM alumni_feedback_forms f WHERE f.alumnus_id = a.id AND f.submitted_at IS NOT NULL) AS feedback_completed,
+               (SELECT COUNT(*) FROM alumni_feedback_forms f WHERE f.alumnus_id = a.id) AS feedback_sent
+        FROM alumni a
+        JOIN students s ON a.student_id = s.id
+        LEFT JOIN alumni_info_confirmations ic ON ic.alumnus_id = a.id
+        LEFT JOIN alumni_exit_surveys es ON es.alumnus_id = a.id
+    """
+    params = {}
+    if batch:
+        query += " WHERE s.batch = :batch"
+        params["batch"] = batch
+    query += " ORDER BY s.batch DESC, s.full_name"
+
+    rows = db.execute(text(query), params).mappings().all()
+    result = []
+    for r in rows:
+        d = dict(r)
+        d["info_status"] = d["info_status"] if d["info_submitted_at"] else "pending"
+        d["exit_survey_status"] = "completed" if d["exit_survey_submitted_at"] else "pending"
+        result.append(d)
+    return result
+
+
+@app.get("/api/admin/alumni/students-without-record")
+def list_students_without_alumni_record(batch: str = "", admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
+    query = """
+        SELECT s.id, s.full_name, s.enrollment_number, s.degree_program, s.batch
+        FROM students s
+        LEFT JOIN alumni a ON a.student_id = s.id
+        WHERE a.id IS NULL
+    """
+    params = {}
+    if batch:
+        query += " AND s.batch = :batch"
+        params["batch"] = batch
+    query += " ORDER BY s.full_name"
+    rows = db.execute(text(query), params).mappings().all()
+    return [dict(r) for r in rows]
+
+
+@app.post("/api/admin/alumni/campaigns/info-confirmation")
+def send_alumni_info_confirmation_campaign(data: AlumniCampaignRequest, admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
+    rows = db.execute(
+        text("""SELECT a.id, a.email, s.full_name FROM alumni a JOIN students s ON a.student_id = s.id
+                LEFT JOIN alumni_info_confirmations ic ON ic.alumnus_id = a.id
+                WHERE s.batch = :batch AND ic.submitted_at IS NULL"""),
+        {"batch": data.batch}
+    ).mappings().all()
+    if not rows:
+        raise HTTPException(status_code=404, detail=f"No pending alumni found for batch {data.batch}")
+
+    sent = 0
+    for r in rows:
+        _issue_alumni_action_link(db, r["id"], r["full_name"], r["email"], "info_confirmation")
+        sent += 1
+    return {"sent": sent}
+
+
+@app.post("/api/admin/alumni/campaigns/exit-survey")
+def send_alumni_exit_survey_campaign(data: AlumniCampaignRequest, admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
+    rows = db.execute(
+        text("""SELECT a.id, a.email, s.full_name FROM alumni a
+                JOIN students s ON a.student_id = s.id
+                JOIN alumni_info_confirmations ic ON ic.alumnus_id = a.id AND ic.submitted_at IS NOT NULL
+                LEFT JOIN alumni_exit_surveys es ON es.alumnus_id = a.id
+                WHERE s.batch = :batch AND es.submitted_at IS NULL"""),
+        {"batch": data.batch}
+    ).mappings().all()
+    if not rows:
+        raise HTTPException(status_code=404, detail=f"No eligible alumni found for batch {data.batch} "
+                                                       f"(info confirmation must be completed first)")
+
+    sent = 0
+    for r in rows:
+        _issue_alumni_action_link(db, r["id"], r["full_name"], r["email"], "exit_survey")
+        sent += 1
+    return {"sent": sent}
+
+
+@app.post("/api/admin/alumni/campaigns/feedback-form")
+def send_alumni_feedback_campaign(data: AlumniFeedbackCampaignRequest, admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
+    rows = db.execute(
+        text("SELECT a.id, a.email, s.full_name FROM alumni a JOIN students s ON a.student_id = s.id WHERE s.batch = :batch"),
+        {"batch": data.batch}
+    ).mappings().all()
+    if not rows:
+        raise HTTPException(status_code=404, detail=f"No alumni found for batch {data.batch}")
+
+    sent, skipped = 0, 0
+    for r in rows:
+        existing = db.execute(
+            text("SELECT id FROM alumni_feedback_forms WHERE alumnus_id = :aid AND survey_year = :year"),
+            {"aid": r["id"], "year": data.survey_year}
+        ).mappings().first()
+        if existing:
+            skipped += 1
+            continue
+        form_id = str(uuid.uuid4())
+        db.execute(
+            text("INSERT INTO alumni_feedback_forms (id, alumnus_id, survey_year) VALUES (:id, :aid, :year)"),
+            {"id": form_id, "aid": r["id"], "year": data.survey_year}
+        )
+        db.commit()
+        _issue_alumni_action_link(db, r["id"], r["full_name"], r["email"], "feedback_form", target_id=form_id)
+        sent += 1
+
+    return {"sent": sent, "skipped_already_has_form_for_year": skipped}
+
 
 # --- Serve frontend (static files) ---
 
