@@ -190,7 +190,7 @@ tr:hover td { background: #f8fafc; }
         <div id="studentActionAlert" class="alert"></div>
 
         <div style="display:flex;gap:0.75rem;align-items:center;margin-bottom:1rem;flex-wrap:wrap;">
-          <input type="text" id="studentSearchInput" placeholder="Search by name or enrollment..." oninput="loadStudents()" style="flex:1;min-width:220px;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius);font-size:14px;">
+          <input type="text" id="studentSearchInput" placeholder="Search by name or enrollment..." oninput="studentsCurrentPage = 1; loadStudents();" style="flex:1;min-width:220px;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius);font-size:14px;">
           <button class="btn btn-primary btn-sm" onclick="openStudentModal()">Add student</button>
           <button class="btn btn-secondary btn-sm" onclick="openCsvModal()">Bulk upload CSV</button>
         </div>
@@ -252,6 +252,24 @@ tr:hover td { background: #f8fafc; }
           <tbody id="studentsBody"></tbody></table>
         </div>
         <p id="studentsEmpty" style="display:none;font-size:13px;color:var(--text-muted);padding:1rem 0;">No students found.</p>
+
+        <div id="studentsPagination" style="display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border);flex-wrap:wrap;">
+          <div style="font-size:13px;color:var(--text-secondary);" id="studentsPageInfo"></div>
+          <div style="display:flex;align-items:center;gap:0.75rem;">
+            <label style="font-size:13px;color:var(--text-secondary);display:flex;align-items:center;gap:6px;">
+              Rows per page
+              <select id="studentsPageSize" onchange="onStudentsPageSizeChange()" style="padding:5px 8px;border:1px solid var(--border-strong);border-radius:var(--radius);font-size:13px;">
+                <option value="25">25</option>
+                <option value="50" selected>50</option>
+                <option value="100">100</option>
+                <option value="200">200</option>
+              </select>
+            </label>
+            <button class="btn btn-sm btn-secondary" id="studentsPrevBtn" onclick="goToStudentsPage(studentsCurrentPage - 1)">Previous</button>
+            <span id="studentsPageLabel" style="font-size:13px;color:var(--text-secondary);"></span>
+            <button class="btn btn-sm btn-secondary" id="studentsNextBtn" onclick="goToStudentsPage(studentsCurrentPage + 1)">Next</button>
+          </div>
+        </div>
       </div>
 
       <div class="page" id="page-employers">
@@ -621,20 +639,55 @@ async function loadDashboard() {
 let currentStudentStatus = '';
 function filterStudents(el, status) {
   currentStudentStatus = status;
+  studentsCurrentPage = 1;
   document.querySelectorAll('#page-students .tag-filter').forEach(f => f.classList.remove('active'));
   el.classList.add('active');
   loadStudents();
 }
 
+let studentsCurrentPage = 1;
+let studentsTotalCount = 0;
+
+function onStudentsPageSizeChange() {
+  studentsCurrentPage = 1;
+  loadStudents();
+}
+
+function goToStudentsPage(page) {
+  const pageSize = parseInt(document.getElementById('studentsPageSize').value, 10);
+  const maxPage = Math.max(1, Math.ceil(studentsTotalCount / pageSize));
+  if (page < 1 || page > maxPage) return;
+  studentsCurrentPage = page;
+  loadStudents();
+}
+
 async function loadStudents() {
   const q = document.getElementById('studentSearchInput').value.trim();
+  const pageSize = parseInt(document.getElementById('studentsPageSize').value, 10);
   try {
-    const res = await fetch(API + '/admin/students?q=' + encodeURIComponent(q) + '&status=' + currentStudentStatus, { headers: authHeaders() });
-    const students = await res.json();
+    const res = await fetch(
+      API + '/admin/students?q=' + encodeURIComponent(q) + '&status=' + currentStudentStatus
+        + '&page=' + studentsCurrentPage + '&page_size=' + pageSize,
+      { headers: authHeaders() }
+    );
+    const data = await res.json();
+    const students = data.students || [];
+    studentsTotalCount = data.total || 0;
+
     const tbody = document.getElementById('studentsBody');
     const empty = document.getElementById('studentsEmpty');
-    if (!students.length) { tbody.innerHTML = ''; empty.style.display = 'block'; return; }
+    const pagination = document.getElementById('studentsPagination');
+
+    if (!students.length) {
+      tbody.innerHTML = '';
+      empty.style.display = 'block';
+      pagination.style.display = studentsTotalCount === 0 ? 'none' : 'flex';
+      document.getElementById('studentsPageInfo').textContent = studentsTotalCount === 0 ? '' : 'No results on this page.';
+      return;
+    }
     empty.style.display = 'none';
+    pagination.style.display = 'flex';
+
     tbody.innerHTML = students.map(s => `<tr>
       <td>${s.full_name}</td><td>${s.enrollment_number}</td><td>${s.degree_program}</td><td>${s.batch}</td><td>${s.current_semester || '---'}</td>
       <td>${statusBadges(s.statuses)}</td>
@@ -645,6 +698,14 @@ async function loadStudents() {
         </div>
       </td>
     </tr>`).join('');
+
+    const maxPage = Math.max(1, Math.ceil(studentsTotalCount / pageSize));
+    const start = (studentsCurrentPage - 1) * pageSize + 1;
+    const end = Math.min(studentsCurrentPage * pageSize, studentsTotalCount);
+    document.getElementById('studentsPageInfo').textContent = `Showing ${start}-${end} of ${studentsTotalCount}`;
+    document.getElementById('studentsPageLabel').textContent = `Page ${studentsCurrentPage} of ${maxPage}`;
+    document.getElementById('studentsPrevBtn').disabled = studentsCurrentPage <= 1;
+    document.getElementById('studentsNextBtn').disabled = studentsCurrentPage >= maxPage;
   } catch (err) { console.error(err); }
 }
 
@@ -922,11 +983,32 @@ function searchStudentsFor(prefix, q) {
   const resultsEl = document.getElementById(prefix + 'StudentResults');
   if (q.length < 2) { resultsEl.style.display = 'none'; return; }
   searchTimeouts[prefix] = setTimeout(async () => {
-    const res = await fetch(API + '/admin/students?q=' + encodeURIComponent(q), { headers: authHeaders() });
-    const students = await res.json();
+    // Typeahead dropdown, not a browsable table -- cap results with
+    // page_size rather than paginating; 25 is plenty for a live search.
+    const res = await fetch(API + '/admin/students?q=' + encodeURIComponent(q) + '&page_size=25', { headers: authHeaders() });
+    const data = await res.json();
+    let students = data.students || [];
+
+    // Internship initiation only: hide students whose batch is old enough
+    // that they've almost certainly graduated (4-year BS program), since an
+    // internship offer doesn't make sense for someone years past graduation.
+    // Only filters on a batch that parses as a clean 4-digit year -- a
+    // missing or malformed batch value is left visible rather than silently
+    // hidden, since a wrongly-hidden active student is a worse failure than
+    // an unfiltered stale one.
+    if (prefix === 'intern') {
+      const currentYear = new Date().getFullYear();
+      const MAX_PROGRAM_YEARS = 4;
+      students = students.filter(s => {
+        const batchYear = parseInt(s.batch, 10);
+        if (isNaN(batchYear) || String(batchYear) !== String(s.batch).trim()) return true;
+        return (currentYear - batchYear) < MAX_PROGRAM_YEARS;
+      });
+    }
+
     resultsEl.innerHTML = students.length
       ? students.map(s => `<div class="student-item" onclick="selectStudentFor('${prefix}','${s.id}','${s.full_name}','${s.enrollment_number}','${s.degree_program}','${s.batch}','${s.current_semester || ''}')"><strong>${s.full_name}</strong><br><span class="sub">${s.enrollment_number} - ${s.degree_program} - Batch ${s.batch}</span></div>`).join('')
-      : '<div class="student-item" style="color:var(--text-muted)">No students found</div>';
+      : `<div class="student-item" style="color:var(--text-muted)">No ${prefix === 'intern' ? 'active ' : ''}students found</div>`;
     resultsEl.style.display = 'block';
   }, 300);
 }

@@ -1013,7 +1013,8 @@ def admin_dashboard_stats(admin: dict = Depends(get_current_admin), db: DBSessio
 
 
 @app.get("/api/admin/students")
-def list_students(q: str = "", status: str = "", admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
+def list_students(q: str = "", status: str = "", page: int = 1, page_size: int = 50,
+                   admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
     """List students with multi-badge status: a student can be any combination
     of intern / graduate / alumni. undergrad = none of the above (default,
     not stored — just the absence of every other status).
@@ -1024,7 +1025,18 @@ def list_students(q: str = "", status: str = "", admin: dict = Depends(get_curre
 
     `status` filters to rows containing that single status (e.g. status=alumni
     returns everyone tagged alumni, even if they're also tagged graduate).
+
+    Paginated: `page` (1-indexed) and `page_size` (default 50, max 200) control
+    the slice returned. Status is computed per-row from joined engagement/alumni
+    data, so it can't be pushed into the SQL LIMIT/OFFSET -- pagination is
+    applied after the status filter, on the full filtered list, so page
+    boundaries stay correct regardless of which status is selected. Response
+    is {"students": [...], "total": N, "page": P, "page_size": S} rather than
+    a bare list, so the frontend can render page controls.
     """
+    page = max(1, page)
+    page_size = max(1, min(page_size, 200))
+
     query = """
         SELECT s.id, s.full_name, s.enrollment_number, s.degree_program, s.batch, s.current_semester,
                BOOL_OR(e.type = 'job') AS is_graduate,
@@ -1071,7 +1083,12 @@ def list_students(q: str = "", status: str = "", admin: dict = Depends(get_curre
 
     if status:
         result = [r for r in result if status in r["statuses"]]
-    return result
+
+    total = len(result)
+    start = (page - 1) * page_size
+    page_rows = result[start:start + page_size]
+
+    return {"students": page_rows, "total": total, "page": page, "page_size": page_size}
 
 
 class CreateStudentRequest(BaseModel):
