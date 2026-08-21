@@ -228,7 +228,7 @@ tr:hover td { background: #f8fafc; }
           <h3>Bulk upload students from CSV</h3>
           <div id="csvModalAlert" class="alert"></div>
           <p style="font-size:13px;color:var(--text-secondary);margin-bottom:1rem;">
-            CSV must have a header row with these exact column names: <code>full_name, enrollment_number, degree_program, batch, current_semester</code> (current_semester optional).
+            Upload the OBE student export directly (columns like <code>StudentName</code>, <code>RollNo</code>, <code>batch_name</code>, <code>batch_year</code>) -- it's auto-detected and mapped. A simpler CSV with <code>full_name, enrollment_number, degree_program, batch</code> headers also works.
             Existing students are matched by enrollment number and updated in place; new enrollment numbers are added.
           </p>
           <div class="form-group">
@@ -237,7 +237,7 @@ tr:hover td { background: #f8fafc; }
           <div id="csvPreview" style="display:none;margin-bottom:1rem;">
             <p style="font-size:13px;font-weight:600;margin-bottom:0.5rem;">Preview (<span id="csvRowCount">0</span> rows)</p>
             <div style="overflow-x:auto;max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius);">
-              <table><thead><tr><th>Name</th><th>Enrollment</th><th>Program</th><th>Batch</th><th>Semester</th></tr></thead>
+              <table><thead><tr><th>Name</th><th>Enrollment</th><th>Program</th><th>Batch</th></tr></thead>
               <tbody id="csvPreviewBody"></tbody></table>
             </div>
           </div>
@@ -739,6 +739,9 @@ function closeCsvModal() {
 function parseCsv(text) {
   // Minimal CSV parser: handles quoted fields with embedded commas, no
   // embedded newlines inside quotes (fine for a flat roster export).
+  // Strip a leading UTF-8 BOM -- Excel/Windows CSV exports commonly add
+  // one, which otherwise corrupts the first header cell silently.
+  if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
   const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
   if (!lines.length) return { header: [], rows: [] };
   const parseLine = (line) => {
@@ -759,45 +762,85 @@ function parseCsv(text) {
     out.push(cur);
     return out.map(v => v.trim());
   };
-  const header = parseLine(lines[0]).map(h => h.toLowerCase());
+  const header = parseLine(lines[0]).map(h => h.toLowerCase().trim());
   const rows = lines.slice(1).map(parseLine);
   return { header, rows };
 }
 
+// Two known column layouts, checked in order. Each maps a target field
+// (full_name, enrollment_number, degree_program, batch) to one or more
+// candidate header names -- the first one present in the file wins.
+// This is how the real OBE export (StudentName/RollNo/batch_name/batch_year)
+// is accepted directly, without the user reformatting it first.
+const CSV_FIELD_ALIASES = {
+  full_name: ['full_name', 'studentname', 'student_name', 'name'],
+  enrollment_number: ['enrollment_number', 'rollno', 'roll_no', 'enrollment', 'enrollmentnumber'],
+  degree_program: ['degree_program', 'batch_name', 'program', 'degreeprogram'],
+  batch: ['batch', 'batch_year', 'batchyear'],
+};
+
+function detectCsvMapping(header) {
+  const mapping = {};
+  const missing = [];
+  for (const [field, aliases] of Object.entries(CSV_FIELD_ALIASES)) {
+    const found = aliases.find(a => header.includes(a));
+    if (found) mapping[field] = header.indexOf(found);
+    else missing.push(field);
+  }
+  return { mapping, missing };
+}
+
 function handleCsvFileChange() {
+  console.log('[csv] handleCsvFileChange fired');
   const fileInput = document.getElementById('csvFileInput');
   const file = fileInput.files[0];
-  if (!file) return;
+  if (!file) { console.log('[csv] no file selected'); return; }
+  console.log('[csv] reading file:', file.name, file.size, 'bytes');
   const reader = new FileReader();
+  reader.onerror = () => {
+    console.error('[csv] FileReader error', reader.error);
+    showAlert('csvModalAlert', 'Could not read the file: ' + reader.error, 'error');
+  };
   reader.onload = () => {
+    console.log('[csv] file read, length:', reader.result.length);
     try {
       const { header, rows } = parseCsv(reader.result);
-      const required = ['full_name', 'enrollment_number', 'degree_program', 'batch'];
-      const missing = required.filter(r => !header.includes(r));
+      console.log('[csv] parsed header:', header, 'row count:', rows.length);
+
+      const { mapping, missing } = detectCsvMapping(header);
+      console.log('[csv] detected mapping:', mapping, 'missing:', missing);
+
       if (missing.length) {
-        showAlert('csvModalAlert', `Missing required column(s): ${missing.join(', ')}`, 'error');
+        showAlert('csvModalAlert', `Couldn't find a column for: ${missing.join(', ')}. Found columns: ${header.join(', ') || '(none detected)'}`, 'error');
         document.getElementById('csvUploadBtn').disabled = true;
+        document.getElementById('csvPreview').style.display = 'none';
         return;
       }
-      const idx = (name) => header.indexOf(name);
+
       parsedCsvRows = rows.map(r => ({
-        full_name: r[idx('full_name')] || '',
-        enrollment_number: r[idx('enrollment_number')] || '',
-        degree_program: r[idx('degree_program')] || '',
-        batch: r[idx('batch')] || '',
-        current_semester: idx('current_semester') >= 0 ? (r[idx('current_semester')] || '') : '',
+        full_name: r[mapping.full_name] || '',
+        enrollment_number: r[mapping.enrollment_number] || '',
+        degree_program: r[mapping.degree_program] || '',
+        batch: r[mapping.batch] || '',
+        current_semester: '',
       })).filter(r => r.full_name && r.enrollment_number);
+
+      console.log('[csv] valid rows after filtering:', parsedCsvRows.length);
 
       document.getElementById('csvRowCount').textContent = parsedCsvRows.length;
       document.getElementById('csvPreviewBody').innerHTML = parsedCsvRows.slice(0, 20).map(r =>
-        `<tr><td>${r.full_name}</td><td>${r.enrollment_number}</td><td>${r.degree_program}</td><td>${r.batch}</td><td>${r.current_semester || '---'}</td></tr>`
+        `<tr><td>${r.full_name}</td><td>${r.enrollment_number}</td><td>${r.degree_program}</td><td>${r.batch}</td></tr>`
       ).join('');
       document.getElementById('csvPreview').style.display = 'block';
       document.getElementById('csvUploadBtn').disabled = parsedCsvRows.length === 0;
-      if (!parsedCsvRows.length) showAlert('csvModalAlert', 'No valid rows found in the file.', 'error');
-      else document.getElementById('csvModalAlert').style.display = 'none';
+      if (!parsedCsvRows.length) {
+        showAlert('csvModalAlert', 'Found the right columns, but no rows had both a name and an enrollment number filled in.', 'error');
+      } else {
+        document.getElementById('csvModalAlert').style.display = 'none';
+      }
     } catch (err) {
-      showAlert('csvModalAlert', 'Could not parse this file as CSV.', 'error');
+      console.error('[csv] parse error', err);
+      showAlert('csvModalAlert', 'Could not parse this file as CSV: ' + err.message, 'error');
     }
   };
   reader.readAsText(file);
