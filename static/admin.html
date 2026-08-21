@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Admin - OBE CQI Panel</title>
+<title>Admin - OBE Indirect Assessments Panel</title>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
@@ -123,8 +123,8 @@ tr:hover td { background: #f8fafc; }
 
 <div id="loginPage" class="login-wrapper">
   <div class="login-card">
-    <h1>Admin Panel</h1>
-    <p class="sub">OBE / CQI System - CSSE, JUW</p>
+    <h1>OBE Indirect Assessments</h1>
+    <p class="sub">Panel - CSSE, JUW</p>
     <div id="loginAlert" class="alert"></div>
     <div id="loginForm">
       <div class="form-group"><label for="loginEmail">Email</label><input type="email" id="loginEmail" placeholder="admin@juw.edu.pk"></div>
@@ -143,7 +143,7 @@ tr:hover td { background: #f8fafc; }
 
 <div id="appShell" class="app-shell">
   <div class="header">
-    <h1>OBE / CQI Panel</h1>
+    <h1>OBE Indirect Assessments Panel</h1>
     <div style="display:flex;align-items:center;gap:1rem;">
       <span class="admin-name" id="adminName"></span>
       <button onclick="logout()">Sign out</button>
@@ -175,7 +175,7 @@ tr:hover td { background: #f8fafc; }
     <div class="main">
       <div class="page active" id="page-dashboard">
         <h2 class="page-title">Dashboard</h2>
-        <p class="page-sub">Overview of all activity across the OBE / CQI system.</p>
+        <p class="page-sub">Overview of all activity across the OBE Indirect Assessments panel.</p>
         <div class="stat-grid" id="statsGrid"></div>
         <div class="card">
           <h3>Recent engagements</h3>
@@ -767,13 +767,31 @@ async function saveStudent() {
 }
 
 async function deleteStudent(id, name) {
-  if (!confirm(`Delete ${name}? This can't be undone, and only works if the student has no engagements or alumni record.`)) return;
+  if (!confirm(`Delete ${name}? This can't be undone.`)) return;
   try {
     const res = await fetch(API + '/admin/students/' + id, { method: 'DELETE', headers: authHeaders() });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || 'Failed to delete student');
-    showAlert('studentActionAlert', 'Student deleted.', 'success');
-    loadStudents();
+    if (res.ok) {
+      showAlert('studentActionAlert', 'Student deleted.', 'success');
+      loadStudents();
+      return;
+    }
+    if (res.status === 409) {
+      // Blocked because of linked engagement/alumni rows -- offer a
+      // cascade delete with a second, explicit confirmation rather than
+      // leaving the person stuck retrying the same failing request.
+      const proceed = confirm(
+        `${data.detail}\n\nDelete this student AND all of that linked data? This cannot be undone.`
+      );
+      if (!proceed) return;
+      const res2 = await fetch(API + '/admin/students/' + id + '?force=true', { method: 'DELETE', headers: authHeaders() });
+      const data2 = await res2.json();
+      if (!res2.ok) throw new Error(data2.detail || 'Failed to delete student');
+      showAlert('studentActionAlert', data2.cascaded ? 'Student and linked records deleted.' : 'Student deleted.', 'success');
+      loadStudents();
+      return;
+    }
+    throw new Error(data.detail || 'Failed to delete student');
   } catch (err) {
     showAlert('studentActionAlert', err.message, 'error');
   }

@@ -22,7 +22,7 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(bind=engine)
 
-app = FastAPI(title="Employer Feedback Panel")
+app = FastAPI(title="OBE Indirect Assessments Panel")
 
 # --- Password helpers ---
 
@@ -1168,24 +1168,46 @@ def update_student(student_id: str, data: UpdateStudentRequest, admin: dict = De
 
 
 @app.delete("/api/admin/students/{student_id}")
-def delete_student(student_id: str, admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
-    """Delete a student record. Blocked if the student has any engagements or an alumni record,
-    to avoid silently orphaning engagement/alumni rows that FK to students.id."""
+def delete_student(student_id: str, force: bool = False, admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
+    """Delete a student record. By default blocked if the student has any
+    engagements or an alumni record, to avoid silently orphaning FK'd rows --
+    the error reports exactly how many of each so the caller isn't guessing.
+    Pass force=true to cascade-delete those linked rows first (engagements
+    take their org_proformas/employer_surveys/internship_evaluations with
+    them via FK cascade if the DB defines it that way; alumni takes its
+    info-confirmation/exit-survey/feedback-form/action-link rows the same
+    way). This is destructive and irreversible -- the frontend requires an
+    explicit second confirmation naming the counts before calling with force.
+    """
     existing = db.execute(text("SELECT id FROM students WHERE id = :id"), {"id": student_id}).mappings().first()
     if not existing:
         raise HTTPException(status_code=404, detail="Student not found")
 
     eng_count = db.execute(text("SELECT COUNT(*) FROM engagements WHERE student_id = :id"), {"id": student_id}).scalar()
     alumni_count = db.execute(text("SELECT COUNT(*) FROM alumni WHERE student_id = :id"), {"id": student_id}).scalar()
-    if eng_count > 0 or alumni_count > 0:
+
+    if (eng_count > 0 or alumni_count > 0) and not force:
         raise HTTPException(
             status_code=409,
-            detail="This student has linked engagements or an alumni record and can't be deleted. Remove those first."
+            detail=f"This student has {eng_count} linked engagement(s) and {alumni_count} alumni record(s) and can't be deleted without confirming a cascade delete.",
         )
+
+    if force:
+        if alumni_count > 0:
+            db.execute(text("""DELETE FROM alumni_action_links WHERE alumnus_id IN (SELECT id FROM alumni WHERE student_id = :id)"""), {"id": student_id})
+            db.execute(text("""DELETE FROM alumni_feedback_forms WHERE alumnus_id IN (SELECT id FROM alumni WHERE student_id = :id)"""), {"id": student_id})
+            db.execute(text("""DELETE FROM alumni_exit_surveys WHERE alumnus_id IN (SELECT id FROM alumni WHERE student_id = :id)"""), {"id": student_id})
+            db.execute(text("""DELETE FROM alumni_info_confirmations WHERE alumnus_id IN (SELECT id FROM alumni WHERE student_id = :id)"""), {"id": student_id})
+            db.execute(text("DELETE FROM alumni WHERE student_id = :id"), {"id": student_id})
+        if eng_count > 0:
+            db.execute(text("""DELETE FROM org_proformas WHERE engagement_id IN (SELECT id FROM engagements WHERE student_id = :id)"""), {"id": student_id})
+            db.execute(text("""DELETE FROM employer_surveys WHERE engagement_id IN (SELECT id FROM engagements WHERE student_id = :id)"""), {"id": student_id})
+            db.execute(text("""DELETE FROM internship_evaluations WHERE engagement_id IN (SELECT id FROM engagements WHERE student_id = :id)"""), {"id": student_id})
+            db.execute(text("DELETE FROM engagements WHERE student_id = :id"), {"id": student_id})
 
     db.execute(text("DELETE FROM students WHERE id = :id"), {"id": student_id})
     db.commit()
-    return {"message": "Student deleted"}
+    return {"message": "Student deleted", "cascaded": force and (eng_count > 0 or alumni_count > 0)}
 
 
 class BulkStudentRow(BaseModel):
