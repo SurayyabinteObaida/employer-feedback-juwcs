@@ -1176,9 +1176,16 @@ class BulkStudentUpload(BaseModel):
 def bulk_upload_students(data: BulkStudentUpload, admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
     """Bulk-create/update students from parsed CSV rows. Matches on enrollment_number:
     existing students are updated in place, new ones are inserted. This keeps a
-    re-upload of the same roster idempotent instead of creating duplicates."""
+    re-upload of the same roster idempotent instead of creating duplicates.
+
+    Each row runs in its own savepoint: in Postgres, once any statement in a
+    transaction errors, the whole transaction is aborted and every later
+    statement fails too -- so without this, one bad row silently kills every
+    row after it. A savepoint per row means a bad row only fails itself.
+    """
     created, updated, failed = 0, 0, []
     for i, row in enumerate(data.rows):
+        nested = db.begin_nested()  # SAVEPOINT
         try:
             existing = db.execute(
                 text("SELECT id FROM students WHERE enrollment_number = :enr"),
@@ -1191,6 +1198,7 @@ def bulk_upload_students(data: BulkStudentUpload, admin: dict = Depends(get_curr
                     {"name": row.full_name, "prog": row.degree_program, "batch": row.batch,
                      "sem": row.current_semester or None, "id": existing["id"]}
                 )
+                nested.commit()
                 updated += 1
             else:
                 db.execute(
@@ -1199,12 +1207,14 @@ def bulk_upload_students(data: BulkStudentUpload, admin: dict = Depends(get_curr
                     {"id": str(uuid.uuid4()), "name": row.full_name, "enr": row.enrollment_number,
                      "prog": row.degree_program, "batch": row.batch, "sem": row.current_semester or None}
                 )
+                nested.commit()
                 created += 1
         except Exception as e:
+            nested.rollback()
             failed.append({"row": i + 1, "enrollment_number": row.enrollment_number, "error": str(e)})
 
     db.commit()
-    return {"created": created, "updated": updated, "failed": failed}
+    return {"created": created, "updated": updated, "failed": failed[:20], "failed_count": len(failed)}
 
 
 @app.post("/api/admin/send-email")

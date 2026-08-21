@@ -856,10 +856,20 @@ async function submitCsvUpload() {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || 'Upload failed');
-    const failMsg = data.failed && data.failed.length ? ` (${data.failed.length} row(s) failed)` : '';
-    showAlert('studentActionAlert', `Created ${data.created}, updated ${data.updated}${failMsg}.`, data.failed && data.failed.length ? 'warning' : 'success');
-    closeCsvModal();
-    loadStudents();
+    console.log('[csv] upload result:', data);
+    const failedCount = data.failed_count || (data.failed ? data.failed.length : 0);
+    if (failedCount > 0) {
+      const sample = (data.failed || []).slice(0, 5).map(f => `Row ${f.row} (${f.enrollment_number}): ${f.error}`).join('\n');
+      console.error('[csv] failed rows:', data.failed);
+      showAlert('csvModalAlert', `Created ${data.created}, updated ${data.updated}, ${failedCount} failed. First few errors:\n${sample}`, 'error');
+      document.getElementById('csvModalAlert').style.whiteSpace = 'pre-line';
+      // Don't close the modal -- let the person see the errors and retry.
+      if (data.created > 0 || data.updated > 0) loadStudents();
+    } else {
+      showAlert('studentActionAlert', `Created ${data.created}, updated ${data.updated}.`, 'success');
+      closeCsvModal();
+      loadStudents();
+    }
   } catch (err) {
     showAlert('csvModalAlert', err.message, 'error');
   } finally {
