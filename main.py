@@ -1080,6 +1080,7 @@ class CreateStudentRequest(BaseModel):
     degree_program: str
     batch: str
     current_semester: Optional[str] = ""
+    obe_student_id: Optional[str] = None  # falls back to a generated id if not supplied (manual add)
 
 
 class UpdateStudentRequest(BaseModel):
@@ -1100,12 +1101,22 @@ def create_student(data: CreateStudentRequest, admin: dict = Depends(get_current
     if existing:
         raise HTTPException(status_code=409, detail=f"A student with enrollment number {data.enrollment_number} already exists")
 
+    # obe_student_id is NOT NULL + unique in the schema. Manually-added
+    # students (not synced from the OBE system) don't have one, so we
+    # generate a placeholder that can't collide with real OBE ids.
+    obe_id = data.obe_student_id or f"manual-{uuid.uuid4()}"
+    dupe_obe = db.execute(
+        text("SELECT id FROM students WHERE obe_student_id = :oid"), {"oid": obe_id}
+    ).mappings().first()
+    if dupe_obe:
+        raise HTTPException(status_code=409, detail=f"A student with OBE student id {obe_id} already exists")
+
     student_id = str(uuid.uuid4())
     db.execute(
-        text("""INSERT INTO students (id, full_name, enrollment_number, degree_program, batch, current_semester)
-                VALUES (:id, :name, :enr, :prog, :batch, :sem)"""),
+        text("""INSERT INTO students (id, obe_student_id, full_name, enrollment_number, degree_program, batch, current_semester)
+                VALUES (:id, :oid, :name, :enr, :prog, :batch, :sem)"""),
         {
-            "id": student_id, "name": data.full_name, "enr": data.enrollment_number,
+            "id": student_id, "oid": obe_id, "name": data.full_name, "enr": data.enrollment_number,
             "prog": data.degree_program, "batch": data.batch, "sem": data.current_semester or None,
         }
     )
@@ -1166,6 +1177,7 @@ class BulkStudentRow(BaseModel):
     degree_program: str
     batch: str
     current_semester: Optional[str] = ""
+    obe_student_id: Optional[str] = None  # from the OBE export's S_ID column
 
 
 class BulkStudentUpload(BaseModel):
@@ -1174,9 +1186,11 @@ class BulkStudentUpload(BaseModel):
 
 @app.post("/api/admin/students/bulk")
 def bulk_upload_students(data: BulkStudentUpload, admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
-    """Bulk-create/update students from parsed CSV rows. Matches on enrollment_number:
-    existing students are updated in place, new ones are inserted. This keeps a
-    re-upload of the same roster idempotent instead of creating duplicates.
+    """Bulk-create/update students from parsed CSV rows. Matches on obe_student_id
+    when the row has one (the OBE export's S_ID -- the real stable identity),
+    falling back to enrollment_number otherwise. Existing students are updated
+    in place; new ones are inserted. This keeps a re-upload of the same roster
+    idempotent instead of creating duplicates.
 
     Each row runs in its own savepoint: in Postgres, once any statement in a
     transaction errors, the whole transaction is aborted and every later
@@ -1187,24 +1201,33 @@ def bulk_upload_students(data: BulkStudentUpload, admin: dict = Depends(get_curr
     for i, row in enumerate(data.rows):
         nested = db.begin_nested()  # SAVEPOINT
         try:
-            existing = db.execute(
-                text("SELECT id FROM students WHERE enrollment_number = :enr"),
-                {"enr": row.enrollment_number}
-            ).mappings().first()
+            existing = None
+            if row.obe_student_id:
+                existing = db.execute(
+                    text("SELECT id FROM students WHERE obe_student_id = :oid"),
+                    {"oid": row.obe_student_id}
+                ).mappings().first()
+            if not existing:
+                existing = db.execute(
+                    text("SELECT id FROM students WHERE enrollment_number = :enr"),
+                    {"enr": row.enrollment_number}
+                ).mappings().first()
+
             if existing:
                 db.execute(
-                    text("""UPDATE students SET full_name = :name, degree_program = :prog,
+                    text("""UPDATE students SET full_name = :name, enrollment_number = :enr, degree_program = :prog,
                             batch = :batch, current_semester = :sem WHERE id = :id"""),
-                    {"name": row.full_name, "prog": row.degree_program, "batch": row.batch,
+                    {"name": row.full_name, "enr": row.enrollment_number, "prog": row.degree_program, "batch": row.batch,
                      "sem": row.current_semester or None, "id": existing["id"]}
                 )
                 nested.commit()
                 updated += 1
             else:
+                obe_id = row.obe_student_id or f"manual-{uuid.uuid4()}"
                 db.execute(
-                    text("""INSERT INTO students (id, full_name, enrollment_number, degree_program, batch, current_semester)
-                            VALUES (:id, :name, :enr, :prog, :batch, :sem)"""),
-                    {"id": str(uuid.uuid4()), "name": row.full_name, "enr": row.enrollment_number,
+                    text("""INSERT INTO students (id, obe_student_id, full_name, enrollment_number, degree_program, batch, current_semester)
+                            VALUES (:id, :oid, :name, :enr, :prog, :batch, :sem)"""),
+                    {"id": str(uuid.uuid4()), "oid": obe_id, "name": row.full_name, "enr": row.enrollment_number,
                      "prog": row.degree_program, "batch": row.batch, "sem": row.current_semester or None}
                 )
                 nested.commit()

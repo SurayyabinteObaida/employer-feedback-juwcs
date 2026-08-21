@@ -778,6 +778,12 @@ const CSV_FIELD_ALIASES = {
   degree_program: ['degree_program', 'batch_name', 'program', 'degreeprogram'],
   batch: ['batch', 'batch_year', 'batchyear'],
 };
+// Optional -- not required for a match, but used as the stable identity key
+// when present (the OBE export's S_ID column) so re-uploads update the
+// right row even if enrollment_number ever changes.
+const CSV_OPTIONAL_FIELD_ALIASES = {
+  obe_student_id: ['obe_student_id', 's_id', 'sid'],
+};
 
 function detectCsvMapping(header) {
   const mapping = {};
@@ -786,6 +792,10 @@ function detectCsvMapping(header) {
     const found = aliases.find(a => header.includes(a));
     if (found) mapping[field] = header.indexOf(found);
     else missing.push(field);
+  }
+  for (const [field, aliases] of Object.entries(CSV_OPTIONAL_FIELD_ALIASES)) {
+    const found = aliases.find(a => header.includes(a));
+    if (found) mapping[field] = header.indexOf(found);
   }
   return { mapping, missing };
 }
@@ -823,6 +833,7 @@ function handleCsvFileChange() {
         degree_program: r[mapping.degree_program] || '',
         batch: r[mapping.batch] || '',
         current_semester: '',
+        obe_student_id: mapping.obe_student_id !== undefined ? (r[mapping.obe_student_id] || '') : '',
       })).filter(r => r.full_name && r.enrollment_number);
 
       console.log('[csv] valid rows after filtering:', parsedCsvRows.length);
