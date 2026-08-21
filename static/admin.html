@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Admin - Employer Feedback Portal</title>
+<title>Admin - OBE CQI Panel</title>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
@@ -15,12 +15,11 @@
 }
 body { font-family: 'Segoe UI', -apple-system, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; margin: 0; }
 
-/* Login */
+/* Login (unchanged from original) */
 .login-wrapper { display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 2rem; }
 .login-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 2.5rem; width: 100%; max-width: 400px; }
 .login-card h1 { font-size: 20px; margin-bottom: 4px; }
 .login-card .sub { font-size: 13px; color: var(--text-secondary); margin-bottom: 1.5rem; }
-.login-card .setup-note { font-size: 12px; color: var(--text-muted); margin-top: 1rem; text-align: center; }
 
 /* App shell */
 .app-shell { display: none; min-height: 100vh; }
@@ -40,12 +39,25 @@ body { font-family: 'Segoe UI', -apple-system, sans-serif; background: var(--bg)
 .sidebar .nav-item:hover { background: var(--bg); color: var(--text); }
 .sidebar .nav-item.active { background: #f0f4ff; color: var(--accent); border-left-color: var(--accent); font-weight: 600; }
 .sidebar .nav-label { font-size: 11px; text-transform: uppercase; color: var(--text-muted); padding: 1.25rem 1.25rem 0.5rem; font-weight: 700; letter-spacing: 0.5px; }
+.sidebar .nav-item.sub { padding-left: 2.25rem; font-size: 13px; }
 
 .main { flex: 1; padding: 1.5rem 2rem; overflow-x: hidden; }
 .page { display: none; }
 .page.active { display: block; }
 .page-title { font-size: 20px; font-weight: 600; margin-bottom: 0.25rem; }
 .page-sub { font-size: 13px; color: var(--text-secondary); margin-bottom: 1.5rem; }
+
+/* Form-tab sub-nav (inside a Forms page) */
+.form-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 1.5rem; }
+.form-tab { padding: 10px 16px; font-size: 13px; font-weight: 500; color: var(--text-secondary); cursor: pointer; border-bottom: 2px solid transparent; }
+.form-tab:hover { color: var(--text); }
+.form-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.form-tab-panel { display: none; }
+.form-tab-panel.active { display: block; }
+
+/* Section split: Initiate / Track */
+.section-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); margin: 1.5rem 0 0.75rem; }
+.section-label:first-child { margin-top: 0; }
 
 /* Stat cards */
 .stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
@@ -85,12 +97,14 @@ th { text-align: left; padding: 10px 12px; background: var(--bg); color: var(--t
 td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
 tr:hover td { background: #f8fafc; }
 
-.badge { padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
+.badge { padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; text-transform: uppercase; margin-right: 4px; display: inline-block; }
 .badge-intern { background: #dbeafe; color: #1e40af; }
 .badge-graduate { background: #f3e8ff; color: #7c3aed; }
-.badge-enrolled { background: #e0f2fe; color: #0369a1; }
+.badge-alumni { background: #fce7f3; color: #9d174d; }
+.badge-undergrad { background: #e0f2fe; color: #0369a1; }
 .badge-submitted { background: var(--success-bg); color: #15603a; }
 .badge-pending { background: var(--warning-bg); color: #854d0e; }
+.badge-group { display: flex; flex-wrap: wrap; gap: 4px; }
 
 .student-results { max-height: 200px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius); margin-top: 4px; }
 .student-results .student-item { padding: 8px 12px; cursor: pointer; font-size: 13px; border-bottom: 1px solid var(--border); }
@@ -113,40 +127,22 @@ tr:hover td { background: #f8fafc; }
 </head>
 <body>
 
-<!-- ===== LOGIN ===== -->
+<!-- ===== LOGIN (unchanged) ===== -->
 <div id="loginPage" class="login-wrapper">
   <div class="login-card">
     <h1>Admin Panel</h1>
-    <p class="sub">Employer Feedback Portal - CSSE, JUW</p>
+    <p class="sub">OBE / CQI System - CSSE, JUW</p>
     <div id="loginAlert" class="alert"></div>
-
     <div id="loginForm">
-      <div class="form-group">
-        <label for="loginEmail">Email</label>
-        <input type="email" id="loginEmail" placeholder="admin@juw.edu.pk">
-      </div>
-      <div class="form-group">
-        <label for="loginPassword">Password</label>
-        <input type="password" id="loginPassword" placeholder="Enter password">
-      </div>
+      <div class="form-group"><label for="loginEmail">Email</label><input type="email" id="loginEmail" placeholder="admin@juw.edu.pk"></div>
+      <div class="form-group"><label for="loginPassword">Password</label><input type="password" id="loginPassword" placeholder="Enter password"></div>
       <button class="btn btn-primary" id="loginBtn" onclick="adminLogin()" style="width:100%;">Sign in</button>
     </div>
-
-    <!-- Setup form (only shown if no admins exist) -->
     <div id="setupForm" style="display:none;">
       <p style="font-size:13px;color:var(--text-secondary);margin-bottom:1rem;">No admin account exists yet. Create the first one.</p>
-      <div class="form-group">
-        <label for="setupName">Name</label>
-        <input type="text" id="setupName" placeholder="Your name">
-      </div>
-      <div class="form-group">
-        <label for="setupEmail">Email</label>
-        <input type="email" id="setupEmail" placeholder="admin@juw.edu.pk">
-      </div>
-      <div class="form-group">
-        <label for="setupPassword">Password</label>
-        <input type="password" id="setupPassword" placeholder="Choose a password">
-      </div>
+      <div class="form-group"><label for="setupName">Name</label><input type="text" id="setupName" placeholder="Your name"></div>
+      <div class="form-group"><label for="setupEmail">Email</label><input type="email" id="setupEmail" placeholder="admin@juw.edu.pk"></div>
+      <div class="form-group"><label for="setupPassword">Password</label><input type="password" id="setupPassword" placeholder="Choose a password"></div>
       <button class="btn btn-primary" id="setupBtn" onclick="setupAdmin()" style="width:100%;">Create admin account</button>
     </div>
   </div>
@@ -155,7 +151,7 @@ tr:hover td { background: #f8fafc; }
 <!-- ===== APP SHELL ===== -->
 <div id="appShell" class="app-shell">
   <div class="header">
-    <h1>Admin - Employer Feedback Portal</h1>
+    <h1>OBE / CQI Panel</h1>
     <div style="display:flex;align-items:center;gap:1rem;">
       <span class="admin-name" id="adminName"></span>
       <button onclick="logout()">Sign out</button>
@@ -164,25 +160,28 @@ tr:hover td { background: #f8fafc; }
 
   <div class="layout">
     <div class="sidebar">
-      <div class="nav-label">Main</div>
+      <div class="nav-label">Overview</div>
       <div class="nav-item active" onclick="navigate('dashboard')">Dashboard</div>
+
+      <div class="nav-label">Resources</div>
       <div class="nav-item" onclick="navigate('students')">Students</div>
-      <div class="nav-item" onclick="navigate('engagements')">Engagements</div>
       <div class="nav-item" onclick="navigate('employers')">Employers</div>
-      <div class="nav-item" onclick="navigate('alumni')">Alumni</div>
+
+      <div class="nav-label">Forms</div>
+      <div class="nav-item" onclick="navigate('forms')">All forms</div>
+
       <div class="nav-label">Actions</div>
-      <div class="nav-item" onclick="navigate('create')">Create engagement</div>
-      <div class="nav-item" onclick="navigate('invite')">Invite employer</div>
       <div class="nav-item" onclick="navigate('email')">Send email</div>
+
       <div class="nav-label">System</div>
       <div class="nav-item" onclick="navigate('settings')">Settings</div>
     </div>
 
     <div class="main">
-      <!-- Dashboard -->
+      <!-- ============ Dashboard ============ -->
       <div class="page active" id="page-dashboard">
         <h2 class="page-title">Dashboard</h2>
-        <p class="page-sub">Overview of all activity in the employer feedback system.</p>
+        <p class="page-sub">Overview of all activity across the OBE / CQI system.</p>
         <div class="stat-grid" id="statsGrid"></div>
         <div class="card">
           <h3>Recent engagements</h3>
@@ -190,18 +189,19 @@ tr:hover td { background: #f8fafc; }
         </div>
       </div>
 
-      <!-- Students -->
+      <!-- ============ Students (Resource) ============ -->
       <div class="page" id="page-students">
         <h2 class="page-title">Students</h2>
-        <p class="page-sub">All students with their engagement status.</p>
+        <p class="page-sub">Every student record, with all statuses that apply — a student can be an intern, graduate, and alumnus at once.</p>
         <div style="display:flex;gap:1rem;align-items:center;margin-bottom:1rem;">
           <input type="text" id="studentSearchInput" placeholder="Search by name or enrollment..." oninput="loadStudents()" style="flex:1;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius);font-size:14px;">
         </div>
         <div class="tag-filters">
-          <div class="tag-filter active" data-tag="" onclick="filterStudents(this, '')">All</div>
-          <div class="tag-filter" data-tag="enrolled" onclick="filterStudents(this, 'enrolled')">Enrolled</div>
-          <div class="tag-filter" data-tag="intern" onclick="filterStudents(this, 'intern')">Intern</div>
-          <div class="tag-filter" data-tag="graduate" onclick="filterStudents(this, 'graduate')">Graduate</div>
+          <div class="tag-filter active" data-status="" onclick="filterStudents(this, '')">All</div>
+          <div class="tag-filter" data-status="undergrad" onclick="filterStudents(this, 'undergrad')">Undergrad</div>
+          <div class="tag-filter" data-status="intern" onclick="filterStudents(this, 'intern')">Intern</div>
+          <div class="tag-filter" data-status="graduate" onclick="filterStudents(this, 'graduate')">Graduate</div>
+          <div class="tag-filter" data-status="alumni" onclick="filterStudents(this, 'alumni')">Alumni</div>
         </div>
         <div style="overflow-x:auto;">
           <table><thead><tr><th>Name</th><th>Enrollment</th><th>Program</th><th>Batch</th><th>Semester</th><th>Status</th></tr></thead>
@@ -210,143 +210,179 @@ tr:hover td { background: #f8fafc; }
         <p id="studentsEmpty" style="display:none;font-size:13px;color:var(--text-muted);padding:1rem 0;">No students found.</p>
       </div>
 
-      <!-- Engagements -->
-      <div class="page" id="page-engagements">
-        <h2 class="page-title">Engagements</h2>
-        <p class="page-sub">All student-employer engagements.</p>
-        <div style="overflow-x:auto;">
-          <table><thead><tr><th>Student</th><th>Enrollment</th><th>Program / Batch</th><th>Employer</th><th>Type</th><th>Proforma</th><th>Feedback</th><th>Created</th></tr></thead>
-          <tbody id="engagementsBody"></tbody></table>
-        </div>
-      </div>
-
-      <!-- Employers -->
+      <!-- ============ Employers (Resource) ============ -->
       <div class="page" id="page-employers">
         <h2 class="page-title">Employers</h2>
-        <p class="page-sub">All registered employers.</p>
+        <p class="page-sub">Every registered employer, tagged by which engagement types they're linked to.</p>
+        <div class="tag-filters">
+          <div class="tag-filter active" data-status="" onclick="filterEmployers(this, '')">All</div>
+          <div class="tag-filter" data-status="intern_employer" onclick="filterEmployers(this, 'intern_employer')">Intern employer</div>
+          <div class="tag-filter" data-status="graduate_employer" onclick="filterEmployers(this, 'graduate_employer')">Graduate employer</div>
+        </div>
         <div style="overflow-x:auto;">
-          <table><thead><tr><th>Email</th><th>Name</th><th>Designation</th><th>Engagements</th><th>Feedback</th><th>Joined</th><th>Action</th></tr></thead>
+          <table><thead><tr><th>Email</th><th>Name</th><th>Designation</th><th>Status</th><th>Engagements</th><th>Feedback</th><th>Joined</th><th>Action</th></tr></thead>
           <tbody id="employersBody"></tbody></table>
         </div>
       </div>
 
-      <!-- Alumni -->
-      <div class="page" id="page-alumni">
-        <h2 class="page-title">Alumni</h2>
-        <p class="page-sub">Manage the alumni roster and send info confirmation, exit survey, and feedback form links batch-wise.</p>
+      <!-- ============ Forms (4 tabs: initiate + track only) ============ -->
+      <div class="page" id="page-forms">
+        <h2 class="page-title">Forms</h2>
+        <p class="page-sub">Initiate and track each of the four feedback instruments.</p>
 
-        <div class="card">
-          <h3>Add / update alumni contact record</h3>
-          <div id="alumniAddAlert" class="alert"></div>
-          <div class="form-group">
-            <label>Search student</label>
-            <input type="text" id="alumniStudentSearch" placeholder="Type name or enrollment..." oninput="searchStudentsForAlumni(this.value)">
-            <div id="alumniStudentResults" class="student-results" style="display:none;"></div>
-            <div id="alumniSelectedStudent" style="display:none;"></div>
-          </div>
-          <div class="form-row">
-            <div class="form-group"><label>Email</label><input type="email" id="alumniEmail" placeholder="alumnus@example.com"></div>
-            <div class="form-group"><label>Contact number</label><input type="text" id="alumniContact"></div>
-          </div>
-          <div class="form-group"><label>LinkedIn profile</label><input type="text" id="alumniLinkedin" placeholder="linkedin.com/in/..."></div>
-          <button class="btn btn-primary" onclick="saveAlumniRecord()">Save alumni record</button>
+        <div class="form-tabs">
+          <div class="form-tab active" onclick="switchFormTab('intern-supervisor')">Internship Supervisor</div>
+          <div class="form-tab" onclick="switchFormTab('graduate-employer')">Graduate Employer</div>
+          <div class="form-tab" onclick="switchFormTab('exit-survey')">Exit Survey</div>
+          <div class="form-tab" onclick="switchFormTab('alumni-feedback')">Alumni Feedback</div>
         </div>
 
-        <div class="card">
-          <h3>Send campaign</h3>
-          <div id="alumniCampaignAlert" class="alert"></div>
-          <div class="form-row">
-            <div class="form-group"><label>Batch</label><input type="text" id="alumniCampaignBatch" placeholder="e.g. 2022"></div>
+        <!-- --- Tab: Internship Supervisor Feedback --- -->
+        <div class="form-tab-panel active" id="formtab-intern-supervisor">
+          <div class="section-label">Initiate</div>
+          <div class="card">
+            <div id="createInternAlert" class="alert"></div>
             <div class="form-group">
-              <label>Campaign</label>
-              <select id="alumniCampaignType" onchange="toggleAlumniSurveyYear()">
-                <option value="info-confirmation">Info confirmation</option>
-                <option value="exit-survey">Exit survey (requires info confirmed first)</option>
-                <option value="feedback-form">Alumni feedback form</option>
-              </select>
+              <label>Employer email</label>
+              <input type="email" id="internEmployerEmail" placeholder="employer@company.com">
+            </div>
+            <div class="form-group">
+              <label>Search student</label>
+              <input type="text" id="internStudentSearch" placeholder="Type name or enrollment..." oninput="searchStudentsFor('intern', this.value)">
+              <div id="internStudentResults" class="student-results" style="display:none;"></div>
+              <div id="internSelectedStudent" style="display:none;"></div>
+            </div>
+            <div class="form-row">
+              <div class="form-group"><label>Organization</label><input type="text" id="internOrg" placeholder="e.g. TechVentures"></div>
+              <div class="form-group"><label>Role</label><input type="text" id="internRole" placeholder="e.g. Software Engineer Intern"></div>
+            </div>
+            <div class="form-row">
+              <div class="form-group"><label>Department</label><input type="text" id="internDept"></div>
+              <div class="form-group"><label>Supervisor</label><input type="text" id="internSupervisor"></div>
+            </div>
+            <div class="form-row-3">
+              <div class="form-group"><label>Supervisor designation</label><input type="text" id="internSupervisorDesig"></div>
+              <div class="form-group"><label>Start date</label><input type="date" id="internStart"></div>
+              <div class="form-group"><label>End date</label><input type="date" id="internEnd"></div>
+            </div>
+            <div class="checkbox-group"><input type="checkbox" id="internSendInvite" checked><label for="internSendInvite">Send invitation email to employer</label></div>
+            <div style="margin-top:1.25rem;"><button class="btn btn-primary" id="createInternBtn" onclick="createEngagementFor('internship')">Initiate internship evaluation</button></div>
+            <div id="internManualLink" class="manual-link" style="display:none;"></div>
+          </div>
+
+          <div class="section-label">Track</div>
+          <div class="card" style="padding:0;">
+            <div style="overflow-x:auto;">
+              <table><thead><tr><th>Student</th><th>Enrollment</th><th>Employer</th><th>Proforma</th><th>Evaluation</th><th>Created</th></tr></thead>
+              <tbody id="internTrackBody"></tbody></table>
             </div>
           </div>
-          <div class="form-group" id="alumniSurveyYearGroup" style="display:none;">
-            <label>Survey year</label>
-            <input type="text" id="alumniSurveyYear" placeholder="e.g. 2025-2026">
-          </div>
-          <button class="btn btn-primary" onclick="sendAlumniCampaign()">Send campaign</button>
         </div>
 
-        <div class="card">
-          <h3>Roster</h3>
-          <div class="form-group" style="max-width:240px;">
-            <label>Filter by batch</label>
-            <input type="text" id="alumniRosterBatchFilter" placeholder="e.g. 2022" oninput="loadAlumniRoster()">
+        <!-- --- Tab: Graduate Employer Feedback --- -->
+        <div class="form-tab-panel" id="formtab-graduate-employer">
+          <div class="section-label">Initiate</div>
+          <div class="card">
+            <div id="createGradAlert" class="alert"></div>
+            <div class="form-group">
+              <label>Employer email</label>
+              <input type="email" id="gradEmployerEmail" placeholder="employer@company.com">
+            </div>
+            <div class="form-group">
+              <label>Search student</label>
+              <input type="text" id="gradStudentSearch" placeholder="Type name or enrollment..." oninput="searchStudentsFor('grad', this.value)">
+              <div id="gradStudentResults" class="student-results" style="display:none;"></div>
+              <div id="gradSelectedStudent" style="display:none;"></div>
+            </div>
+            <div class="form-row">
+              <div class="form-group"><label>Organization</label><input type="text" id="gradOrg" placeholder="e.g. TechVentures"></div>
+              <div class="form-group"><label>Role</label><input type="text" id="gradRole" placeholder="e.g. Software Engineer"></div>
+            </div>
+            <div class="form-row">
+              <div class="form-group"><label>Department</label><input type="text" id="gradDept"></div>
+              <div class="form-group"><label>Supervisor</label><input type="text" id="gradSupervisor"></div>
+            </div>
+            <div class="checkbox-group"><input type="checkbox" id="gradSendInvite" checked><label for="gradSendInvite">Send invitation email to employer</label></div>
+            <div style="margin-top:1.25rem;"><button class="btn btn-primary" id="createGradBtn" onclick="createEngagementFor('job')">Initiate graduate feedback</button></div>
+            <div id="gradManualLink" class="manual-link" style="display:none;"></div>
           </div>
-          <div style="overflow-x:auto;">
-            <table><thead><tr><th>Name</th><th>Enrollment</th><th>Program</th><th>Batch</th><th>Email</th><th>Info confirmation</th><th>Exit survey</th><th>Feedback forms</th></tr></thead>
-            <tbody id="alumniRosterBody"></tbody></table>
+
+          <div class="section-label">Track</div>
+          <div class="card" style="padding:0;">
+            <div style="overflow-x:auto;">
+              <table><thead><tr><th>Student</th><th>Enrollment</th><th>Employer</th><th>Proforma</th><th>Feedback</th><th>Created</th></tr></thead>
+              <tbody id="gradTrackBody"></tbody></table>
+            </div>
           </div>
-          <p id="alumniRosterEmpty" style="display:none;font-size:13px;color:var(--text-muted);padding:1rem 0;">No alumni records found.</p>
+        </div>
+
+        <!-- --- Tab: Exit Survey --- -->
+        <div class="form-tab-panel" id="formtab-exit-survey">
+          <div class="section-label">Initiate</div>
+          <div class="card">
+            <div id="exitCampaignAlert" class="alert"></div>
+            <p style="font-size:13px;color:var(--text-secondary);margin-bottom:1rem;">
+              Sends the exit survey link to every alumnus in the batch who has already confirmed their info. Alumni without a confirmed info record are skipped — send an info confirmation campaign for them first from the Alumni Feedback tab's roster note below, or add them under Students.
+            </p>
+            <div class="form-group"><label>Batch</label><input type="text" id="exitCampaignBatch" placeholder="e.g. 2022"></div>
+            <button class="btn btn-primary" onclick="sendCampaign('exit-survey', 'exitCampaignBatch', 'exitCampaignAlert')">Send exit survey campaign</button>
+          </div>
+
+          <div class="section-label">Track</div>
+          <div class="card">
+            <div class="form-group" style="max-width:240px;">
+              <label>Filter by batch</label>
+              <input type="text" id="exitRosterBatchFilter" placeholder="e.g. 2022" oninput="loadAlumniRoster('exit')">
+            </div>
+            <div style="overflow-x:auto;">
+              <table><thead><tr><th>Name</th><th>Enrollment</th><th>Batch</th><th>Info confirmed</th><th>Exit survey</th></tr></thead>
+              <tbody id="exitTrackBody"></tbody></table>
+            </div>
+            <p id="exitTrackEmpty" style="display:none;font-size:13px;color:var(--text-muted);padding:1rem 0;">No alumni records found.</p>
+          </div>
+        </div>
+
+        <!-- --- Tab: Alumni Feedback --- -->
+        <div class="form-tab-panel" id="formtab-alumni-feedback">
+          <div class="section-label">Initiate</div>
+          <div class="card">
+            <div id="alumniFeedbackCampaignAlert" class="alert"></div>
+            <p style="font-size:13px;color:var(--text-secondary);margin-bottom:1rem;">
+              Also covers info confirmation — send that first for a batch that hasn't confirmed contact details yet, then send the feedback form itself for a given survey year.
+            </p>
+            <div class="form-row">
+              <div class="form-group"><label>Batch</label><input type="text" id="alumniFbCampaignBatch" placeholder="e.g. 2022"></div>
+              <div class="form-group">
+                <label>Campaign</label>
+                <select id="alumniFbCampaignType" onchange="toggleAlumniSurveyYear()">
+                  <option value="info-confirmation">Info confirmation</option>
+                  <option value="feedback-form">Alumni feedback form</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-group" id="alumniFbSurveyYearGroup" style="display:none;">
+              <label>Survey year</label>
+              <input type="text" id="alumniFbSurveyYear" placeholder="e.g. 2025-2026">
+            </div>
+            <button class="btn btn-primary" onclick="sendAlumniFeedbackCampaign()">Send campaign</button>
+          </div>
+
+          <div class="section-label">Track</div>
+          <div class="card">
+            <div class="form-group" style="max-width:240px;">
+              <label>Filter by batch</label>
+              <input type="text" id="alumniFbRosterBatchFilter" placeholder="e.g. 2022" oninput="loadAlumniRoster('feedback')">
+            </div>
+            <div style="overflow-x:auto;">
+              <table><thead><tr><th>Name</th><th>Enrollment</th><th>Batch</th><th>Email</th><th>Info confirmation</th><th>Feedback forms sent/completed</th></tr></thead>
+              <tbody id="alumniFbTrackBody"></tbody></table>
+            </div>
+            <p id="alumniFbTrackEmpty" style="display:none;font-size:13px;color:var(--text-muted);padding:1rem 0;">No alumni records found.</p>
+          </div>
         </div>
       </div>
 
-      <!-- Create Engagement -->
-      <div class="page" id="page-create">
-        <h2 class="page-title">Create engagement</h2>
-        <p class="page-sub">Link a student to an employer, create proforma, and send invitation.</p>
-        <div class="card">
-          <div id="createAlert" class="alert"></div>
-          <div class="form-row">
-            <div class="form-group"><label>Engagement type</label><select id="engType"><option value="">Select type</option><option value="internship">Internship</option><option value="job">Graduate / Job</option></select></div>
-            <div class="form-group"><label>Employer email</label><input type="email" id="engEmployerEmail" placeholder="employer@company.com"></div>
-          </div>
-          <div class="form-group">
-            <label>Search student</label>
-            <input type="text" id="engStudentSearch" placeholder="Type name or enrollment..." oninput="searchStudentsForEng(this.value)">
-            <div id="engStudentResults" class="student-results" style="display:none;"></div>
-            <div id="engSelectedStudent" style="display:none;"></div>
-          </div>
-          <h3 style="margin-top:1.5rem;">Organization proforma (optional)</h3>
-          <div class="form-row">
-            <div class="form-group"><label>Organization</label><input type="text" id="engOrg" placeholder="e.g. TechVentures"></div>
-            <div class="form-group"><label>Role</label><input type="text" id="engRole" placeholder="e.g. Software Engineer Intern"></div>
-          </div>
-          <div class="form-row">
-            <div class="form-group"><label>Department</label><input type="text" id="engDept"></div>
-            <div class="form-group"><label>Supervisor</label><input type="text" id="engSupervisor"></div>
-          </div>
-          <div class="form-row">
-            <div class="form-group"><label>Supervisor designation</label><input type="text" id="engSupervisorDesig"></div>
-            <div class="form-group"><label>Contact email</label><input type="email" id="engContactEmail"></div>
-          </div>
-          <div class="form-row-3">
-            <div class="form-group"><label>Phone</label><input type="text" id="engPhone"></div>
-            <div class="form-group"><label>Start date</label><input type="date" id="engStart"></div>
-            <div class="form-group"><label>End date</label><input type="date" id="engEnd"></div>
-          </div>
-          <div class="checkbox-group"><input type="checkbox" id="sendInvite" checked><label for="sendInvite">Send invitation email to employer</label></div>
-          <div style="margin-top:1.25rem;"><button class="btn btn-primary" id="createEngBtn" onclick="createEngagement()">Create engagement</button></div>
-          <div id="createManualLink" class="manual-link" style="display:none;"></div>
-        </div>
-      </div>
-
-      <!-- Invite Employer -->
-      <div class="page" id="page-invite">
-        <h2 class="page-title">Invite employer</h2>
-        <p class="page-sub">Send or re-send a magic link to an employer.</p>
-        <div class="card">
-          <div id="inviteAlert" class="alert"></div>
-          <div class="form-row">
-            <div class="form-group"><label>Employer email</label><input type="email" id="inviteEmail" placeholder="employer@company.com"></div>
-            <div class="form-group"><label>Name</label><input type="text" id="inviteName"></div>
-          </div>
-          <div class="form-row">
-            <div class="form-group"><label>Designation</label><input type="text" id="inviteDesig"></div>
-            <div class="form-group"><label>Email context</label><select id="inviteType"><option value="">Generic</option><option value="internship">Internship evaluation</option><option value="job">Graduate feedback</option></select></div>
-          </div>
-          <button class="btn btn-primary" id="inviteBtn" onclick="sendInvite()">Send invitation</button>
-          <div id="inviteManualLink" class="manual-link" style="display:none;"></div>
-        </div>
-      </div>
-
-      <!-- Send Email -->
+      <!-- ============ Send Email (unchanged) ============ -->
       <div class="page" id="page-email">
         <h2 class="page-title">Send email</h2>
         <p class="page-sub">Compose and send email to a group of employers.</p>
@@ -376,7 +412,7 @@ tr:hover td { background: #f8fafc; }
         </div>
       </div>
 
-      <!-- Settings -->
+      <!-- ============ Settings (unchanged) ============ -->
       <div class="page" id="page-settings">
         <h2 class="page-title">Settings</h2>
         <p class="page-sub">Manage admin accounts.</p>
@@ -398,13 +434,18 @@ tr:hover td { background: #f8fafc; }
 <script>
 const API = window.location.origin + '/api';
 let adminToken = localStorage.getItem('admin_token');
-let selectedStudentId = null;
-let currentStudentTag = '';
-let selectedAlumniStudentId = null;
-let alumniSearchTimeout;
+let selectedInternStudentId = null;
+let selectedGradStudentId = null;
+let searchTimeouts = {};
 
 function authHeaders() { return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + adminToken }; }
 function showAlert(id, msg, type) { const el = document.getElementById(id); el.className = `alert alert-${type} visible`; el.textContent = msg; }
+
+function statusBadges(statuses) {
+  const labelMap = { undergrad: 'Undergrad', intern: 'Intern', graduate: 'Graduate', alumni: 'Alumni', intern_employer: 'Intern employer', graduate_employer: 'Graduate employer' };
+  const classMap = { undergrad: 'badge-undergrad', intern: 'badge-intern', graduate: 'badge-graduate', alumni: 'badge-alumni', intern_employer: 'badge-intern', graduate_employer: 'badge-graduate' };
+  return `<div class="badge-group">${statuses.map(s => `<span class="badge ${classMap[s] || 'badge-undergrad'}">${labelMap[s] || s}</span>`).join('')}</div>`;
+}
 
 // --- Auth ---
 async function checkAuth() {
@@ -424,13 +465,8 @@ async function checkSetup() {
   try {
     const res = await fetch(API + '/admin/check-setup');
     const data = await res.json();
-    if (data.has_admins) {
-      document.getElementById('loginForm').style.display = 'block';
-      document.getElementById('setupForm').style.display = 'none';
-    } else {
-      document.getElementById('loginForm').style.display = 'none';
-      document.getElementById('setupForm').style.display = 'block';
-    }
+    document.getElementById('loginForm').style.display = data.has_admins ? 'block' : 'none';
+    document.getElementById('setupForm').style.display = data.has_admins ? 'none' : 'block';
   } catch { document.getElementById('loginForm').style.display = 'block'; }
 }
 
@@ -477,14 +513,20 @@ function logout() { adminToken = null; localStorage.removeItem('admin_token'); l
 // --- Navigation ---
 function navigate(page) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelectorAll('.sidebar .nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('page-' + page).classList.add('active');
   event.target.classList.add('active');
   if (page === 'dashboard') loadDashboard();
   if (page === 'students') loadStudents();
-  if (page === 'engagements') loadEngagements();
   if (page === 'employers') loadEmployers();
-  if (page === 'alumni') loadAlumniRoster();
+  if (page === 'forms') loadAllFormTracking();
+}
+
+function switchFormTab(tab) {
+  document.querySelectorAll('.form-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.form-tab-panel').forEach(p => p.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('formtab-' + tab).classList.add('active');
 }
 
 // --- Dashboard ---
@@ -502,7 +544,6 @@ async function loadDashboard() {
       <div class="stat-card"><div class="value">${s.proformas_pending}</div><div class="label">Proformas pending</div></div>
       <div class="stat-card"><div class="value">${s.evals_submitted + s.surveys_submitted}</div><div class="label">Feedback submitted</div></div>
     `;
-
     const engRes = await fetch(API + '/admin/engagements', { headers: authHeaders() });
     const engs = await engRes.json();
     const recent = engs.slice(0, 5);
@@ -512,10 +553,11 @@ async function loadDashboard() {
   } catch (err) { console.error(err); }
 }
 
-// --- Students ---
-function filterStudents(el, tag) {
-  currentStudentTag = tag;
-  document.querySelectorAll('.tag-filter').forEach(f => f.classList.remove('active'));
+// --- Students (Resource) ---
+let currentStudentStatus = '';
+function filterStudents(el, status) {
+  currentStudentStatus = status;
+  document.querySelectorAll('#page-students .tag-filter').forEach(f => f.classList.remove('active'));
   el.classList.add('active');
   loadStudents();
 }
@@ -523,27 +565,139 @@ function filterStudents(el, tag) {
 async function loadStudents() {
   const q = document.getElementById('studentSearchInput').value.trim();
   try {
-    const res = await fetch(API + '/admin/students?q=' + encodeURIComponent(q) + '&tag=' + currentStudentTag, { headers: authHeaders() });
+    const res = await fetch(API + '/admin/students?q=' + encodeURIComponent(q) + '&status=' + currentStudentStatus, { headers: authHeaders() });
     const students = await res.json();
     const tbody = document.getElementById('studentsBody');
     const empty = document.getElementById('studentsEmpty');
     if (!students.length) { tbody.innerHTML = ''; empty.style.display = 'block'; return; }
     empty.style.display = 'none';
-    tbody.innerHTML = students.map(s => {
-      const badgeClass = s.tag === 'graduate' ? 'badge-graduate' : s.tag === 'intern' ? 'badge-intern' : 'badge-enrolled';
-      return `<tr><td>${s.full_name}</td><td>${s.enrollment_number}</td><td>${s.degree_program}</td><td>${s.batch}</td><td>${s.current_semester || '---'}</td><td><span class="badge ${badgeClass}">${s.tag}</span></td></tr>`;
-    }).join('');
+    tbody.innerHTML = students.map(s => `<tr><td>${s.full_name}</td><td>${s.enrollment_number}</td><td>${s.degree_program}</td><td>${s.batch}</td><td>${s.current_semester || '---'}</td><td>${statusBadges(s.statuses)}</td></tr>`).join('');
   } catch (err) { console.error(err); }
 }
 
-// --- Engagements ---
-async function loadEngagements() {
+// --- Employers (Resource) ---
+let currentEmployerStatus = '';
+function filterEmployers(el, status) {
+  currentEmployerStatus = status;
+  document.querySelectorAll('#page-employers .tag-filter').forEach(f => f.classList.remove('active'));
+  el.classList.add('active');
+  loadEmployers();
+}
+
+async function loadEmployers() {
+  try {
+    const res = await fetch(API + '/admin/employers?status=' + currentEmployerStatus, { headers: authHeaders() });
+    const data = await res.json();
+    document.getElementById('employersBody').innerHTML = data.map(e => `
+      <tr><td>${e.work_email}</td><td>${e.name || '---'}</td><td>${e.designation || '---'}</td>
+      <td>${statusBadges(e.statuses)}</td>
+      <td>${e.total_engagements}</td><td>${(e.surveys_submitted || 0) + (e.evals_submitted || 0)} submitted</td>
+      <td>${new Date(e.created_at).toLocaleDateString()}</td>
+      <td><button class="btn btn-sm btn-secondary" onclick="prefillEmail('${e.work_email}')">Email</button></td></tr>
+    `).join('');
+  } catch (err) { console.error(err); }
+}
+
+function prefillEmail(email) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.sidebar .nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-email').classList.add('active');
+  document.querySelector('.sidebar .nav-item[onclick="navigate(\'email\')"]').classList.add('active');
+  document.getElementById('emailAudience').value = 'specific';
+  toggleSpecificEmails();
+  document.getElementById('specificEmails').value = email;
+}
+
+// --- Student search (shared by intern/grad initiate forms) ---
+function searchStudentsFor(prefix, q) {
+  clearTimeout(searchTimeouts[prefix]);
+  const resultsEl = document.getElementById(prefix + 'StudentResults');
+  if (q.length < 2) { resultsEl.style.display = 'none'; return; }
+  searchTimeouts[prefix] = setTimeout(async () => {
+    const res = await fetch(API + '/admin/students?q=' + encodeURIComponent(q), { headers: authHeaders() });
+    const students = await res.json();
+    resultsEl.innerHTML = students.length
+      ? students.map(s => `<div class="student-item" onclick="selectStudentFor('${prefix}','${s.id}','${s.full_name}','${s.enrollment_number}','${s.degree_program}','${s.batch}')"><strong>${s.full_name}</strong><br><span class="sub">${s.enrollment_number} - ${s.degree_program} - Batch ${s.batch}</span></div>`).join('')
+      : '<div class="student-item" style="color:var(--text-muted)">No students found</div>';
+    resultsEl.style.display = 'block';
+  }, 300);
+}
+
+function selectStudentFor(prefix, id, name, enr, prog, batch) {
+  if (prefix === 'intern') selectedInternStudentId = id; else selectedGradStudentId = id;
+  document.getElementById(prefix + 'StudentResults').style.display = 'none';
+  document.getElementById(prefix + 'StudentSearch').style.display = 'none';
+  const el = document.getElementById(prefix + 'SelectedStudent');
+  el.style.display = 'block';
+  el.innerHTML = `<div class="selected-student" style="width:100%"><span><strong>${name}</strong> - ${enr} - ${prog} - Batch ${batch}</span><button class="btn btn-sm btn-secondary" onclick="clearStudentFor('${prefix}')">Change</button></div>`;
+}
+function clearStudentFor(prefix) {
+  if (prefix === 'intern') selectedInternStudentId = null; else selectedGradStudentId = null;
+  document.getElementById(prefix + 'SelectedStudent').style.display = 'none';
+  document.getElementById(prefix + 'StudentSearch').style.display = 'block';
+  document.getElementById(prefix + 'StudentSearch').value = '';
+}
+
+// --- Initiate: create engagement (internship or job) ---
+async function createEngagementFor(type) {
+  const prefix = type === 'internship' ? 'intern' : 'grad';
+  const studentId = type === 'internship' ? selectedInternStudentId : selectedGradStudentId;
+  const email = document.getElementById(prefix + 'EmployerEmail').value.trim();
+  const alertId = type === 'internship' ? 'createInternAlert' : 'createGradAlert';
+  const btnId = type === 'internship' ? 'createInternBtn' : 'createGradBtn';
+
+  if (!email) { showAlert(alertId, 'Enter employer email.', 'error'); return; }
+  if (!studentId) { showAlert(alertId, 'Search and select a student.', 'error'); return; }
+
+  const btn = document.getElementById(btnId); btn.disabled = true; btn.textContent = 'Creating...';
+  try {
+    const payload = {
+      student_id: studentId, employer_email: email, engagement_type: type,
+      organization_name: document.getElementById(prefix + 'Org').value,
+      role_designation: document.getElementById(prefix + 'Role').value,
+      department_served: document.getElementById(prefix + 'Dept').value,
+      supervisor_name: document.getElementById(prefix + 'Supervisor').value,
+      send_invite: document.getElementById(prefix + 'SendInvite').checked,
+    };
+    if (type === 'internship') {
+      payload.supervisor_designation = document.getElementById('internSupervisorDesig').value;
+      payload.start_date = document.getElementById('internStart').value;
+      payload.end_date = document.getElementById('internEnd').value;
+    }
+    const res = await fetch(API + '/admin/engagements', { method: 'POST', headers: authHeaders(), body: JSON.stringify(payload) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Failed');
+    showAlert(alertId, data.message, data.sent ? 'success' : 'warning');
+    if (data.manual_url) {
+      const l = document.getElementById(prefix + 'ManualLink'); l.style.display = 'block'; l.innerHTML = `<strong>Manual link:</strong><br>${data.manual_url}`;
+    }
+    clearStudentFor(prefix);
+    document.getElementById(prefix + 'EmployerEmail').value = '';
+    ['Org', 'Role', 'Dept', 'Supervisor'].forEach(f => { const el = document.getElementById(prefix + f); if (el) el.value = ''; });
+    if (type === 'internship') { document.getElementById('internSupervisorDesig').value = ''; document.getElementById('internStart').value = ''; document.getElementById('internEnd').value = ''; }
+    loadFormTrack(type === 'internship' ? 'intern' : 'grad');
+  } catch (err) { showAlert(alertId, err.message, 'error'); }
+  finally { btn.disabled = false; btn.textContent = type === 'internship' ? 'Initiate internship evaluation' : 'Initiate graduate feedback'; }
+}
+
+// --- Track: engagements filtered by type, scoped per form tab ---
+async function loadAllFormTracking() {
+  loadFormTrack('intern');
+  loadFormTrack('grad');
+  loadAlumniRoster('exit');
+  loadAlumniRoster('feedback');
+}
+
+async function loadFormTrack(kind) {
+  // kind: 'intern' -> internship engagements, 'grad' -> job engagements
   try {
     const res = await fetch(API + '/admin/engagements', { headers: authHeaders() });
     const data = await res.json();
-    document.getElementById('engagementsBody').innerHTML = data.map(e => `
-      <tr><td>${e.student_name}</td><td>${e.enrollment_number}</td><td>${e.degree_program} / ${e.batch}</td><td>${e.employer_name || e.employer_email}</td>
-      <td><span class="badge ${e.type === 'internship' ? 'badge-intern' : 'badge-graduate'}">${e.type === 'internship' ? 'Intern' : 'Graduate'}</span></td>
+    const type = kind === 'intern' ? 'internship' : 'job';
+    const filtered = data.filter(e => e.type === type);
+    const tbody = document.getElementById(kind + 'TrackBody');
+    tbody.innerHTML = filtered.map(e => `
+      <tr><td>${e.student_name}</td><td>${e.enrollment_number}</td><td>${e.employer_name || e.employer_email}</td>
       <td><span class="badge ${e.validation_status === 'validated' || e.validation_status === 'edited' ? 'badge-submitted' : 'badge-pending'}">${e.validation_status || 'pending'}</span></td>
       <td><span class="badge ${e.feedback_status === 'submitted' ? 'badge-submitted' : 'badge-pending'}">${e.feedback_status}</span></td>
       <td>${new Date(e.created_at).toLocaleDateString()}</td></tr>
@@ -551,96 +705,78 @@ async function loadEngagements() {
   } catch (err) { console.error(err); }
 }
 
-// --- Employers ---
-async function loadEmployers() {
+// --- Exit survey / Alumni feedback: shared roster, rendered into two scoped tables ---
+async function loadAlumniRoster(scope) {
+  const filterInputId = scope === 'exit' ? 'exitRosterBatchFilter' : 'alumniFbRosterBatchFilter';
+  const batch = document.getElementById(filterInputId).value.trim();
   try {
-    const res = await fetch(API + '/admin/employers', { headers: authHeaders() });
-    const data = await res.json();
-    document.getElementById('employersBody').innerHTML = data.map(e => `
-      <tr><td>${e.work_email}</td><td>${e.name || '---'}</td><td>${e.designation || '---'}</td>
-      <td>${e.total_engagements}</td><td>${(e.surveys_submitted || 0) + (e.evals_submitted || 0)} submitted</td>
-      <td>${new Date(e.created_at).toLocaleDateString()}</td>
-      <td><button class="btn btn-sm btn-secondary" onclick="prefillInvite('${e.work_email}', '${e.name || ''}')">Re-invite</button></td></tr>
-    `).join('');
+    const res = await fetch(API + '/admin/alumni/roster' + (batch ? '?batch=' + encodeURIComponent(batch) : ''), { headers: authHeaders() });
+    const rows = await res.json();
+
+    if (scope === 'exit') {
+      const tbody = document.getElementById('exitTrackBody');
+      const empty = document.getElementById('exitTrackEmpty');
+      if (!rows.length) { tbody.innerHTML = ''; empty.style.display = 'block'; return; }
+      empty.style.display = 'none';
+      tbody.innerHTML = rows.map(r => `
+        <tr><td>${r.full_name}</td><td>${r.enrollment_number}</td><td>${r.batch}</td>
+        <td><span class="badge ${r.info_status === 'pending' ? 'badge-pending' : 'badge-submitted'}">${r.info_status}</span></td>
+        <td><span class="badge ${r.exit_survey_status === 'pending' ? 'badge-pending' : 'badge-submitted'}">${r.exit_survey_status}</span></td></tr>
+      `).join('');
+    } else {
+      const tbody = document.getElementById('alumniFbTrackBody');
+      const empty = document.getElementById('alumniFbTrackEmpty');
+      if (!rows.length) { tbody.innerHTML = ''; empty.style.display = 'block'; return; }
+      empty.style.display = 'none';
+      tbody.innerHTML = rows.map(r => `
+        <tr><td>${r.full_name}</td><td>${r.enrollment_number}</td><td>${r.batch}</td><td>${r.email}</td>
+        <td><span class="badge ${r.info_status === 'pending' ? 'badge-pending' : 'badge-submitted'}">${r.info_status}</span></td>
+        <td>${r.feedback_completed} / ${r.feedback_sent}</td></tr>
+      `).join('');
+    }
   } catch (err) { console.error(err); }
 }
 
-function prefillInvite(email, name) {
-  navigate('invite');
-  document.getElementById('inviteEmail').value = email;
-  document.getElementById('inviteName').value = name;
-}
-
-// --- Student Search (for create engagement) ---
-let engSearchTimeout;
-function searchStudentsForEng(q) {
-  clearTimeout(engSearchTimeout);
-  if (q.length < 2) { document.getElementById('engStudentResults').style.display = 'none'; return; }
-  engSearchTimeout = setTimeout(async () => {
-    const res = await fetch(API + '/admin/students?q=' + encodeURIComponent(q), { headers: authHeaders() });
-    const students = await res.json();
-    const c = document.getElementById('engStudentResults');
-    c.innerHTML = students.length ? students.map(s => `<div class="student-item" onclick="selectStudentForEng('${s.id}','${s.full_name}','${s.enrollment_number}','${s.degree_program}','${s.batch}')"><strong>${s.full_name}</strong><br><span class="sub">${s.enrollment_number} - ${s.degree_program} - Batch ${s.batch}</span></div>`).join('') : '<div class="student-item" style="color:var(--text-muted)">No students found</div>';
-    c.style.display = 'block';
-  }, 300);
-}
-
-function selectStudentForEng(id, name, enr, prog, batch) {
-  selectedStudentId = id;
-  document.getElementById('engStudentResults').style.display = 'none';
-  document.getElementById('engStudentSearch').style.display = 'none';
-  const el = document.getElementById('engSelectedStudent');
-  el.style.display = 'block';
-  el.innerHTML = `<div class="selected-student" style="width:100%"><span><strong>${name}</strong> - ${enr} - ${prog} - Batch ${batch}</span><button class="btn btn-sm btn-secondary" onclick="clearEngStudent()">Change</button></div>`;
-}
-function clearEngStudent() { selectedStudentId = null; document.getElementById('engSelectedStudent').style.display = 'none'; document.getElementById('engStudentSearch').style.display = 'block'; document.getElementById('engStudentSearch').value = ''; }
-
-// --- Create Engagement ---
-async function createEngagement() {
-  const type = document.getElementById('engType').value;
-  const email = document.getElementById('engEmployerEmail').value.trim();
-  if (!type) { showAlert('createAlert', 'Select engagement type.', 'error'); return; }
-  if (!email) { showAlert('createAlert', 'Enter employer email.', 'error'); return; }
-  if (!selectedStudentId) { showAlert('createAlert', 'Search and select a student.', 'error'); return; }
-  const btn = document.getElementById('createEngBtn'); btn.disabled = true; btn.textContent = 'Creating...';
+// --- Campaigns ---
+async function sendCampaign(type, batchInputId, alertId) {
+  const batch = document.getElementById(batchInputId).value.trim();
+  if (!batch) { showAlert(alertId, 'Enter a batch.', 'error'); return; }
   try {
-    const res = await fetch(API + '/admin/engagements', { method: 'POST', headers: authHeaders(), body: JSON.stringify({
-      student_id: selectedStudentId, employer_email: email, engagement_type: type,
-      organization_name: document.getElementById('engOrg').value, role_designation: document.getElementById('engRole').value,
-      department_served: document.getElementById('engDept').value, supervisor_name: document.getElementById('engSupervisor').value,
-      supervisor_designation: document.getElementById('engSupervisorDesig').value, contact_email: document.getElementById('engContactEmail').value,
-      contact_phone: document.getElementById('engPhone').value, start_date: document.getElementById('engStart').value,
-      end_date: document.getElementById('engEnd').value, send_invite: document.getElementById('sendInvite').checked,
-    })});
+    const res = await fetch(API + '/admin/alumni/campaigns/' + type, { method: 'POST', headers: authHeaders(), body: JSON.stringify({ batch }) });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || 'Failed');
-    showAlert('createAlert', data.message, data.sent ? 'success' : 'warning');
-    if (data.manual_url) { const l = document.getElementById('createManualLink'); l.style.display = 'block'; l.innerHTML = `<strong>Manual link:</strong><br>${data.manual_url}`; }
-    clearEngStudent();
-    ['engType','engEmployerEmail','engOrg','engRole','engDept','engSupervisor','engSupervisorDesig','engContactEmail','engPhone','engStart','engEnd'].forEach(id => document.getElementById(id).value = '');
-  } catch (err) { showAlert('createAlert', err.message, 'error'); }
-  finally { btn.disabled = false; btn.textContent = 'Create engagement'; }
+    showAlert(alertId, `Sent to ${data.sent} alumni.`, 'success');
+    loadAlumniRoster('exit');
+  } catch (err) { showAlert(alertId, err.message, 'error'); }
 }
 
-// --- Invite ---
-async function sendInvite() {
-  const email = document.getElementById('inviteEmail').value.trim();
-  if (!email) { showAlert('inviteAlert', 'Enter employer email.', 'error'); return; }
-  const btn = document.getElementById('inviteBtn'); btn.disabled = true; btn.textContent = 'Sending...';
+function toggleAlumniSurveyYear() {
+  document.getElementById('alumniFbSurveyYearGroup').style.display = document.getElementById('alumniFbCampaignType').value === 'feedback-form' ? 'block' : 'none';
+}
+
+async function sendAlumniFeedbackCampaign() {
+  const batch = document.getElementById('alumniFbCampaignBatch').value.trim();
+  const type = document.getElementById('alumniFbCampaignType').value;
+  if (!batch) { showAlert('alumniFeedbackCampaignAlert', 'Enter a batch.', 'error'); return; }
+  const body = { batch };
+  if (type === 'feedback-form') {
+    const year = document.getElementById('alumniFbSurveyYear').value.trim();
+    if (!year) { showAlert('alumniFeedbackCampaignAlert', 'Enter a survey year.', 'error'); return; }
+    body.survey_year = year;
+  }
   try {
-    const res = await fetch(API + '/admin/invite', { method: 'POST', headers: authHeaders(), body: JSON.stringify({
-      email, name: document.getElementById('inviteName').value, designation: document.getElementById('inviteDesig').value,
-      engagement_type: document.getElementById('inviteType').value
-    })});
+    const res = await fetch(API + '/admin/alumni/campaigns/' + type, { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || 'Failed');
-    showAlert('inviteAlert', data.message, data.sent ? 'success' : 'warning');
-    if (data.manual_url) { const l = document.getElementById('inviteManualLink'); l.style.display = 'block'; l.innerHTML = `<strong>Manual link:</strong><br>${data.manual_url}`; }
-  } catch (err) { showAlert('inviteAlert', err.message, 'error'); }
-  finally { btn.disabled = false; btn.textContent = 'Send invitation'; }
+    const msg = 'skipped_already_has_form_for_year' in data
+      ? `Sent to ${data.sent} alumni (${data.skipped_already_has_form_for_year} already had a form for this year).`
+      : `Sent to ${data.sent} alumni.`;
+    showAlert('alumniFeedbackCampaignAlert', msg, 'success');
+    loadAlumniRoster('feedback');
+  } catch (err) { showAlert('alumniFeedbackCampaignAlert', err.message, 'error'); }
 }
 
-// --- Send Email ---
+// --- Send Email (unchanged) ---
 function toggleSpecificEmails() { document.getElementById('specificEmailsGroup').style.display = document.getElementById('emailAudience').value === 'specific' ? 'block' : 'none'; }
 
 async function sendBulkEmail() {
@@ -660,7 +796,7 @@ async function sendBulkEmail() {
   finally { btn.disabled = false; btn.textContent = 'Send email'; }
 }
 
-// --- Settings ---
+// --- Settings (unchanged) ---
 async function createNewAdmin() {
   const name = document.getElementById('newAdminName').value.trim();
   const email = document.getElementById('newAdminEmail').value.trim();
@@ -673,92 +809,6 @@ async function createNewAdmin() {
     showAlert('settingsAlert', data.message, 'success');
     ['newAdminName', 'newAdminEmail', 'newAdminPassword'].forEach(id => document.getElementById(id).value = '');
   } catch (err) { showAlert('settingsAlert', err.message, 'error'); }
-}
-
-// --- Alumni ---
-function searchStudentsForAlumni(q) {
-  clearTimeout(alumniSearchTimeout);
-  if (q.length < 2) { document.getElementById('alumniStudentResults').style.display = 'none'; return; }
-  alumniSearchTimeout = setTimeout(async () => {
-    const res = await fetch(API + '/admin/students?q=' + encodeURIComponent(q), { headers: authHeaders() });
-    const students = await res.json();
-    const c = document.getElementById('alumniStudentResults');
-    c.innerHTML = students.length ? students.map(s => `<div class="student-item" onclick="selectAlumniStudent('${s.id}','${s.full_name}','${s.enrollment_number}','${s.degree_program}','${s.batch}')"><strong>${s.full_name}</strong><br><span class="sub">${s.enrollment_number} - ${s.degree_program} - Batch ${s.batch}</span></div>`).join('') : '<div class="student-item" style="color:var(--text-muted)">No students found</div>';
-    c.style.display = 'block';
-  }, 300);
-}
-
-function selectAlumniStudent(id, name, enr, prog, batch) {
-  selectedAlumniStudentId = id;
-  document.getElementById('alumniStudentResults').style.display = 'none';
-  document.getElementById('alumniStudentSearch').style.display = 'none';
-  const el = document.getElementById('alumniSelectedStudent');
-  el.style.display = 'block';
-  el.innerHTML = `<div class="selected-student" style="width:100%"><span><strong>${name}</strong> - ${enr} - ${prog} - Batch ${batch}</span><button class="btn btn-sm btn-secondary" onclick="clearAlumniStudent()">Change</button></div>`;
-}
-
-function clearAlumniStudent() { selectedAlumniStudentId = null; document.getElementById('alumniSelectedStudent').style.display = 'none'; document.getElementById('alumniStudentSearch').style.display = 'block'; document.getElementById('alumniStudentSearch').value = ''; }
-
-async function saveAlumniRecord() {
-  const email = document.getElementById('alumniEmail').value.trim();
-  if (!selectedAlumniStudentId) { showAlert('alumniAddAlert', 'Search and select a student.', 'error'); return; }
-  if (!email) { showAlert('alumniAddAlert', 'Enter an email address.', 'error'); return; }
-  try {
-    const res = await fetch(API + '/admin/alumni/roster', { method: 'POST', headers: authHeaders(), body: JSON.stringify({
-      student_id: selectedAlumniStudentId, email,
-      contact_number: document.getElementById('alumniContact').value,
-      linkedin_url: document.getElementById('alumniLinkedin').value,
-    })});
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || 'Failed');
-    showAlert('alumniAddAlert', data.message, 'success');
-    clearAlumniStudent();
-    ['alumniEmail', 'alumniContact', 'alumniLinkedin'].forEach(id => document.getElementById(id).value = '');
-    loadAlumniRoster();
-  } catch (err) { showAlert('alumniAddAlert', err.message, 'error'); }
-}
-
-function toggleAlumniSurveyYear() {
-  document.getElementById('alumniSurveyYearGroup').style.display = document.getElementById('alumniCampaignType').value === 'feedback-form' ? 'block' : 'none';
-}
-
-async function sendAlumniCampaign() {
-  const batch = document.getElementById('alumniCampaignBatch').value.trim();
-  const type = document.getElementById('alumniCampaignType').value;
-  if (!batch) { showAlert('alumniCampaignAlert', 'Enter a batch.', 'error'); return; }
-  const body = { batch };
-  if (type === 'feedback-form') {
-    const year = document.getElementById('alumniSurveyYear').value.trim();
-    if (!year) { showAlert('alumniCampaignAlert', 'Enter a survey year.', 'error'); return; }
-    body.survey_year = year;
-  }
-  try {
-    const res = await fetch(API + '/admin/alumni/campaigns/' + type, { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || 'Failed');
-    const msg = 'skipped_already_has_form_for_year' in data
-      ? `Sent to ${data.sent} alumni (${data.skipped_already_has_form_for_year} already had a form for this year).`
-      : `Sent to ${data.sent} alumni.`;
-    showAlert('alumniCampaignAlert', msg, 'success');
-    loadAlumniRoster();
-  } catch (err) { showAlert('alumniCampaignAlert', err.message, 'error'); }
-}
-
-async function loadAlumniRoster() {
-  const batch = document.getElementById('alumniRosterBatchFilter').value.trim();
-  try {
-    const res = await fetch(API + '/admin/alumni/roster' + (batch ? '?batch=' + encodeURIComponent(batch) : ''), { headers: authHeaders() });
-    const rows = await res.json();
-    const tbody = document.getElementById('alumniRosterBody');
-    const empty = document.getElementById('alumniRosterEmpty');
-    if (!rows.length) { tbody.innerHTML = ''; empty.style.display = 'block'; return; }
-    empty.style.display = 'none';
-    tbody.innerHTML = rows.map(r => {
-      const infoBadge = r.info_status === 'pending' ? 'badge-pending' : 'badge-submitted';
-      const exitBadge = r.exit_survey_status === 'pending' ? 'badge-pending' : 'badge-submitted';
-      return `<tr><td>${r.full_name}</td><td>${r.enrollment_number}</td><td>${r.degree_program}</td><td>${r.batch}</td><td>${r.email}</td><td><span class="badge ${infoBadge}">${r.info_status}</span></td><td><span class="badge ${exitBadge}">${r.exit_survey_status}</span></td><td>${r.feedback_completed} / ${r.feedback_sent}</td></tr>`;
-    }).join('');
-  } catch (err) { console.error(err); }
 }
 
 // --- Init ---

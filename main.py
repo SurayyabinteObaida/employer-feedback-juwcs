@@ -1007,14 +1007,26 @@ def admin_dashboard_stats(admin: dict = Depends(get_current_admin), db: DBSessio
 
 
 @app.get("/api/admin/students")
-def list_students(q: str = "", tag: str = "", admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
-    """List students with derived tags: graduate (has job engagement), intern (has internship engagement), enrolled (no engagement)."""
+def list_students(q: str = "", status: str = "", admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
+    """List students with multi-badge status: a student can be any combination
+    of intern / graduate / alumni. undergrad = none of the above (default,
+    not stored — just the absence of every other status).
+
+    This replaces the old single-`tag` version (which used
+    graduate > intern priority and never checked the `alumni` table at all,
+    so a graduate who was also an alumnus only ever showed as "graduate").
+
+    `status` filters to rows containing that single status (e.g. status=alumni
+    returns everyone tagged alumni, even if they're also tagged graduate).
+    """
     query = """
         SELECT s.id, s.full_name, s.enrollment_number, s.degree_program, s.batch, s.current_semester,
                BOOL_OR(e.type = 'job') AS is_graduate,
-               BOOL_OR(e.type = 'internship') AS is_intern
+               BOOL_OR(e.type = 'internship') AS is_intern,
+               (a.id IS NOT NULL) AS is_alumni
         FROM students s
         LEFT JOIN engagements e ON s.id = e.student_id
+        LEFT JOIN alumni a ON a.student_id = s.id
     """
     params = {}
     conditions = []
@@ -1023,22 +1035,36 @@ def list_students(q: str = "", tag: str = "", admin: dict = Depends(get_current_
         params["q"] = f"%{q.lower()}%"
     if conditions:
         query += " WHERE " + " AND ".join(conditions)
-    query += " GROUP BY s.id ORDER BY s.full_name"
+    query += " GROUP BY s.id, a.id ORDER BY s.full_name"
 
     rows = db.execute(text(query), params).mappings().all()
     result = []
     for r in rows:
         d = dict(r)
+        statuses = []
+        if d["is_intern"]:
+            statuses.append("intern")
         if d["is_graduate"]:
-            d["tag"] = "graduate"
-        elif d["is_intern"]:
-            d["tag"] = "intern"
+            statuses.append("graduate")
+        if d["is_alumni"]:
+            statuses.append("alumni")
+        if not statuses:
+            statuses = ["undergrad"]
+        d["statuses"] = statuses
+        # Keep a single primary_status for places that want one badge only
+        # (priority: alumni > graduate > intern > undergrad)
+        if "alumni" in statuses:
+            d["primary_status"] = "alumni"
+        elif "graduate" in statuses:
+            d["primary_status"] = "graduate"
+        elif "intern" in statuses:
+            d["primary_status"] = "intern"
         else:
-            d["tag"] = "enrolled"
+            d["primary_status"] = "undergrad"
         result.append(d)
 
-    if tag:
-        result = [r for r in result if r["tag"] == tag]
+    if status:
+        result = [r for r in result if status in r["statuses"]]
     return result
 
 
@@ -1163,12 +1189,21 @@ def invite_employer(data: InviteRequest, admin: dict = Depends(get_current_admin
         }
 
 @app.get("/api/admin/employers")
-def list_employers(admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
+def list_employers(status: str = "", admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
+    """List employers with multi-badge status: intern_employer / graduate_employer,
+    derived from the distinct engagement types linked to them. An employer who
+    has hosted both interns and graduates gets both badges.
+
+    This replaces the old version, which returned employers with no status
+    tagging at all.
+    """
     rows = db.execute(text("""
         SELECT e.id, e.work_email, e.name, e.designation, e.created_at,
                COUNT(DISTINCT eng.id) AS total_engagements,
                COUNT(DISTINCT es.id) AS surveys_submitted,
-               COUNT(DISTINCT ie.id) AS evals_submitted
+               COUNT(DISTINCT ie.id) AS evals_submitted,
+               BOOL_OR(eng.type = 'internship') AS is_intern_employer,
+               BOOL_OR(eng.type = 'job') AS is_graduate_employer
         FROM employers e
         LEFT JOIN engagements eng ON e.id = eng.employer_id
         LEFT JOIN employer_surveys es ON eng.id = es.engagement_id AND es.submitted_at IS NOT NULL
@@ -1176,7 +1211,21 @@ def list_employers(admin: dict = Depends(get_current_admin), db: DBSession = Dep
         GROUP BY e.id
         ORDER BY e.created_at DESC
     """)).mappings().all()
-    return [dict(r) for r in rows]
+
+    result = []
+    for r in rows:
+        d = dict(r)
+        statuses = []
+        if d["is_intern_employer"]:
+            statuses.append("intern_employer")
+        if d["is_graduate_employer"]:
+            statuses.append("graduate_employer")
+        d["statuses"] = statuses
+        result.append(d)
+
+    if status:
+        result = [r for r in result if status in r["statuses"]]
+    return result
 
 
 @app.get("/api/admin/engagements")
