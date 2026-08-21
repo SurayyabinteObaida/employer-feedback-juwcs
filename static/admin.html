@@ -15,13 +15,11 @@
 }
 body { font-family: 'Segoe UI', -apple-system, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; margin: 0; }
 
-/* Login (unchanged from original) */
 .login-wrapper { display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 2rem; }
 .login-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 2.5rem; width: 100%; max-width: 400px; }
 .login-card h1 { font-size: 20px; margin-bottom: 4px; }
 .login-card .sub { font-size: 13px; color: var(--text-secondary); margin-bottom: 1.5rem; }
 
-/* App shell */
 .app-shell { display: none; min-height: 100vh; }
 .header { background: var(--primary); color: #fff; padding: 0 1.5rem; height: 56px; display: flex; align-items: center; justify-content: space-between; }
 .header h1 { font-size: 15px; font-weight: 600; }
@@ -30,7 +28,6 @@ body { font-family: 'Segoe UI', -apple-system, sans-serif; background: var(--bg)
 
 .layout { display: flex; min-height: calc(100vh - 56px); }
 
-/* Sidebar */
 .sidebar { width: 220px; background: var(--surface); border-right: 1px solid var(--border); padding: 1rem 0; flex-shrink: 0; }
 .sidebar .nav-item {
   display: flex; align-items: center; gap: 10px; padding: 10px 1.25rem; font-size: 14px;
@@ -39,7 +36,6 @@ body { font-family: 'Segoe UI', -apple-system, sans-serif; background: var(--bg)
 .sidebar .nav-item:hover { background: var(--bg); color: var(--text); }
 .sidebar .nav-item.active { background: #f0f4ff; color: var(--accent); border-left-color: var(--accent); font-weight: 600; }
 .sidebar .nav-label { font-size: 11px; text-transform: uppercase; color: var(--text-muted); padding: 1.25rem 1.25rem 0.5rem; font-weight: 700; letter-spacing: 0.5px; }
-.sidebar .nav-item.sub { padding-left: 2.25rem; font-size: 13px; }
 
 .main { flex: 1; padding: 1.5rem 2rem; overflow-x: hidden; }
 .page { display: none; }
@@ -47,25 +43,14 @@ body { font-family: 'Segoe UI', -apple-system, sans-serif; background: var(--bg)
 .page-title { font-size: 20px; font-weight: 600; margin-bottom: 0.25rem; }
 .page-sub { font-size: 13px; color: var(--text-secondary); margin-bottom: 1.5rem; }
 
-/* Form-tab sub-nav (inside a Forms page) */
-.form-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 1.5rem; }
-.form-tab { padding: 10px 16px; font-size: 13px; font-weight: 500; color: var(--text-secondary); cursor: pointer; border-bottom: 2px solid transparent; }
-.form-tab:hover { color: var(--text); }
-.form-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
-.form-tab-panel { display: none; }
-.form-tab-panel.active { display: block; }
-
-/* Section split: Initiate / Track */
 .section-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); margin: 1.5rem 0 0.75rem; }
 .section-label:first-child { margin-top: 0; }
 
-/* Stat cards */
 .stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
 .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem; }
 .stat-card .value { font-size: 28px; font-weight: 700; color: var(--primary); }
 .stat-card .label { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
 
-/* Cards, forms, tables */
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; margin-bottom: 1rem; }
 .card h3 { font-size: 15px; font-weight: 600; margin-bottom: 1rem; }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
@@ -110,7 +95,16 @@ tr:hover td { background: #f8fafc; }
 .student-results .student-item { padding: 8px 12px; cursor: pointer; font-size: 13px; border-bottom: 1px solid var(--border); }
 .student-results .student-item:hover { background: #f0f4ff; }
 .student-results .student-item .sub { font-size: 12px; color: var(--text-muted); }
-.selected-student { background: #f0f4ff; border: 1px solid #93b5f0; border-radius: var(--radius); padding: 8px 12px; font-size: 13px; display: flex; justify-content: space-between; align-items: center; }
+.student-profile-card {
+  background: #f0f4ff; border: 1px solid #93b5f0; border-radius: var(--radius);
+  padding: 12px 14px; font-size: 13px;
+}
+.student-profile-card .profile-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+.student-profile-card .profile-name { font-weight: 700; font-size: 14px; }
+.student-profile-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 6px 12px; }
+.student-profile-grid .pf-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.3px; color: var(--text-muted); }
+.student-profile-grid .pf-value { font-size: 13px; color: var(--text); font-weight: 500; }
+
 .manual-link { background: var(--warning-bg); border: 1px solid #f59e0b; border-radius: var(--radius); padding: 12px; margin-top: 8px; word-break: break-all; font-size: 12px; font-family: monospace; }
 .checkbox-group { display: flex; align-items: center; gap: 8px; margin-top: 0.5rem; }
 .tag-filters { display: flex; gap: 8px; margin-bottom: 1rem; }
@@ -127,7 +121,6 @@ tr:hover td { background: #f8fafc; }
 </head>
 <body>
 
-<!-- ===== LOGIN (unchanged) ===== -->
 <div id="loginPage" class="login-wrapper">
   <div class="login-card">
     <h1>Admin Panel</h1>
@@ -148,7 +141,6 @@ tr:hover td { background: #f8fafc; }
   </div>
 </div>
 
-<!-- ===== APP SHELL ===== -->
 <div id="appShell" class="app-shell">
   <div class="header">
     <h1>OBE / CQI Panel</h1>
@@ -161,24 +153,26 @@ tr:hover td { background: #f8fafc; }
   <div class="layout">
     <div class="sidebar">
       <div class="nav-label">Overview</div>
-      <div class="nav-item active" onclick="navigate('dashboard')">Dashboard</div>
+      <div class="nav-item active" data-page="dashboard" onclick="navigate('dashboard')">Dashboard</div>
 
       <div class="nav-label">Resources</div>
-      <div class="nav-item" onclick="navigate('students')">Students</div>
-      <div class="nav-item" onclick="navigate('employers')">Employers</div>
+      <div class="nav-item" data-page="students" onclick="navigate('students')">Students</div>
+      <div class="nav-item" data-page="employers" onclick="navigate('employers')">Employers</div>
 
       <div class="nav-label">Forms</div>
-      <div class="nav-item" onclick="navigate('forms')">All forms</div>
+      <div class="nav-item" data-page="form-intern-supervisor" onclick="navigate('form-intern-supervisor')">Internship Supervisor</div>
+      <div class="nav-item" data-page="form-graduate-employer" onclick="navigate('form-graduate-employer')">Graduate Employer</div>
+      <div class="nav-item" data-page="form-exit-survey" onclick="navigate('form-exit-survey')">Exit Survey</div>
+      <div class="nav-item" data-page="form-alumni-feedback" onclick="navigate('form-alumni-feedback')">Alumni Feedback</div>
 
       <div class="nav-label">Actions</div>
-      <div class="nav-item" onclick="navigate('email')">Send email</div>
+      <div class="nav-item" data-page="email" onclick="navigate('email')">Send email</div>
 
       <div class="nav-label">System</div>
-      <div class="nav-item" onclick="navigate('settings')">Settings</div>
+      <div class="nav-item" data-page="settings" onclick="navigate('settings')">Settings</div>
     </div>
 
     <div class="main">
-      <!-- ============ Dashboard ============ -->
       <div class="page active" id="page-dashboard">
         <h2 class="page-title">Dashboard</h2>
         <p class="page-sub">Overview of all activity across the OBE / CQI system.</p>
@@ -189,10 +183,9 @@ tr:hover td { background: #f8fafc; }
         </div>
       </div>
 
-      <!-- ============ Students (Resource) ============ -->
       <div class="page" id="page-students">
         <h2 class="page-title">Students</h2>
-        <p class="page-sub">Every student record, with all statuses that apply — a student can be an intern, graduate, and alumnus at once.</p>
+        <p class="page-sub">Every student record, with all statuses that apply -- a student can be an intern, graduate, and alumnus at once.</p>
         <div style="display:flex;gap:1rem;align-items:center;margin-bottom:1rem;">
           <input type="text" id="studentSearchInput" placeholder="Search by name or enrollment..." oninput="loadStudents()" style="flex:1;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius);font-size:14px;">
         </div>
@@ -210,7 +203,6 @@ tr:hover td { background: #f8fafc; }
         <p id="studentsEmpty" style="display:none;font-size:13px;color:var(--text-muted);padding:1rem 0;">No students found.</p>
       </div>
 
-      <!-- ============ Employers (Resource) ============ -->
       <div class="page" id="page-employers">
         <h2 class="page-title">Employers</h2>
         <p class="page-sub">Every registered employer, tagged by which engagement types they're linked to.</p>
@@ -225,164 +217,171 @@ tr:hover td { background: #f8fafc; }
         </div>
       </div>
 
-      <!-- ============ Forms (4 tabs: initiate + track only) ============ -->
-      <div class="page" id="page-forms">
-        <h2 class="page-title">Forms</h2>
-        <p class="page-sub">Initiate and track each of the four feedback instruments.</p>
+      <div class="page" id="page-form-intern-supervisor">
+        <h2 class="page-title">Internship Supervisor Feedback</h2>
+        <p class="page-sub">Initiate and track the internship evaluation proforma, sent to each intern's supervisor.</p>
 
-        <div class="form-tabs">
-          <div class="form-tab active" onclick="switchFormTab('intern-supervisor')">Internship Supervisor</div>
-          <div class="form-tab" onclick="switchFormTab('graduate-employer')">Graduate Employer</div>
-          <div class="form-tab" onclick="switchFormTab('exit-survey')">Exit Survey</div>
-          <div class="form-tab" onclick="switchFormTab('alumni-feedback')">Alumni Feedback</div>
+        <div class="section-label">Initiate</div>
+        <div class="card">
+          <div id="createInternAlert" class="alert"></div>
+          <div class="form-group">
+            <label>Employer email</label>
+            <input type="email" id="internEmployerEmail" placeholder="employer@company.com">
+          </div>
+          <div class="form-group">
+            <label>Search student</label>
+            <input type="text" id="internStudentSearch" placeholder="Type name or enrollment..." oninput="searchStudentsFor('intern', this.value)">
+            <div id="internStudentResults" class="student-results" style="display:none;"></div>
+            <div id="internSelectedStudent" style="display:none;"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Organization</label><input type="text" id="internOrg" placeholder="e.g. TechVentures"></div>
+            <div class="form-group"><label>Role</label><input type="text" id="internRole" placeholder="e.g. Software Engineer Intern"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Department</label><input type="text" id="internDept"></div>
+            <div class="form-group"><label>Supervisor</label><input type="text" id="internSupervisor"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Supervisor designation</label><input type="text" id="internSupervisorDesig"></div>
+            <div class="form-group"><label>Contact email (supervisor)</label><input type="email" id="internContactEmail"></div>
+          </div>
+          <div class="form-row-3">
+            <div class="form-group"><label>Contact phone</label><input type="text" id="internPhone"></div>
+            <div class="form-group"><label>Start date</label><input type="date" id="internStart"></div>
+            <div class="form-group"><label>End date</label><input type="date" id="internEnd"></div>
+          </div>
+          <div class="checkbox-group"><input type="checkbox" id="internSendInvite" checked><label for="internSendInvite">Send invitation email to employer</label></div>
+          <div style="margin-top:1.25rem;"><button class="btn btn-primary" id="createInternBtn" onclick="createEngagementFor('internship')">Initiate internship evaluation</button></div>
+          <div id="internManualLink" class="manual-link" style="display:none;"></div>
         </div>
 
-        <!-- --- Tab: Internship Supervisor Feedback --- -->
-        <div class="form-tab-panel active" id="formtab-intern-supervisor">
-          <div class="section-label">Initiate</div>
-          <div class="card">
-            <div id="createInternAlert" class="alert"></div>
-            <div class="form-group">
-              <label>Employer email</label>
-              <input type="email" id="internEmployerEmail" placeholder="employer@company.com">
-            </div>
-            <div class="form-group">
-              <label>Search student</label>
-              <input type="text" id="internStudentSearch" placeholder="Type name or enrollment..." oninput="searchStudentsFor('intern', this.value)">
-              <div id="internStudentResults" class="student-results" style="display:none;"></div>
-              <div id="internSelectedStudent" style="display:none;"></div>
-            </div>
-            <div class="form-row">
-              <div class="form-group"><label>Organization</label><input type="text" id="internOrg" placeholder="e.g. TechVentures"></div>
-              <div class="form-group"><label>Role</label><input type="text" id="internRole" placeholder="e.g. Software Engineer Intern"></div>
-            </div>
-            <div class="form-row">
-              <div class="form-group"><label>Department</label><input type="text" id="internDept"></div>
-              <div class="form-group"><label>Supervisor</label><input type="text" id="internSupervisor"></div>
-            </div>
-            <div class="form-row-3">
-              <div class="form-group"><label>Supervisor designation</label><input type="text" id="internSupervisorDesig"></div>
-              <div class="form-group"><label>Start date</label><input type="date" id="internStart"></div>
-              <div class="form-group"><label>End date</label><input type="date" id="internEnd"></div>
-            </div>
-            <div class="checkbox-group"><input type="checkbox" id="internSendInvite" checked><label for="internSendInvite">Send invitation email to employer</label></div>
-            <div style="margin-top:1.25rem;"><button class="btn btn-primary" id="createInternBtn" onclick="createEngagementFor('internship')">Initiate internship evaluation</button></div>
-            <div id="internManualLink" class="manual-link" style="display:none;"></div>
-          </div>
-
-          <div class="section-label">Track</div>
-          <div class="card" style="padding:0;">
-            <div style="overflow-x:auto;">
-              <table><thead><tr><th>Student</th><th>Enrollment</th><th>Employer</th><th>Proforma</th><th>Evaluation</th><th>Created</th></tr></thead>
-              <tbody id="internTrackBody"></tbody></table>
-            </div>
-          </div>
-        </div>
-
-        <!-- --- Tab: Graduate Employer Feedback --- -->
-        <div class="form-tab-panel" id="formtab-graduate-employer">
-          <div class="section-label">Initiate</div>
-          <div class="card">
-            <div id="createGradAlert" class="alert"></div>
-            <div class="form-group">
-              <label>Employer email</label>
-              <input type="email" id="gradEmployerEmail" placeholder="employer@company.com">
-            </div>
-            <div class="form-group">
-              <label>Search student</label>
-              <input type="text" id="gradStudentSearch" placeholder="Type name or enrollment..." oninput="searchStudentsFor('grad', this.value)">
-              <div id="gradStudentResults" class="student-results" style="display:none;"></div>
-              <div id="gradSelectedStudent" style="display:none;"></div>
-            </div>
-            <div class="form-row">
-              <div class="form-group"><label>Organization</label><input type="text" id="gradOrg" placeholder="e.g. TechVentures"></div>
-              <div class="form-group"><label>Role</label><input type="text" id="gradRole" placeholder="e.g. Software Engineer"></div>
-            </div>
-            <div class="form-row">
-              <div class="form-group"><label>Department</label><input type="text" id="gradDept"></div>
-              <div class="form-group"><label>Supervisor</label><input type="text" id="gradSupervisor"></div>
-            </div>
-            <div class="checkbox-group"><input type="checkbox" id="gradSendInvite" checked><label for="gradSendInvite">Send invitation email to employer</label></div>
-            <div style="margin-top:1.25rem;"><button class="btn btn-primary" id="createGradBtn" onclick="createEngagementFor('job')">Initiate graduate feedback</button></div>
-            <div id="gradManualLink" class="manual-link" style="display:none;"></div>
-          </div>
-
-          <div class="section-label">Track</div>
-          <div class="card" style="padding:0;">
-            <div style="overflow-x:auto;">
-              <table><thead><tr><th>Student</th><th>Enrollment</th><th>Employer</th><th>Proforma</th><th>Feedback</th><th>Created</th></tr></thead>
-              <tbody id="gradTrackBody"></tbody></table>
-            </div>
-          </div>
-        </div>
-
-        <!-- --- Tab: Exit Survey --- -->
-        <div class="form-tab-panel" id="formtab-exit-survey">
-          <div class="section-label">Initiate</div>
-          <div class="card">
-            <div id="exitCampaignAlert" class="alert"></div>
-            <p style="font-size:13px;color:var(--text-secondary);margin-bottom:1rem;">
-              Sends the exit survey link to every alumnus in the batch who has already confirmed their info. Alumni without a confirmed info record are skipped — send an info confirmation campaign for them first from the Alumni Feedback tab's roster note below, or add them under Students.
-            </p>
-            <div class="form-group"><label>Batch</label><input type="text" id="exitCampaignBatch" placeholder="e.g. 2022"></div>
-            <button class="btn btn-primary" onclick="sendCampaign('exit-survey', 'exitCampaignBatch', 'exitCampaignAlert')">Send exit survey campaign</button>
-          </div>
-
-          <div class="section-label">Track</div>
-          <div class="card">
-            <div class="form-group" style="max-width:240px;">
-              <label>Filter by batch</label>
-              <input type="text" id="exitRosterBatchFilter" placeholder="e.g. 2022" oninput="loadAlumniRoster('exit')">
-            </div>
-            <div style="overflow-x:auto;">
-              <table><thead><tr><th>Name</th><th>Enrollment</th><th>Batch</th><th>Info confirmed</th><th>Exit survey</th></tr></thead>
-              <tbody id="exitTrackBody"></tbody></table>
-            </div>
-            <p id="exitTrackEmpty" style="display:none;font-size:13px;color:var(--text-muted);padding:1rem 0;">No alumni records found.</p>
-          </div>
-        </div>
-
-        <!-- --- Tab: Alumni Feedback --- -->
-        <div class="form-tab-panel" id="formtab-alumni-feedback">
-          <div class="section-label">Initiate</div>
-          <div class="card">
-            <div id="alumniFeedbackCampaignAlert" class="alert"></div>
-            <p style="font-size:13px;color:var(--text-secondary);margin-bottom:1rem;">
-              Also covers info confirmation — send that first for a batch that hasn't confirmed contact details yet, then send the feedback form itself for a given survey year.
-            </p>
-            <div class="form-row">
-              <div class="form-group"><label>Batch</label><input type="text" id="alumniFbCampaignBatch" placeholder="e.g. 2022"></div>
-              <div class="form-group">
-                <label>Campaign</label>
-                <select id="alumniFbCampaignType" onchange="toggleAlumniSurveyYear()">
-                  <option value="info-confirmation">Info confirmation</option>
-                  <option value="feedback-form">Alumni feedback form</option>
-                </select>
-              </div>
-            </div>
-            <div class="form-group" id="alumniFbSurveyYearGroup" style="display:none;">
-              <label>Survey year</label>
-              <input type="text" id="alumniFbSurveyYear" placeholder="e.g. 2025-2026">
-            </div>
-            <button class="btn btn-primary" onclick="sendAlumniFeedbackCampaign()">Send campaign</button>
-          </div>
-
-          <div class="section-label">Track</div>
-          <div class="card">
-            <div class="form-group" style="max-width:240px;">
-              <label>Filter by batch</label>
-              <input type="text" id="alumniFbRosterBatchFilter" placeholder="e.g. 2022" oninput="loadAlumniRoster('feedback')">
-            </div>
-            <div style="overflow-x:auto;">
-              <table><thead><tr><th>Name</th><th>Enrollment</th><th>Batch</th><th>Email</th><th>Info confirmation</th><th>Feedback forms sent/completed</th></tr></thead>
-              <tbody id="alumniFbTrackBody"></tbody></table>
-            </div>
-            <p id="alumniFbTrackEmpty" style="display:none;font-size:13px;color:var(--text-muted);padding:1rem 0;">No alumni records found.</p>
+        <div class="section-label">Track</div>
+        <div class="card" style="padding:0;">
+          <div style="overflow-x:auto;">
+            <table><thead><tr><th>Student</th><th>Enrollment</th><th>Employer</th><th>Proforma</th><th>Evaluation</th><th>Created</th></tr></thead>
+            <tbody id="internTrackBody"></tbody></table>
           </div>
         </div>
       </div>
 
-      <!-- ============ Send Email (unchanged) ============ -->
+      <div class="page" id="page-form-graduate-employer">
+        <h2 class="page-title">Graduate Employer Feedback</h2>
+        <p class="page-sub">Initiate and track the employer survey, sent to each graduate's employer.</p>
+
+        <div class="section-label">Initiate</div>
+        <div class="card">
+          <div id="createGradAlert" class="alert"></div>
+          <div class="form-group">
+            <label>Employer email</label>
+            <input type="email" id="gradEmployerEmail" placeholder="employer@company.com">
+          </div>
+          <div class="form-group">
+            <label>Search student</label>
+            <input type="text" id="gradStudentSearch" placeholder="Type name or enrollment..." oninput="searchStudentsFor('grad', this.value)">
+            <div id="gradStudentResults" class="student-results" style="display:none;"></div>
+            <div id="gradSelectedStudent" style="display:none;"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Organization</label><input type="text" id="gradOrg" placeholder="e.g. TechVentures"></div>
+            <div class="form-group"><label>Role</label><input type="text" id="gradRole" placeholder="e.g. Software Engineer"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Department</label><input type="text" id="gradDept"></div>
+            <div class="form-group"><label>Supervisor</label><input type="text" id="gradSupervisor"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Supervisor designation</label><input type="text" id="gradSupervisorDesig"></div>
+            <div class="form-group"><label>Contact email (supervisor)</label><input type="email" id="gradContactEmail"></div>
+          </div>
+          <div class="form-row-3">
+            <div class="form-group"><label>Contact phone</label><input type="text" id="gradPhone"></div>
+            <div class="form-group"><label>Start date</label><input type="date" id="gradStart"></div>
+            <div class="form-group"><label>End date</label><input type="date" id="gradEnd"></div>
+          </div>
+          <div class="checkbox-group"><input type="checkbox" id="gradSendInvite" checked><label for="gradSendInvite">Send invitation email to employer</label></div>
+          <div style="margin-top:1.25rem;"><button class="btn btn-primary" id="createGradBtn" onclick="createEngagementFor('job')">Initiate graduate feedback</button></div>
+          <div id="gradManualLink" class="manual-link" style="display:none;"></div>
+        </div>
+
+        <div class="section-label">Track</div>
+        <div class="card" style="padding:0;">
+          <div style="overflow-x:auto;">
+            <table><thead><tr><th>Student</th><th>Enrollment</th><th>Employer</th><th>Proforma</th><th>Feedback</th><th>Created</th></tr></thead>
+            <tbody id="gradTrackBody"></tbody></table>
+          </div>
+        </div>
+      </div>
+
+      <div class="page" id="page-form-exit-survey">
+        <h2 class="page-title">Exit Survey</h2>
+        <p class="page-sub">Initiate and track the graduating-batch exit survey, sent directly to alumni.</p>
+
+        <div class="section-label">Initiate</div>
+        <div class="card">
+          <div id="exitCampaignAlert" class="alert"></div>
+          <p style="font-size:13px;color:var(--text-secondary);margin-bottom:1rem;">
+            Sends the exit survey link to every alumnus in the batch who has already confirmed their info. Alumni without a confirmed info record are skipped -- send an info confirmation campaign for them first from the Alumni Feedback tab.
+          </p>
+          <div class="form-group"><label>Batch</label><input type="text" id="exitCampaignBatch" placeholder="e.g. 2022"></div>
+          <button class="btn btn-primary" onclick="sendCampaign('exit-survey', 'exitCampaignBatch', 'exitCampaignAlert')">Send exit survey campaign</button>
+        </div>
+
+        <div class="section-label">Track</div>
+        <div class="card">
+          <div class="form-group" style="max-width:240px;">
+            <label>Filter by batch</label>
+            <input type="text" id="exitRosterBatchFilter" placeholder="e.g. 2022" oninput="loadAlumniRoster('exit')">
+          </div>
+          <div style="overflow-x:auto;">
+            <table><thead><tr><th>Name</th><th>Enrollment</th><th>Batch</th><th>Info confirmed</th><th>Exit survey</th></tr></thead>
+            <tbody id="exitTrackBody"></tbody></table>
+          </div>
+          <p id="exitTrackEmpty" style="display:none;font-size:13px;color:var(--text-muted);padding:1rem 0;">No alumni records found.</p>
+        </div>
+      </div>
+
+      <div class="page" id="page-form-alumni-feedback">
+        <h2 class="page-title">Alumni Feedback</h2>
+        <p class="page-sub">Initiate and track alumni info confirmation and the alumni feedback form.</p>
+
+        <div class="section-label">Initiate</div>
+        <div class="card">
+          <div id="alumniFeedbackCampaignAlert" class="alert"></div>
+          <p style="font-size:13px;color:var(--text-secondary);margin-bottom:1rem;">
+            Send info confirmation first for a batch that hasn't confirmed contact details yet, then send the feedback form itself for a given survey year.
+          </p>
+          <div class="form-row">
+            <div class="form-group"><label>Batch</label><input type="text" id="alumniFbCampaignBatch" placeholder="e.g. 2022"></div>
+            <div class="form-group">
+              <label>Campaign</label>
+              <select id="alumniFbCampaignType" onchange="toggleAlumniSurveyYear()">
+                <option value="info-confirmation">Info confirmation</option>
+                <option value="feedback-form">Alumni feedback form</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group" id="alumniFbSurveyYearGroup" style="display:none;">
+            <label>Survey year</label>
+            <input type="text" id="alumniFbSurveyYear" placeholder="e.g. 2025-2026">
+          </div>
+          <button class="btn btn-primary" onclick="sendAlumniFeedbackCampaign()">Send campaign</button>
+        </div>
+
+        <div class="section-label">Track</div>
+        <div class="card">
+          <div class="form-group" style="max-width:240px;">
+            <label>Filter by batch</label>
+            <input type="text" id="alumniFbRosterBatchFilter" placeholder="e.g. 2022" oninput="loadAlumniRoster('feedback')">
+          </div>
+          <div style="overflow-x:auto;">
+            <table><thead><tr><th>Name</th><th>Enrollment</th><th>Batch</th><th>Email</th><th>Info confirmation</th><th>Feedback forms sent/completed</th></tr></thead>
+            <tbody id="alumniFbTrackBody"></tbody></table>
+          </div>
+          <p id="alumniFbTrackEmpty" style="display:none;font-size:13px;color:var(--text-muted);padding:1rem 0;">No alumni records found.</p>
+        </div>
+      </div>
+
       <div class="page" id="page-email">
         <h2 class="page-title">Send email</h2>
         <p class="page-sub">Compose and send email to a group of employers.</p>
@@ -412,7 +411,6 @@ tr:hover td { background: #f8fafc; }
         </div>
       </div>
 
-      <!-- ============ Settings (unchanged) ============ -->
       <div class="page" id="page-settings">
         <h2 class="page-title">Settings</h2>
         <p class="page-sub">Manage admin accounts.</p>
@@ -447,7 +445,23 @@ function statusBadges(statuses) {
   return `<div class="badge-group">${statuses.map(s => `<span class="badge ${classMap[s] || 'badge-undergrad'}">${labelMap[s] || s}</span>`).join('')}</div>`;
 }
 
-// --- Auth ---
+function renderStudentProfileCard(s) {
+  return `
+    <div class="student-profile-card">
+      <div class="profile-top">
+        <span class="profile-name">${s.name}</span>
+        <button class="btn btn-sm btn-secondary" onclick="clearStudentFor('${s.prefix}')">Change</button>
+      </div>
+      <div class="student-profile-grid">
+        <div><div class="pf-label">Enrollment</div><div class="pf-value">${s.enr || '-'}</div></div>
+        <div><div class="pf-label">Program</div><div class="pf-value">${s.prog || '-'}</div></div>
+        <div><div class="pf-label">Batch</div><div class="pf-value">${s.batch || '-'}</div></div>
+        <div><div class="pf-label">Semester</div><div class="pf-value">${s.semester || '-'}</div></div>
+      </div>
+    </div>
+  `;
+}
+
 async function checkAuth() {
   if (!adminToken) { checkSetup(); return; }
   try {
@@ -510,26 +524,21 @@ async function setupAdmin() {
 
 function logout() { adminToken = null; localStorage.removeItem('admin_token'); location.reload(); }
 
-// --- Navigation ---
 function navigate(page) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.sidebar .nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('page-' + page).classList.add('active');
-  event.target.classList.add('active');
+  document.querySelector(`.sidebar .nav-item[data-page="${page}"]`).classList.add('active');
+
   if (page === 'dashboard') loadDashboard();
   if (page === 'students') loadStudents();
   if (page === 'employers') loadEmployers();
-  if (page === 'forms') loadAllFormTracking();
+  if (page === 'form-intern-supervisor') loadFormTrack('intern');
+  if (page === 'form-graduate-employer') loadFormTrack('grad');
+  if (page === 'form-exit-survey') loadAlumniRoster('exit');
+  if (page === 'form-alumni-feedback') loadAlumniRoster('feedback');
 }
 
-function switchFormTab(tab) {
-  document.querySelectorAll('.form-tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.form-tab-panel').forEach(p => p.classList.remove('active'));
-  event.target.classList.add('active');
-  document.getElementById('formtab-' + tab).classList.add('active');
-}
-
-// --- Dashboard ---
 async function loadDashboard() {
   try {
     const res = await fetch(API + '/admin/dashboard-stats', { headers: authHeaders() });
@@ -553,7 +562,6 @@ async function loadDashboard() {
   } catch (err) { console.error(err); }
 }
 
-// --- Students (Resource) ---
 let currentStudentStatus = '';
 function filterStudents(el, status) {
   currentStudentStatus = status;
@@ -575,7 +583,6 @@ async function loadStudents() {
   } catch (err) { console.error(err); }
 }
 
-// --- Employers (Resource) ---
 let currentEmployerStatus = '';
 function filterEmployers(el, status) {
   currentEmployerStatus = status;
@@ -599,16 +606,12 @@ async function loadEmployers() {
 }
 
 function prefillEmail(email) {
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.sidebar .nav-item').forEach(n => n.classList.remove('active'));
-  document.getElementById('page-email').classList.add('active');
-  document.querySelector('.sidebar .nav-item[onclick="navigate(\'email\')"]').classList.add('active');
+  navigate('email');
   document.getElementById('emailAudience').value = 'specific';
   toggleSpecificEmails();
   document.getElementById('specificEmails').value = email;
 }
 
-// --- Student search (shared by intern/grad initiate forms) ---
 function searchStudentsFor(prefix, q) {
   clearTimeout(searchTimeouts[prefix]);
   const resultsEl = document.getElementById(prefix + 'StudentResults');
@@ -617,19 +620,19 @@ function searchStudentsFor(prefix, q) {
     const res = await fetch(API + '/admin/students?q=' + encodeURIComponent(q), { headers: authHeaders() });
     const students = await res.json();
     resultsEl.innerHTML = students.length
-      ? students.map(s => `<div class="student-item" onclick="selectStudentFor('${prefix}','${s.id}','${s.full_name}','${s.enrollment_number}','${s.degree_program}','${s.batch}')"><strong>${s.full_name}</strong><br><span class="sub">${s.enrollment_number} - ${s.degree_program} - Batch ${s.batch}</span></div>`).join('')
+      ? students.map(s => `<div class="student-item" onclick="selectStudentFor('${prefix}','${s.id}','${s.full_name}','${s.enrollment_number}','${s.degree_program}','${s.batch}','${s.current_semester || ''}')"><strong>${s.full_name}</strong><br><span class="sub">${s.enrollment_number} - ${s.degree_program} - Batch ${s.batch}</span></div>`).join('')
       : '<div class="student-item" style="color:var(--text-muted)">No students found</div>';
     resultsEl.style.display = 'block';
   }, 300);
 }
 
-function selectStudentFor(prefix, id, name, enr, prog, batch) {
+function selectStudentFor(prefix, id, name, enr, prog, batch, semester) {
   if (prefix === 'intern') selectedInternStudentId = id; else selectedGradStudentId = id;
   document.getElementById(prefix + 'StudentResults').style.display = 'none';
   document.getElementById(prefix + 'StudentSearch').style.display = 'none';
   const el = document.getElementById(prefix + 'SelectedStudent');
   el.style.display = 'block';
-  el.innerHTML = `<div class="selected-student" style="width:100%"><span><strong>${name}</strong> - ${enr} - ${prog} - Batch ${batch}</span><button class="btn btn-sm btn-secondary" onclick="clearStudentFor('${prefix}')">Change</button></div>`;
+  el.innerHTML = renderStudentProfileCard({ prefix, name, enr, prog, batch, semester });
 }
 function clearStudentFor(prefix) {
   if (prefix === 'intern') selectedInternStudentId = null; else selectedGradStudentId = null;
@@ -638,7 +641,6 @@ function clearStudentFor(prefix) {
   document.getElementById(prefix + 'StudentSearch').value = '';
 }
 
-// --- Initiate: create engagement (internship or job) ---
 async function createEngagementFor(type) {
   const prefix = type === 'internship' ? 'intern' : 'grad';
   const studentId = type === 'internship' ? selectedInternStudentId : selectedGradStudentId;
@@ -657,13 +659,13 @@ async function createEngagementFor(type) {
       role_designation: document.getElementById(prefix + 'Role').value,
       department_served: document.getElementById(prefix + 'Dept').value,
       supervisor_name: document.getElementById(prefix + 'Supervisor').value,
+      supervisor_designation: document.getElementById(prefix + 'SupervisorDesig').value,
+      contact_email: document.getElementById(prefix + 'ContactEmail').value,
+      contact_phone: document.getElementById(prefix + 'Phone').value,
+      start_date: document.getElementById(prefix + 'Start').value,
+      end_date: document.getElementById(prefix + 'End').value,
       send_invite: document.getElementById(prefix + 'SendInvite').checked,
     };
-    if (type === 'internship') {
-      payload.supervisor_designation = document.getElementById('internSupervisorDesig').value;
-      payload.start_date = document.getElementById('internStart').value;
-      payload.end_date = document.getElementById('internEnd').value;
-    }
     const res = await fetch(API + '/admin/engagements', { method: 'POST', headers: authHeaders(), body: JSON.stringify(payload) });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || 'Failed');
@@ -673,23 +675,16 @@ async function createEngagementFor(type) {
     }
     clearStudentFor(prefix);
     document.getElementById(prefix + 'EmployerEmail').value = '';
-    ['Org', 'Role', 'Dept', 'Supervisor'].forEach(f => { const el = document.getElementById(prefix + f); if (el) el.value = ''; });
-    if (type === 'internship') { document.getElementById('internSupervisorDesig').value = ''; document.getElementById('internStart').value = ''; document.getElementById('internEnd').value = ''; }
-    loadFormTrack(type === 'internship' ? 'intern' : 'grad');
+    ['Org', 'Role', 'Dept', 'Supervisor', 'SupervisorDesig', 'ContactEmail', 'Phone', 'Start', 'End'].forEach(f => {
+      const elField = document.getElementById(prefix + f);
+      if (elField) elField.value = '';
+    });
+    loadFormTrack(prefix);
   } catch (err) { showAlert(alertId, err.message, 'error'); }
   finally { btn.disabled = false; btn.textContent = type === 'internship' ? 'Initiate internship evaluation' : 'Initiate graduate feedback'; }
 }
 
-// --- Track: engagements filtered by type, scoped per form tab ---
-async function loadAllFormTracking() {
-  loadFormTrack('intern');
-  loadFormTrack('grad');
-  loadAlumniRoster('exit');
-  loadAlumniRoster('feedback');
-}
-
 async function loadFormTrack(kind) {
-  // kind: 'intern' -> internship engagements, 'grad' -> job engagements
   try {
     const res = await fetch(API + '/admin/engagements', { headers: authHeaders() });
     const data = await res.json();
@@ -705,7 +700,6 @@ async function loadFormTrack(kind) {
   } catch (err) { console.error(err); }
 }
 
-// --- Exit survey / Alumni feedback: shared roster, rendered into two scoped tables ---
 async function loadAlumniRoster(scope) {
   const filterInputId = scope === 'exit' ? 'exitRosterBatchFilter' : 'alumniFbRosterBatchFilter';
   const batch = document.getElementById(filterInputId).value.trim();
@@ -737,7 +731,6 @@ async function loadAlumniRoster(scope) {
   } catch (err) { console.error(err); }
 }
 
-// --- Campaigns ---
 async function sendCampaign(type, batchInputId, alertId) {
   const batch = document.getElementById(batchInputId).value.trim();
   if (!batch) { showAlert(alertId, 'Enter a batch.', 'error'); return; }
@@ -776,7 +769,6 @@ async function sendAlumniFeedbackCampaign() {
   } catch (err) { showAlert('alumniFeedbackCampaignAlert', err.message, 'error'); }
 }
 
-// --- Send Email (unchanged) ---
 function toggleSpecificEmails() { document.getElementById('specificEmailsGroup').style.display = document.getElementById('emailAudience').value === 'specific' ? 'block' : 'none'; }
 
 async function sendBulkEmail() {
@@ -796,7 +788,6 @@ async function sendBulkEmail() {
   finally { btn.disabled = false; btn.textContent = 'Send email'; }
 }
 
-// --- Settings (unchanged) ---
 async function createNewAdmin() {
   const name = document.getElementById('newAdminName').value.trim();
   const email = document.getElementById('newAdminEmail').value.trim();
@@ -811,7 +802,6 @@ async function createNewAdmin() {
   } catch (err) { showAlert('settingsAlert', err.message, 'error'); }
 }
 
-// --- Init ---
 document.getElementById('loginPassword').addEventListener('keydown', e => { if (e.key === 'Enter') adminLogin(); });
 checkAuth();
 </script>
