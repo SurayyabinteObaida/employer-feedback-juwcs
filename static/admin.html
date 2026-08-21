@@ -186,9 +186,15 @@ tr:hover td { background: #f8fafc; }
       <div class="page" id="page-students">
         <h2 class="page-title">Students</h2>
         <p class="page-sub">Every student record, with all statuses that apply -- a student can be an intern, graduate, and alumnus at once.</p>
-        <div style="display:flex;gap:1rem;align-items:center;margin-bottom:1rem;">
-          <input type="text" id="studentSearchInput" placeholder="Search by name or enrollment..." oninput="loadStudents()" style="flex:1;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius);font-size:14px;">
+
+        <div id="studentActionAlert" class="alert"></div>
+
+        <div style="display:flex;gap:0.75rem;align-items:center;margin-bottom:1rem;flex-wrap:wrap;">
+          <input type="text" id="studentSearchInput" placeholder="Search by name or enrollment..." oninput="loadStudents()" style="flex:1;min-width:220px;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius);font-size:14px;">
+          <button class="btn btn-primary btn-sm" onclick="openStudentModal()">Add student</button>
+          <button class="btn btn-secondary btn-sm" onclick="openCsvModal()">Bulk upload CSV</button>
         </div>
+
         <div class="tag-filters">
           <div class="tag-filter active" data-status="" onclick="filterStudents(this, '')">All</div>
           <div class="tag-filter" data-status="undergrad" onclick="filterStudents(this, 'undergrad')">Undergrad</div>
@@ -196,8 +202,53 @@ tr:hover td { background: #f8fafc; }
           <div class="tag-filter" data-status="graduate" onclick="filterStudents(this, 'graduate')">Graduate</div>
           <div class="tag-filter" data-status="alumni" onclick="filterStudents(this, 'alumni')">Alumni</div>
         </div>
+
+        <!-- Add / Edit student modal (inline card, not a true modal -- keeps things simple) -->
+        <div class="card" id="studentModal" style="display:none;">
+          <h3 id="studentModalTitle">Add student</h3>
+          <div id="studentModalAlert" class="alert"></div>
+          <input type="hidden" id="studentModalId" value="">
+          <div class="form-row">
+            <div class="form-group"><label>Full name</label><input type="text" id="studentModalName"></div>
+            <div class="form-group"><label>Enrollment number</label><input type="text" id="studentModalEnr"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Degree program</label><input type="text" id="studentModalProg" placeholder="e.g. BS Computer Science"></div>
+            <div class="form-group"><label>Batch</label><input type="text" id="studentModalBatch" placeholder="e.g. 2022"></div>
+          </div>
+          <div class="form-group" style="max-width:calc(50% - 0.5rem);"><label>Current semester</label><input type="text" id="studentModalSem"></div>
+          <div style="display:flex;gap:0.5rem;">
+            <button class="btn btn-primary" id="studentModalSaveBtn" onclick="saveStudent()">Save</button>
+            <button class="btn btn-secondary" onclick="closeStudentModal()">Cancel</button>
+          </div>
+        </div>
+
+        <!-- CSV bulk upload modal -->
+        <div class="card" id="csvModal" style="display:none;">
+          <h3>Bulk upload students from CSV</h3>
+          <div id="csvModalAlert" class="alert"></div>
+          <p style="font-size:13px;color:var(--text-secondary);margin-bottom:1rem;">
+            CSV must have a header row with these exact column names: <code>full_name, enrollment_number, degree_program, batch, current_semester</code> (current_semester optional).
+            Existing students are matched by enrollment number and updated in place; new enrollment numbers are added.
+          </p>
+          <div class="form-group">
+            <input type="file" id="csvFileInput" accept=".csv">
+          </div>
+          <div id="csvPreview" style="display:none;margin-bottom:1rem;">
+            <p style="font-size:13px;font-weight:600;margin-bottom:0.5rem;">Preview (<span id="csvRowCount">0</span> rows)</p>
+            <div style="overflow-x:auto;max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius);">
+              <table><thead><tr><th>Name</th><th>Enrollment</th><th>Program</th><th>Batch</th><th>Semester</th></tr></thead>
+              <tbody id="csvPreviewBody"></tbody></table>
+            </div>
+          </div>
+          <div style="display:flex;gap:0.5rem;">
+            <button class="btn btn-primary" id="csvUploadBtn" onclick="submitCsvUpload()" disabled>Upload</button>
+            <button class="btn btn-secondary" onclick="closeCsvModal()">Cancel</button>
+          </div>
+        </div>
+
         <div style="overflow-x:auto;">
-          <table><thead><tr><th>Name</th><th>Enrollment</th><th>Program</th><th>Batch</th><th>Semester</th><th>Status</th></tr></thead>
+          <table><thead><tr><th>Name</th><th>Enrollment</th><th>Program</th><th>Batch</th><th>Semester</th><th>Status</th><th>Actions</th></tr></thead>
           <tbody id="studentsBody"></tbody></table>
         </div>
         <p id="studentsEmpty" style="display:none;font-size:13px;color:var(--text-muted);padding:1rem 0;">No students found.</p>
@@ -235,22 +286,24 @@ tr:hover td { background: #f8fafc; }
             <div id="internSelectedStudent" style="display:none;"></div>
           </div>
           <div class="form-row">
-            <div class="form-group"><label>Organization</label><input type="text" id="internOrg" placeholder="e.g. TechVentures"></div>
-            <div class="form-group"><label>Role</label><input type="text" id="internRole" placeholder="e.g. Software Engineer Intern"></div>
+            <div class="form-group"><label>Host organization</label><input type="text" id="internOrg" placeholder="e.g. TechVentures"></div>
+            <div class="form-group"><label>Department served</label><input type="text" id="internDept"></div>
           </div>
           <div class="form-row">
-            <div class="form-group"><label>Department</label><input type="text" id="internDept"></div>
-            <div class="form-group"><label>Supervisor</label><input type="text" id="internSupervisor"></div>
+            <div class="form-group"><label>Internship starting date</label><input type="date" id="internStart"></div>
+            <div class="form-group"><label>Internship completion date</label><input type="date" id="internEnd"></div>
+          </div>
+          <h3 style="font-size:13px;margin:1.25rem 0 0.75rem;color:var(--text-secondary);">Respondent contact details</h3>
+          <div class="form-row">
+            <div class="form-group"><label>Respondent name</label><input type="text" id="internSupervisor"></div>
+            <div class="form-group"><label>Designation</label><input type="text" id="internSupervisorDesig"></div>
           </div>
           <div class="form-row">
-            <div class="form-group"><label>Supervisor designation</label><input type="text" id="internSupervisorDesig"></div>
-            <div class="form-group"><label>Contact email (supervisor)</label><input type="email" id="internContactEmail"></div>
+            <div class="form-group"><label>Contact email</label><input type="email" id="internContactEmail"></div>
+            <div class="form-group"><label>LinkedIn profile</label><input type="text" id="internLinkedin" placeholder="linkedin.com/in/..."></div>
           </div>
-          <div class="form-row-3">
-            <div class="form-group"><label>Contact phone</label><input type="text" id="internPhone"></div>
-            <div class="form-group"><label>Start date</label><input type="date" id="internStart"></div>
-            <div class="form-group"><label>End date</label><input type="date" id="internEnd"></div>
-          </div>
+          <div class="form-group" style="max-width:calc(50% - 0.5rem);"><label>Phone number</label><input type="text" id="internPhone"></div>
+          <input type="hidden" id="internRole" value="">
           <div class="checkbox-group"><input type="checkbox" id="internSendInvite" checked><label for="internSendInvite">Send invitation email to employer</label></div>
           <div style="margin-top:1.25rem;"><button class="btn btn-primary" id="createInternBtn" onclick="createEngagementFor('internship')">Initiate internship evaluation</button></div>
           <div id="internManualLink" class="manual-link" style="display:none;"></div>
@@ -283,23 +336,26 @@ tr:hover td { background: #f8fafc; }
             <div id="gradSelectedStudent" style="display:none;"></div>
           </div>
           <div class="form-row">
-            <div class="form-group"><label>Organization</label><input type="text" id="gradOrg" placeholder="e.g. TechVentures"></div>
-            <div class="form-group"><label>Role</label><input type="text" id="gradRole" placeholder="e.g. Software Engineer"></div>
-          </div>
-          <div class="form-row">
+            <div class="form-group"><label>Organization name</label><input type="text" id="gradOrg" placeholder="e.g. TechVentures"></div>
             <div class="form-group"><label>Department</label><input type="text" id="gradDept"></div>
-            <div class="form-group"><label>Supervisor</label><input type="text" id="gradSupervisor"></div>
+          </div>
+          <h3 style="font-size:13px;margin:1.25rem 0 0.75rem;color:var(--text-secondary);">Employer &amp; organization respondent</h3>
+          <div class="form-row">
+            <div class="form-group"><label>Respondent's name</label><input type="text" id="gradSupervisor"></div>
+            <div class="form-group"><label>Designation</label><input type="text" id="gradSupervisorDesig"></div>
           </div>
           <div class="form-row">
-            <div class="form-group"><label>Supervisor designation</label><input type="text" id="gradSupervisorDesig"></div>
-            <div class="form-group"><label>Contact email (supervisor)</label><input type="email" id="gradContactEmail"></div>
+            <div class="form-group"><label>Email address</label><input type="email" id="gradContactEmail"></div>
+            <div class="form-group"><label>Contact number</label><input type="text" id="gradPhone"></div>
           </div>
-          <div class="form-row-3">
-            <div class="form-group"><label>Contact phone</label><input type="text" id="gradPhone"></div>
-            <div class="form-group"><label>Start date</label><input type="date" id="gradStart"></div>
-            <div class="form-group"><label>End date</label><input type="date" id="gradEnd"></div>
-          </div>
-          <div class="checkbox-group"><input type="checkbox" id="gradSendInvite" checked><label for="gradSendInvite">Send invitation email to employer</label></div>
+          <div class="form-group" style="max-width:calc(50% - 0.5rem);"><label>LinkedIn (URL)</label><input type="text" id="gradLinkedin" placeholder="linkedin.com/in/..."></div>
+          <p style="font-size:12px;color:var(--text-muted);margin:1.25rem 0 0;">
+            Year of graduation, current job role, and duration of employment are captured directly from the employer when they submit their feedback -- not needed here.
+          </p>
+          <input type="hidden" id="gradRole" value="">
+          <input type="hidden" id="gradStart" value="">
+          <input type="hidden" id="gradEnd" value="">
+          <div class="checkbox-group" style="margin-top:1rem;"><input type="checkbox" id="gradSendInvite" checked><label for="gradSendInvite">Send invitation email to employer</label></div>
           <div style="margin-top:1.25rem;"><button class="btn btn-primary" id="createGradBtn" onclick="createEngagementFor('job')">Initiate graduate feedback</button></div>
           <div id="gradManualLink" class="manual-link" style="display:none;"></div>
         </div>
@@ -579,8 +635,196 @@ async function loadStudents() {
     const empty = document.getElementById('studentsEmpty');
     if (!students.length) { tbody.innerHTML = ''; empty.style.display = 'block'; return; }
     empty.style.display = 'none';
-    tbody.innerHTML = students.map(s => `<tr><td>${s.full_name}</td><td>${s.enrollment_number}</td><td>${s.degree_program}</td><td>${s.batch}</td><td>${s.current_semester || '---'}</td><td>${statusBadges(s.statuses)}</td></tr>`).join('');
+    tbody.innerHTML = students.map(s => `<tr>
+      <td>${s.full_name}</td><td>${s.enrollment_number}</td><td>${s.degree_program}</td><td>${s.batch}</td><td>${s.current_semester || '---'}</td>
+      <td>${statusBadges(s.statuses)}</td>
+      <td>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-sm btn-secondary" onclick='openStudentModal(${JSON.stringify(s)})'>Edit</button>
+          <button class="btn btn-sm btn-danger" onclick="deleteStudent('${s.id}', '${s.full_name.replace(/'/g, "\\'")}')">Delete</button>
+        </div>
+      </td>
+    </tr>`).join('');
   } catch (err) { console.error(err); }
+}
+
+// --- Student CRUD ---
+function openStudentModal(student) {
+  document.getElementById('csvModal').style.display = 'none';
+  const modal = document.getElementById('studentModal');
+  modal.style.display = 'block';
+  document.getElementById('studentModalAlert').style.display = 'none';
+  if (student && student.id) {
+    document.getElementById('studentModalTitle').textContent = 'Edit student';
+    document.getElementById('studentModalId').value = student.id;
+    document.getElementById('studentModalName').value = student.full_name || '';
+    document.getElementById('studentModalEnr').value = student.enrollment_number || '';
+    document.getElementById('studentModalProg').value = student.degree_program || '';
+    document.getElementById('studentModalBatch').value = student.batch || '';
+    document.getElementById('studentModalSem').value = student.current_semester || '';
+  } else {
+    document.getElementById('studentModalTitle').textContent = 'Add student';
+    document.getElementById('studentModalId').value = '';
+    ['studentModalName', 'studentModalEnr', 'studentModalProg', 'studentModalBatch', 'studentModalSem'].forEach(id => document.getElementById(id).value = '');
+  }
+  modal.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function closeStudentModal() {
+  document.getElementById('studentModal').style.display = 'none';
+}
+
+async function saveStudent() {
+  const id = document.getElementById('studentModalId').value;
+  const payload = {
+    full_name: document.getElementById('studentModalName').value.trim(),
+    enrollment_number: document.getElementById('studentModalEnr').value.trim(),
+    degree_program: document.getElementById('studentModalProg').value.trim(),
+    batch: document.getElementById('studentModalBatch').value.trim(),
+    current_semester: document.getElementById('studentModalSem').value.trim(),
+  };
+  if (!payload.full_name || !payload.enrollment_number || !payload.degree_program || !payload.batch) {
+    showAlert('studentModalAlert', 'Name, enrollment number, program, and batch are required.', 'error');
+    return;
+  }
+  const btn = document.getElementById('studentModalSaveBtn');
+  btn.disabled = true; btn.textContent = 'Saving...';
+  try {
+    const url = id ? API + '/admin/students/' + id : API + '/admin/students';
+    const method = id ? 'PUT' : 'POST';
+    const res = await fetch(url, { method, headers: authHeaders(), body: JSON.stringify(payload) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Failed to save student');
+    showAlert('studentActionAlert', id ? 'Student updated.' : 'Student added.', 'success');
+    closeStudentModal();
+    loadStudents();
+  } catch (err) {
+    showAlert('studentModalAlert', err.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Save';
+  }
+}
+
+async function deleteStudent(id, name) {
+  if (!confirm(`Delete ${name}? This can't be undone, and only works if the student has no engagements or alumni record.`)) return;
+  try {
+    const res = await fetch(API + '/admin/students/' + id, { method: 'DELETE', headers: authHeaders() });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Failed to delete student');
+    showAlert('studentActionAlert', 'Student deleted.', 'success');
+    loadStudents();
+  } catch (err) {
+    showAlert('studentActionAlert', err.message, 'error');
+  }
+}
+
+// --- CSV bulk upload ---
+let parsedCsvRows = [];
+
+function openCsvModal() {
+  document.getElementById('studentModal').style.display = 'none';
+  document.getElementById('csvModal').style.display = 'block';
+  document.getElementById('csvModalAlert').style.display = 'none';
+  document.getElementById('csvPreview').style.display = 'none';
+  document.getElementById('csvUploadBtn').disabled = true;
+  document.getElementById('csvFileInput').value = '';
+  parsedCsvRows = [];
+  document.getElementById('csvModal').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function closeCsvModal() {
+  document.getElementById('csvModal').style.display = 'none';
+}
+
+function parseCsv(text) {
+  // Minimal CSV parser: handles quoted fields with embedded commas, no
+  // embedded newlines inside quotes (fine for a flat roster export).
+  const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
+  if (!lines.length) return { header: [], rows: [] };
+  const parseLine = (line) => {
+    const out = [];
+    let cur = '', inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (inQuotes) {
+        if (c === '"' && line[i + 1] === '"') { cur += '"'; i++; }
+        else if (c === '"') { inQuotes = false; }
+        else { cur += c; }
+      } else {
+        if (c === '"') inQuotes = true;
+        else if (c === ',') { out.push(cur); cur = ''; }
+        else cur += c;
+      }
+    }
+    out.push(cur);
+    return out.map(v => v.trim());
+  };
+  const header = parseLine(lines[0]).map(h => h.toLowerCase());
+  const rows = lines.slice(1).map(parseLine);
+  return { header, rows };
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const fileInput = document.getElementById('csvFileInput');
+  if (!fileInput) return;
+  fileInput.addEventListener('change', () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const { header, rows } = parseCsv(reader.result);
+        const required = ['full_name', 'enrollment_number', 'degree_program', 'batch'];
+        const missing = required.filter(r => !header.includes(r));
+        if (missing.length) {
+          showAlert('csvModalAlert', `Missing required column(s): ${missing.join(', ')}`, 'error');
+          document.getElementById('csvUploadBtn').disabled = true;
+          return;
+        }
+        const idx = (name) => header.indexOf(name);
+        parsedCsvRows = rows.map(r => ({
+          full_name: r[idx('full_name')] || '',
+          enrollment_number: r[idx('enrollment_number')] || '',
+          degree_program: r[idx('degree_program')] || '',
+          batch: r[idx('batch')] || '',
+          current_semester: idx('current_semester') >= 0 ? (r[idx('current_semester')] || '') : '',
+        })).filter(r => r.full_name && r.enrollment_number);
+
+        document.getElementById('csvRowCount').textContent = parsedCsvRows.length;
+        document.getElementById('csvPreviewBody').innerHTML = parsedCsvRows.slice(0, 20).map(r =>
+          `<tr><td>${r.full_name}</td><td>${r.enrollment_number}</td><td>${r.degree_program}</td><td>${r.batch}</td><td>${r.current_semester || '---'}</td></tr>`
+        ).join('');
+        document.getElementById('csvPreview').style.display = 'block';
+        document.getElementById('csvUploadBtn').disabled = parsedCsvRows.length === 0;
+        if (!parsedCsvRows.length) showAlert('csvModalAlert', 'No valid rows found in the file.', 'error');
+        else document.getElementById('csvModalAlert').style.display = 'none';
+      } catch (err) {
+        showAlert('csvModalAlert', 'Could not parse this file as CSV.', 'error');
+      }
+    };
+    reader.readAsText(file);
+  });
+});
+
+async function submitCsvUpload() {
+  if (!parsedCsvRows.length) return;
+  const btn = document.getElementById('csvUploadBtn');
+  btn.disabled = true; btn.textContent = 'Uploading...';
+  try {
+    const res = await fetch(API + '/admin/students/bulk', {
+      method: 'POST', headers: authHeaders(), body: JSON.stringify({ rows: parsedCsvRows })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Upload failed');
+    const failMsg = data.failed && data.failed.length ? ` (${data.failed.length} row(s) failed)` : '';
+    showAlert('studentActionAlert', `Created ${data.created}, updated ${data.updated}${failMsg}.`, data.failed && data.failed.length ? 'warning' : 'success');
+    closeCsvModal();
+    loadStudents();
+  } catch (err) {
+    showAlert('csvModalAlert', err.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Upload';
+  }
 }
 
 let currentEmployerStatus = '';
@@ -662,6 +906,7 @@ async function createEngagementFor(type) {
       supervisor_designation: document.getElementById(prefix + 'SupervisorDesig').value,
       contact_email: document.getElementById(prefix + 'ContactEmail').value,
       contact_phone: document.getElementById(prefix + 'Phone').value,
+      linkedin_url: document.getElementById(prefix + 'Linkedin') ? document.getElementById(prefix + 'Linkedin').value : '',
       start_date: document.getElementById(prefix + 'Start').value,
       end_date: document.getElementById(prefix + 'End').value,
       send_invite: document.getElementById(prefix + 'SendInvite').checked,
@@ -675,7 +920,7 @@ async function createEngagementFor(type) {
     }
     clearStudentFor(prefix);
     document.getElementById(prefix + 'EmployerEmail').value = '';
-    ['Org', 'Role', 'Dept', 'Supervisor', 'SupervisorDesig', 'ContactEmail', 'Phone', 'Start', 'End'].forEach(f => {
+    ['Org', 'Role', 'Dept', 'Supervisor', 'SupervisorDesig', 'ContactEmail', 'Phone', 'Linkedin', 'Start', 'End'].forEach(f => {
       const elField = document.getElementById(prefix + f);
       if (elField) elField.value = '';
     });

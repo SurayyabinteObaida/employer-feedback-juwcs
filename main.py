@@ -57,6 +57,8 @@ def ensure_columns():
             ("internship_evaluations", "rating_task_completion", "SMALLINT"),
             ("internship_evaluations", "rating_overall_competence", "SMALLINT"),
             ("employer_surveys", "overall_performance", "VARCHAR"),
+            ("org_proformas", "linkedin_url", "VARCHAR"),
+            ("employer_surveys", "year_of_graduation", "VARCHAR"),
         ]
         for table, col, coltype in migrations:
             db.execute(text(f"""
@@ -254,6 +256,7 @@ class CreateAdminRequest(BaseModel):
 class SurveySubmission(BaseModel):
     """Employer Survey — for graduate/job engagements (10 GA-rated questions)."""
     engagement_id: str
+    year_of_graduation: Optional[str] = ""
     current_job_role: Optional[str] = ""
     employment_department: Optional[str] = ""
     employment_duration: Optional[str] = ""
@@ -717,6 +720,7 @@ def submit_survey(data: SurveySubmission, employer: dict = Depends(get_current_e
         db.execute(
             text("""
                 UPDATE employer_surveys SET
+                    year_of_graduation = :year_of_graduation,
                     current_job_role = :current_job_role,
                     employment_department = :employment_department,
                     employment_duration = :employment_duration,
@@ -737,6 +741,7 @@ def submit_survey(data: SurveySubmission, employer: dict = Depends(get_current_e
             """),
             {
                 "id": existing["id"],
+                "year_of_graduation": data.year_of_graduation,
                 "current_job_role": data.current_job_role,
                 "employment_department": data.employment_department,
                 "employment_duration": data.employment_duration,
@@ -760,12 +765,12 @@ def submit_survey(data: SurveySubmission, employer: dict = Depends(get_current_e
         db.execute(
             text("""
                 INSERT INTO employer_surveys
-                    (id, engagement_id, survey_year, current_job_role, employment_department, employment_duration,
+                    (id, engagement_id, survey_year, year_of_graduation, current_job_role, employment_department, employment_duration,
                      rating_core_knowledge, rating_knowledge_application, rating_problem_solving,
                      rating_dev_contribution, rating_tool_usage, rating_teamwork, rating_communication,
                      rating_professionalism, rating_ethics, rating_learning_attitude, overall_performance, comments, submitted_at)
                 VALUES
-                    (:id, :engagement_id, :survey_year, :current_job_role, :employment_department, :employment_duration,
+                    (:id, :engagement_id, :survey_year, :year_of_graduation, :current_job_role, :employment_department, :employment_duration,
                      :rating_core_knowledge, :rating_knowledge_application, :rating_problem_solving,
                      :rating_dev_contribution, :rating_tool_usage, :rating_teamwork, :rating_communication,
                      :rating_professionalism, :rating_ethics, :rating_learning_attitude, :overall_performance, :comments, NOW())
@@ -774,6 +779,7 @@ def submit_survey(data: SurveySubmission, employer: dict = Depends(get_current_e
                 "id": survey_id,
                 "engagement_id": data.engagement_id,
                 "survey_year": survey_year,
+                "year_of_graduation": data.year_of_graduation,
                 "current_job_role": data.current_job_role,
                 "employment_department": data.employment_department,
                 "employment_duration": data.employment_duration,
@@ -1068,6 +1074,139 @@ def list_students(q: str = "", status: str = "", admin: dict = Depends(get_curre
     return result
 
 
+class CreateStudentRequest(BaseModel):
+    full_name: str
+    enrollment_number: str
+    degree_program: str
+    batch: str
+    current_semester: Optional[str] = ""
+
+
+class UpdateStudentRequest(BaseModel):
+    full_name: Optional[str] = None
+    enrollment_number: Optional[str] = None
+    degree_program: Optional[str] = None
+    batch: Optional[str] = None
+    current_semester: Optional[str] = None
+
+
+@app.post("/api/admin/students")
+def create_student(data: CreateStudentRequest, admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
+    """Create a single student record."""
+    existing = db.execute(
+        text("SELECT id FROM students WHERE enrollment_number = :enr"),
+        {"enr": data.enrollment_number}
+    ).mappings().first()
+    if existing:
+        raise HTTPException(status_code=409, detail=f"A student with enrollment number {data.enrollment_number} already exists")
+
+    student_id = str(uuid.uuid4())
+    db.execute(
+        text("""INSERT INTO students (id, full_name, enrollment_number, degree_program, batch, current_semester)
+                VALUES (:id, :name, :enr, :prog, :batch, :sem)"""),
+        {
+            "id": student_id, "name": data.full_name, "enr": data.enrollment_number,
+            "prog": data.degree_program, "batch": data.batch, "sem": data.current_semester or None,
+        }
+    )
+    db.commit()
+    return {"message": "Student created", "student_id": student_id}
+
+
+@app.put("/api/admin/students/{student_id}")
+def update_student(student_id: str, data: UpdateStudentRequest, admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
+    """Edit an existing student record."""
+    existing = db.execute(text("SELECT id FROM students WHERE id = :id"), {"id": student_id}).mappings().first()
+    if not existing:
+        raise HTTPException(status_code=404, detail="Student not found")
+
+    updates = data.model_dump(exclude_none=True)
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+
+    if "enrollment_number" in updates:
+        dupe = db.execute(
+            text("SELECT id FROM students WHERE enrollment_number = :enr AND id != :id"),
+            {"enr": updates["enrollment_number"], "id": student_id}
+        ).mappings().first()
+        if dupe:
+            raise HTTPException(status_code=409, detail=f"Another student already uses enrollment number {updates['enrollment_number']}")
+
+    set_clauses = ", ".join(f"{k} = :{k}" for k in updates)
+    updates["id"] = student_id
+    db.execute(text(f"UPDATE students SET {set_clauses} WHERE id = :id"), updates)
+    db.commit()
+    return {"message": "Student updated"}
+
+
+@app.delete("/api/admin/students/{student_id}")
+def delete_student(student_id: str, admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
+    """Delete a student record. Blocked if the student has any engagements or an alumni record,
+    to avoid silently orphaning engagement/alumni rows that FK to students.id."""
+    existing = db.execute(text("SELECT id FROM students WHERE id = :id"), {"id": student_id}).mappings().first()
+    if not existing:
+        raise HTTPException(status_code=404, detail="Student not found")
+
+    eng_count = db.execute(text("SELECT COUNT(*) FROM engagements WHERE student_id = :id"), {"id": student_id}).scalar()
+    alumni_count = db.execute(text("SELECT COUNT(*) FROM alumni WHERE student_id = :id"), {"id": student_id}).scalar()
+    if eng_count > 0 or alumni_count > 0:
+        raise HTTPException(
+            status_code=409,
+            detail="This student has linked engagements or an alumni record and can't be deleted. Remove those first."
+        )
+
+    db.execute(text("DELETE FROM students WHERE id = :id"), {"id": student_id})
+    db.commit()
+    return {"message": "Student deleted"}
+
+
+class BulkStudentRow(BaseModel):
+    full_name: str
+    enrollment_number: str
+    degree_program: str
+    batch: str
+    current_semester: Optional[str] = ""
+
+
+class BulkStudentUpload(BaseModel):
+    rows: list[BulkStudentRow]
+
+
+@app.post("/api/admin/students/bulk")
+def bulk_upload_students(data: BulkStudentUpload, admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
+    """Bulk-create/update students from parsed CSV rows. Matches on enrollment_number:
+    existing students are updated in place, new ones are inserted. This keeps a
+    re-upload of the same roster idempotent instead of creating duplicates."""
+    created, updated, failed = 0, 0, []
+    for i, row in enumerate(data.rows):
+        try:
+            existing = db.execute(
+                text("SELECT id FROM students WHERE enrollment_number = :enr"),
+                {"enr": row.enrollment_number}
+            ).mappings().first()
+            if existing:
+                db.execute(
+                    text("""UPDATE students SET full_name = :name, degree_program = :prog,
+                            batch = :batch, current_semester = :sem WHERE id = :id"""),
+                    {"name": row.full_name, "prog": row.degree_program, "batch": row.batch,
+                     "sem": row.current_semester or None, "id": existing["id"]}
+                )
+                updated += 1
+            else:
+                db.execute(
+                    text("""INSERT INTO students (id, full_name, enrollment_number, degree_program, batch, current_semester)
+                            VALUES (:id, :name, :enr, :prog, :batch, :sem)"""),
+                    {"id": str(uuid.uuid4()), "name": row.full_name, "enr": row.enrollment_number,
+                     "prog": row.degree_program, "batch": row.batch, "sem": row.current_semester or None}
+                )
+                created += 1
+        except Exception as e:
+            failed.append({"row": i + 1, "enrollment_number": row.enrollment_number, "error": str(e)})
+
+    db.commit()
+    return {"created": created, "updated": updated, "failed": failed}
+
+
 @app.post("/api/admin/send-email")
 def send_bulk_email(data: BulkEmailRequest, admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
     """Send email to selected audience."""
@@ -1259,10 +1398,11 @@ class CreateEngagementRequest(BaseModel):
     organization_name: Optional[str] = ""
     role_designation: Optional[str] = ""
     department_served: Optional[str] = ""
-    supervisor_name: Optional[str] = ""
-    supervisor_designation: Optional[str] = ""
+    supervisor_name: Optional[str] = ""       # respondent's name (Section B / Section A on the two forms)
+    supervisor_designation: Optional[str] = ""  # respondent's designation
     contact_email: Optional[str] = ""
     contact_phone: Optional[str] = ""
+    linkedin_url: Optional[str] = ""
     start_date: Optional[str] = ""
     end_date: Optional[str] = ""
     send_invite: bool = True
@@ -1306,14 +1446,14 @@ def create_engagement(data: CreateEngagementRequest, admin: dict = Depends(get_c
     # Create proforma
     db.execute(
         text("""INSERT INTO org_proformas (id, engagement_id, organization_name, role_designation, department_served,
-                supervisor_name, supervisor_designation, contact_email, contact_phone, start_date, end_date, validation_status)
-                VALUES (:id, :eid, :org, :role, :dept, :sname, :sdesig, :cemail, :cphone,
+                supervisor_name, supervisor_designation, contact_email, contact_phone, linkedin_url, start_date, end_date, validation_status)
+                VALUES (:id, :eid, :org, :role, :dept, :sname, :sdesig, :cemail, :cphone, :linkedin,
                         NULLIF(:start, '')::date, NULLIF(:end, '')::date, 'pending')"""),
         {
             "id": str(uuid.uuid4()), "eid": engagement_id,
             "org": data.organization_name, "role": data.role_designation, "dept": data.department_served,
             "sname": data.supervisor_name, "sdesig": data.supervisor_designation,
-            "cemail": data.contact_email, "cphone": data.contact_phone,
+            "cemail": data.contact_email, "cphone": data.contact_phone, "linkedin": data.linkedin_url,
             "start": data.start_date, "end": data.end_date,
         }
     )
