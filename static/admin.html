@@ -232,7 +232,7 @@ tr:hover td { background: #f8fafc; }
             Existing students are matched by enrollment number and updated in place; new enrollment numbers are added.
           </p>
           <div class="form-group">
-            <input type="file" id="csvFileInput" accept=".csv">
+            <input type="file" id="csvFileInput" accept=".csv" onchange="handleCsvFileChange()">
           </div>
           <div id="csvPreview" style="display:none;margin-bottom:1rem;">
             <p style="font-size:13px;font-weight:600;margin-bottom:0.5rem;">Preview (<span id="csvRowCount">0</span> rows)</p>
@@ -764,47 +764,44 @@ function parseCsv(text) {
   return { header, rows };
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+function handleCsvFileChange() {
   const fileInput = document.getElementById('csvFileInput');
-  if (!fileInput) return;
-  fileInput.addEventListener('change', () => {
-    const file = fileInput.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const { header, rows } = parseCsv(reader.result);
-        const required = ['full_name', 'enrollment_number', 'degree_program', 'batch'];
-        const missing = required.filter(r => !header.includes(r));
-        if (missing.length) {
-          showAlert('csvModalAlert', `Missing required column(s): ${missing.join(', ')}`, 'error');
-          document.getElementById('csvUploadBtn').disabled = true;
-          return;
-        }
-        const idx = (name) => header.indexOf(name);
-        parsedCsvRows = rows.map(r => ({
-          full_name: r[idx('full_name')] || '',
-          enrollment_number: r[idx('enrollment_number')] || '',
-          degree_program: r[idx('degree_program')] || '',
-          batch: r[idx('batch')] || '',
-          current_semester: idx('current_semester') >= 0 ? (r[idx('current_semester')] || '') : '',
-        })).filter(r => r.full_name && r.enrollment_number);
-
-        document.getElementById('csvRowCount').textContent = parsedCsvRows.length;
-        document.getElementById('csvPreviewBody').innerHTML = parsedCsvRows.slice(0, 20).map(r =>
-          `<tr><td>${r.full_name}</td><td>${r.enrollment_number}</td><td>${r.degree_program}</td><td>${r.batch}</td><td>${r.current_semester || '---'}</td></tr>`
-        ).join('');
-        document.getElementById('csvPreview').style.display = 'block';
-        document.getElementById('csvUploadBtn').disabled = parsedCsvRows.length === 0;
-        if (!parsedCsvRows.length) showAlert('csvModalAlert', 'No valid rows found in the file.', 'error');
-        else document.getElementById('csvModalAlert').style.display = 'none';
-      } catch (err) {
-        showAlert('csvModalAlert', 'Could not parse this file as CSV.', 'error');
+  const file = fileInput.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const { header, rows } = parseCsv(reader.result);
+      const required = ['full_name', 'enrollment_number', 'degree_program', 'batch'];
+      const missing = required.filter(r => !header.includes(r));
+      if (missing.length) {
+        showAlert('csvModalAlert', `Missing required column(s): ${missing.join(', ')}`, 'error');
+        document.getElementById('csvUploadBtn').disabled = true;
+        return;
       }
-    };
-    reader.readAsText(file);
-  });
-});
+      const idx = (name) => header.indexOf(name);
+      parsedCsvRows = rows.map(r => ({
+        full_name: r[idx('full_name')] || '',
+        enrollment_number: r[idx('enrollment_number')] || '',
+        degree_program: r[idx('degree_program')] || '',
+        batch: r[idx('batch')] || '',
+        current_semester: idx('current_semester') >= 0 ? (r[idx('current_semester')] || '') : '',
+      })).filter(r => r.full_name && r.enrollment_number);
+
+      document.getElementById('csvRowCount').textContent = parsedCsvRows.length;
+      document.getElementById('csvPreviewBody').innerHTML = parsedCsvRows.slice(0, 20).map(r =>
+        `<tr><td>${r.full_name}</td><td>${r.enrollment_number}</td><td>${r.degree_program}</td><td>${r.batch}</td><td>${r.current_semester || '---'}</td></tr>`
+      ).join('');
+      document.getElementById('csvPreview').style.display = 'block';
+      document.getElementById('csvUploadBtn').disabled = parsedCsvRows.length === 0;
+      if (!parsedCsvRows.length) showAlert('csvModalAlert', 'No valid rows found in the file.', 'error');
+      else document.getElementById('csvModalAlert').style.display = 'none';
+    } catch (err) {
+      showAlert('csvModalAlert', 'Could not parse this file as CSV.', 'error');
+    }
+  };
+  reader.readAsText(file);
+}
 
 async function submitCsvUpload() {
   if (!parsedCsvRows.length) return;
