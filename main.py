@@ -1993,6 +1993,32 @@ def list_alumni_roster(batch: str = "", admin: dict = Depends(get_current_admin)
     return result
 
 
+@app.get("/api/admin/alumni/batches")
+def list_alumni_batches(admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
+    """Every batch that has at least one alumni record, with counts that
+    explain eligibility for each campaign type up front -- so a batch with
+    zero pending recipients shows that in the dropdown instead of the person
+    discovering it only after clicking send. Used to drive the batch select
+    on the Exit Survey and Alumni Feedback initiate forms.
+    """
+    rows = db.execute(text("""
+        SELECT
+            s.batch,
+            COUNT(DISTINCT a.id) AS total_alumni,
+            COUNT(DISTINCT a.id) FILTER (WHERE ic.submitted_at IS NOT NULL) AS info_confirmed,
+            COUNT(DISTINCT a.id) FILTER (WHERE ic.submitted_at IS NULL) AS info_pending,
+            COUNT(DISTINCT a.id) FILTER (WHERE ic.submitted_at IS NOT NULL AND es.submitted_at IS NULL) AS exit_survey_eligible,
+            COUNT(DISTINCT a.id) FILTER (WHERE es.submitted_at IS NOT NULL) AS exit_survey_completed
+        FROM alumni a
+        JOIN students s ON a.student_id = s.id
+        LEFT JOIN alumni_info_confirmations ic ON ic.alumnus_id = a.id
+        LEFT JOIN alumni_exit_surveys es ON es.alumnus_id = a.id
+        GROUP BY s.batch
+        ORDER BY s.batch DESC
+    """)).mappings().all()
+    return [dict(r) for r in rows]
+
+
 @app.get("/api/admin/alumni/students-without-record")
 def list_students_without_alumni_record(batch: str = "", admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
     query = """

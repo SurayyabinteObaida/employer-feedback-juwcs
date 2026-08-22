@@ -395,10 +395,16 @@ tr:hover td { background: #f8fafc; }
         <div class="card">
           <div id="exitCampaignAlert" class="alert"></div>
           <p style="font-size:13px;color:var(--text-secondary);margin-bottom:1rem;">
-            Sends the exit survey link to every alumnus in the batch who has already confirmed their info. Alumni without a confirmed info record are skipped -- send an info confirmation campaign for them first from the Alumni Feedback tab.
+            Sends the exit survey link to every alumnus in the batch who has already confirmed their info. Alumni without a confirmed info record are skipped -- send info confirmation for them first, from the Alumni Feedback tab.
           </p>
-          <div class="form-group"><label>Batch</label><input type="text" id="exitCampaignBatch" placeholder="e.g. 2022"></div>
-          <button class="btn btn-primary" onclick="sendCampaign('exit-survey', 'exitCampaignBatch', 'exitCampaignAlert')">Send exit survey campaign</button>
+          <div class="form-group" style="max-width:420px;">
+            <label>Batch</label>
+            <select id="exitCampaignBatch" onchange="onExitBatchChange()">
+              <option value="">Loading batches...</option>
+            </select>
+          </div>
+          <div id="exitBatchSummary" style="display:none;font-size:13px;color:var(--text-secondary);margin-bottom:1rem;"></div>
+          <button class="btn btn-primary" id="exitSendBtn" onclick="sendCampaign('exit-survey', 'exitCampaignBatch', 'exitCampaignAlert')" disabled>Send to eligible alumni</button>
         </div>
 
         <div class="section-label">Track</div>
@@ -426,20 +432,26 @@ tr:hover td { background: #f8fafc; }
             Send info confirmation first for a batch that hasn't confirmed contact details yet, then send the feedback form itself for a given survey year.
           </p>
           <div class="form-row">
-            <div class="form-group"><label>Batch</label><input type="text" id="alumniFbCampaignBatch" placeholder="e.g. 2022"></div>
             <div class="form-group">
-              <label>Campaign</label>
-              <select id="alumniFbCampaignType" onchange="toggleAlumniSurveyYear()">
+              <label>Batch</label>
+              <select id="alumniFbCampaignBatch" onchange="onAlumniFbBatchChange()">
+                <option value="">Loading batches...</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Send</label>
+              <select id="alumniFbCampaignType" onchange="toggleAlumniSurveyYear(); onAlumniFbBatchChange();">
                 <option value="info-confirmation">Info confirmation</option>
                 <option value="feedback-form">Alumni feedback form</option>
               </select>
             </div>
           </div>
+          <div id="alumniFbBatchSummary" style="display:none;font-size:13px;color:var(--text-secondary);margin-bottom:1rem;"></div>
           <div class="form-group" id="alumniFbSurveyYearGroup" style="display:none;">
             <label>Survey year</label>
             <input type="text" id="alumniFbSurveyYear" placeholder="e.g. 2025-2026">
           </div>
-          <button class="btn btn-primary" onclick="sendAlumniFeedbackCampaign()">Send campaign</button>
+          <button class="btn btn-primary" id="alumniFbSendBtn" onclick="sendAlumniFeedbackCampaign()" disabled>Send to eligible alumni</button>
         </div>
 
         <div class="section-label">Track</div>
@@ -609,8 +621,8 @@ function navigate(page) {
   if (page === 'employers') loadEmployers();
   if (page === 'form-intern-supervisor') loadFormTrack('intern');
   if (page === 'form-graduate-employer') loadFormTrack('grad');
-  if (page === 'form-exit-survey') loadAlumniRoster('exit');
-  if (page === 'form-alumni-feedback') loadAlumniRoster('feedback');
+  if (page === 'form-exit-survey') { loadAlumniRoster('exit'); loadAlumniBatches(); }
+  if (page === 'form-alumni-feedback') { loadAlumniRoster('feedback'); loadAlumniBatches(); }
 }
 
 async function loadDashboard() {
@@ -1106,6 +1118,95 @@ async function loadFormTrack(kind) {
   } catch (err) { console.error(err); }
 }
 
+// --- Batch dropdown, shared by Exit Survey and Alumni Feedback initiate forms ---
+// Fetched once per tab visit; each batch option carries its own eligibility
+// counts so the person can see, before sending, whether there's anyone to
+// send to and why -- rather than discovering "no eligible alumni" only
+// after clicking send.
+let alumniBatchSummaries = [];
+
+async function loadAlumniBatches() {
+  try {
+    const res = await fetch(API + '/admin/alumni/batches', { headers: authHeaders() });
+    alumniBatchSummaries = await res.json();
+  } catch (err) {
+    console.error(err);
+    alumniBatchSummaries = [];
+  }
+  populateBatchSelect('exitCampaignBatch');
+  populateBatchSelect('alumniFbCampaignBatch');
+  onExitBatchChange();
+  onAlumniFbBatchChange();
+}
+
+function populateBatchSelect(selectId) {
+  const select = document.getElementById(selectId);
+  const previousValue = select.value;
+  if (!alumniBatchSummaries.length) {
+    select.innerHTML = '<option value="">No alumni batches on record</option>';
+    return;
+  }
+  select.innerHTML = '<option value="">Select a batch...</option>' +
+    alumniBatchSummaries.map(b => `<option value="${b.batch}">${b.batch} (${b.total_alumni} alumni)</option>`).join('');
+  if (previousValue && alumniBatchSummaries.some(b => b.batch === previousValue)) {
+    select.value = previousValue;
+  }
+}
+
+function onExitBatchChange() {
+  const batch = document.getElementById('exitCampaignBatch').value;
+  const summaryEl = document.getElementById('exitBatchSummary');
+  const btn = document.getElementById('exitSendBtn');
+  const info = alumniBatchSummaries.find(b => b.batch === batch);
+  if (!batch || !info) {
+    summaryEl.style.display = 'none';
+    btn.disabled = true;
+    return;
+  }
+  summaryEl.style.display = 'block';
+  if (info.exit_survey_eligible > 0) {
+    summaryEl.innerHTML = `<strong>${info.exit_survey_eligible}</strong> alumni eligible to receive it now. ` +
+      `${info.info_pending} still need info confirmation first. ${info.exit_survey_completed} already completed the survey.`;
+    btn.disabled = false;
+  } else if (info.info_pending > 0) {
+    summaryEl.innerHTML = `No one is eligible yet -- all ${info.info_pending} alumni in this batch still need to confirm their info first (Alumni Feedback tab).`;
+    btn.disabled = true;
+  } else {
+    summaryEl.innerHTML = `Everyone in this batch (${info.exit_survey_completed} of ${info.total_alumni}) has already completed the exit survey.`;
+    btn.disabled = true;
+  }
+}
+
+function onAlumniFbBatchChange() {
+  const batch = document.getElementById('alumniFbCampaignBatch').value;
+  const type = document.getElementById('alumniFbCampaignType').value;
+  const summaryEl = document.getElementById('alumniFbBatchSummary');
+  const btn = document.getElementById('alumniFbSendBtn');
+  const info = alumniBatchSummaries.find(b => b.batch === batch);
+  if (!batch || !info) {
+    summaryEl.style.display = 'none';
+    btn.disabled = true;
+    return;
+  }
+  summaryEl.style.display = 'block';
+  if (type === 'info-confirmation') {
+    if (info.info_pending > 0) {
+      summaryEl.innerHTML = `<strong>${info.info_pending}</strong> alumni haven't confirmed their info yet. ${info.info_confirmed} already have.`;
+      btn.disabled = false;
+    } else {
+      summaryEl.innerHTML = `All ${info.total_alumni} alumni in this batch have already confirmed their info.`;
+      btn.disabled = true;
+    }
+  } else {
+    // Feedback form is repeatable per survey year, so it's never blocked by
+    // a "nobody eligible" state the way info-confirmation/exit-survey are --
+    // whether a given alumnus already has a form for the chosen year is
+    // only known once a year is typed in, so this just shows batch size.
+    summaryEl.innerHTML = `${info.total_alumni} alumni in this batch. Already-sent forms for the survey year you enter below are skipped automatically.`;
+    btn.disabled = false;
+  }
+}
+
 async function loadAlumniRoster(scope) {
   const filterInputId = scope === 'exit' ? 'exitRosterBatchFilter' : 'alumniFbRosterBatchFilter';
   const batch = document.getElementById(filterInputId).value.trim();
@@ -1137,15 +1238,16 @@ async function loadAlumniRoster(scope) {
   } catch (err) { console.error(err); }
 }
 
-async function sendCampaign(type, batchInputId, alertId) {
-  const batch = document.getElementById(batchInputId).value.trim();
-  if (!batch) { showAlert(alertId, 'Enter a batch.', 'error'); return; }
+async function sendCampaign(type, batchSelectId, alertId) {
+  const batch = document.getElementById(batchSelectId).value;
+  if (!batch) { showAlert(alertId, 'Select a batch.', 'error'); return; }
   try {
     const res = await fetch(API + '/admin/alumni/campaigns/' + type, { method: 'POST', headers: authHeaders(), body: JSON.stringify({ batch }) });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || 'Failed');
     showAlert(alertId, `Sent to ${data.sent} alumni.`, 'success');
     loadAlumniRoster('exit');
+    loadAlumniBatches();
   } catch (err) { showAlert(alertId, err.message, 'error'); }
 }
 
@@ -1154,9 +1256,9 @@ function toggleAlumniSurveyYear() {
 }
 
 async function sendAlumniFeedbackCampaign() {
-  const batch = document.getElementById('alumniFbCampaignBatch').value.trim();
+  const batch = document.getElementById('alumniFbCampaignBatch').value;
   const type = document.getElementById('alumniFbCampaignType').value;
-  if (!batch) { showAlert('alumniFeedbackCampaignAlert', 'Enter a batch.', 'error'); return; }
+  if (!batch) { showAlert('alumniFeedbackCampaignAlert', 'Select a batch.', 'error'); return; }
   const body = { batch };
   if (type === 'feedback-form') {
     const year = document.getElementById('alumniFbSurveyYear').value.trim();
@@ -1172,6 +1274,7 @@ async function sendAlumniFeedbackCampaign() {
       : `Sent to ${data.sent} alumni.`;
     showAlert('alumniFeedbackCampaignAlert', msg, 'success');
     loadAlumniRoster('feedback');
+    loadAlumniBatches();
   } catch (err) { showAlert('alumniFeedbackCampaignAlert', err.message, 'error'); }
 }
 
