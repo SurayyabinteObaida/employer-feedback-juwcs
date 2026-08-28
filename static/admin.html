@@ -825,23 +825,13 @@ async function deleteStudent(id, name) {
     const res = await fetch(API + '/admin/students/' + id, { method: 'DELETE', headers: authHeaders() });
     const data = await res.json();
     if (res.ok) {
-      showAlert('studentActionAlert', 'Student deleted.', 'success');
+      showAlert('studentActionAlert', 'Student deleted successfully.', 'success');
       loadStudents();
       return;
     }
-    if (res.status === 409) {
-      // Blocked because of linked engagement/alumni rows -- offer a
-      // cascade delete with a second, explicit confirmation rather than
-      // leaving the person stuck retrying the same failing request.
-      const proceed = confirm(
-        `${data.detail}\n\nDelete this student AND all of that linked data? This cannot be undone.`
-      );
-      if (!proceed) return;
-      const res2 = await fetch(API + '/admin/students/' + id + '?force=true', { method: 'DELETE', headers: authHeaders() });
-      const data2 = await res2.json();
-      if (!res2.ok) throw new Error(data2.detail || 'Failed to delete student');
-      showAlert('studentActionAlert', data2.cascaded ? 'Student and linked records deleted.' : 'Student deleted.', 'success');
-      loadStudents();
+    // If there are related records that can't be cascade deleted
+    if (res.status === 400 && data.detail && data.detail.includes('related records')) {
+      showAlert('studentActionAlert', 'Cannot delete: Student has related records. Please remove them first.', 'error');
       return;
     }
     throw new Error(data.detail || 'Failed to delete student');

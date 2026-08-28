@@ -807,13 +807,26 @@ def list_employers(status: str = "", admin: dict = Depends(get_current_admin), d
 
 @app.delete("/api/admin/students/{student_id}")
 def delete_student(student_id: str, admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
-    """Delete a student."""
+    """Delete a student and cascade delete related records."""
     try:
-        db.execute(text("DELETE FROM students WHERE id = :id"), {"id": student_id})
+        # First, delete related alumni records
+        db.execute(text("DELETE FROM alumni WHERE student_id = :id"), {"id": student_id})
+        
+        # Then delete the student
+        result = db.execute(text("DELETE FROM students WHERE id = :id"), {"id": student_id})
         db.commit()
+        
+        if result.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Student not found")
+        
         return {"message": "Student deleted"}
+    except HTTPException:
+        raise
     except Exception as e:
         db.rollback()
+        # Check if it's a foreign key error and provide helpful message
+        if "foreign key" in str(e).lower():
+            raise HTTPException(status_code=400, detail="Student has related records and cannot be deleted. Please remove related records first.")
         raise HTTPException(status_code=400, detail=str(e))
 
 
