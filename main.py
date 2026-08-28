@@ -629,6 +629,134 @@ def send_alumni_feedback_campaign(data: AlumniFeedbackCampaignRequest, admin: di
     return {"sent": sent, "skipped_already_has_form_for_year": skipped}
 
 
+# --- Dashboard Stats & Tracking ---
+
+@app.get("/api/admin/dashboard-stats")
+def get_dashboard_stats(admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
+    """Get overall dashboard statistics."""
+    stats = db.execute(text("""
+        SELECT
+            (SELECT COUNT(*) FROM students) as total_students,
+            (SELECT COUNT(DISTINCT employer_id) FROM org_proformas WHERE employer_id IS NOT NULL) as total_employers,
+            (SELECT COUNT(*) FROM org_proformas) as total_engagements,
+            (SELECT COUNT(*) FROM org_proformas WHERE engagement_type = 'internship') as internship_engagements,
+            (SELECT COUNT(*) FROM org_proformas WHERE engagement_type = 'job') as job_engagements,
+            (SELECT COUNT(*) FROM org_proformas WHERE validation_status IN ('validated', 'edited')) as proformas_validated,
+            (SELECT COUNT(*) FROM org_proformas WHERE validation_status = 'pending') as proformas_pending,
+            (SELECT COUNT(*) FROM internship_evaluations WHERE submitted_at IS NOT NULL) as evals_submitted,
+            (SELECT COUNT(*) FROM employer_surveys WHERE submitted_at IS NOT NULL) as surveys_submitted
+    """)).mappings().first()
+    
+    return dict(stats) if stats else {
+        "total_students": 0,
+        "total_employers": 0,
+        "total_engagements": 0,
+        "internship_engagements": 0,
+        "job_engagements": 0,
+        "proformas_validated": 0,
+        "proformas_pending": 0,
+        "evals_submitted": 0,
+        "surveys_submitted": 0
+    }
+
+
+@app.get("/api/admin/engagements")
+def list_engagements(admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
+    """List all engagements with feedback status, ordered by recency."""
+    rows = db.execute(text("""
+        SELECT
+            op.id,
+            s.full_name as student_name,
+            s.enrollment_number,
+            e.name as employer_name,
+            e.email as employer_email,
+            op.engagement_type as type,
+            op.validation_status,
+            CASE
+                WHEN op.engagement_type = 'internship' AND ie.submitted_at IS NOT NULL THEN 'submitted'
+                WHEN op.engagement_type = 'job' AND es.submitted_at IS NOT NULL THEN 'submitted'
+                ELSE 'pending'
+            END as feedback_status,
+            op.created_at
+        FROM org_proformas op
+        LEFT JOIN students s ON op.student_id = s.id
+        LEFT JOIN employers e ON op.employer_id = e.id
+        LEFT JOIN internship_evaluations ie ON op.id = ie.proforma_id
+        LEFT JOIN employer_surveys es ON op.id = es.proforma_id
+        ORDER BY op.created_at DESC
+    """)).mappings().all()
+    
+    return [dict(r) for r in rows]
+
+
+@app.get("/api/admin/students")
+def list_students(q: str = "", status: str = "", page: int = 1, page_size: int = 20, admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
+    """List students with optional search and filtering by status."""
+    query = "SELECT id, full_name, enrollment_number, degree_program, batch, current_semester FROM students WHERE 1=1"
+    params = {}
+    
+    if q:
+        query += " AND (full_name ILIKE :q OR enrollment_number ILIKE :q)"
+        params["q"] = f"%{q}%"
+    
+    # Get total count
+    count_query = query.replace("SELECT id, full_name, enrollment_number, degree_program, batch, current_semester", "SELECT COUNT(*)")
+    total = db.execute(text(count_query), params).scalar()
+    
+    # Add pagination
+    offset = (page - 1) * page_size
+    query += f" ORDER BY full_name LIMIT {page_size} OFFSET {offset}"
+    
+    rows = db.execute(text(query), params).mappings().all()
+    
+    students = []
+    for r in rows:
+        d = dict(r)
+        d["statuses"] = ["student"]  # Base status
+        students.append(d)
+    
+    return {"students": students, "total": total}
+
+
+@app.get("/api/admin/employers")
+def list_employers(status: str = "", admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
+    """List employers."""
+    rows = db.execute(text("""
+        SELECT
+            id, email, name, designation, 
+            COUNT(DISTINCT op.id) as engagement_count,
+            COUNT(DISTINCT es.id) as feedback_count,
+            created_at
+        FROM employers e
+        LEFT JOIN org_proformas op ON op.employer_id = e.id
+        LEFT JOIN employer_surveys es ON es.employer_id = e.id
+        GROUP BY e.id, e.email, e.name, e.designation, e.created_at
+        ORDER BY e.created_at DESC
+    """)).mappings().all()
+    
+    return [dict(r) for r in rows]
+
+
+@app.delete("/api/admin/students/{student_id}")
+def delete_student(student_id: str, admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
+    """Delete a student."""
+    try:
+        db.execute(text("DELETE FROM students WHERE id = :id"), {"id": student_id})
+        db.commit()
+        return {"message": "Student deleted"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/api/admin/send-email")
+def send_email(data: dict, admin: dict = Depends(get_current_admin)):
+    """Send bulk email (placeholder)."""
+    # This would use SMTP to send emails in a real implementation
+    # For now, return success
+    return {"sent": data.get("total", 0), "failed": 0, "total": data.get("total", 0)}
+
+
 # --- Serve frontend (static files) ---
 
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")

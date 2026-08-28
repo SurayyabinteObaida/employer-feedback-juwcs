@@ -628,24 +628,35 @@ function navigate(page) {
 async function loadDashboard() {
   try {
     const res = await fetch(API + '/admin/dashboard-stats', { headers: authHeaders() });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const s = await res.json();
     document.getElementById('statsGrid').innerHTML = `
-      <div class="stat-card"><div class="value">${s.total_students}</div><div class="label">Total students</div></div>
-      <div class="stat-card"><div class="value">${s.total_employers}</div><div class="label">Employers</div></div>
-      <div class="stat-card"><div class="value">${s.total_engagements}</div><div class="label">Engagements</div></div>
-      <div class="stat-card"><div class="value">${s.internship_engagements}</div><div class="label">Internships</div></div>
-      <div class="stat-card"><div class="value">${s.job_engagements}</div><div class="label">Graduate jobs</div></div>
-      <div class="stat-card"><div class="value">${s.proformas_validated}</div><div class="label">Proformas validated</div></div>
-      <div class="stat-card"><div class="value">${s.proformas_pending}</div><div class="label">Proformas pending</div></div>
-      <div class="stat-card"><div class="value">${s.evals_submitted + s.surveys_submitted}</div><div class="label">Feedback submitted</div></div>
+      <div class="stat-card"><div class="value">${s.total_students || 0}</div><div class="label">Total students</div></div>
+      <div class="stat-card"><div class="value">${s.total_employers || 0}</div><div class="label">Employers</div></div>
+      <div class="stat-card"><div class="value">${s.total_engagements || 0}</div><div class="label">Engagements</div></div>
+      <div class="stat-card"><div class="value">${s.internship_engagements || 0}</div><div class="label">Internships</div></div>
+      <div class="stat-card"><div class="value">${s.job_engagements || 0}</div><div class="label">Graduate jobs</div></div>
+      <div class="stat-card"><div class="value">${s.proformas_validated || 0}</div><div class="label">Proformas validated</div></div>
+      <div class="stat-card"><div class="value">${s.proformas_pending || 0}</div><div class="label">Proformas pending</div></div>
+      <div class="stat-card"><div class="value">${(s.evals_submitted || 0) + (s.surveys_submitted || 0)}</div><div class="label">Feedback submitted</div></div>
     `;
+  } catch (err) {
+    console.error('Failed to load stats:', err);
+    document.getElementById('statsGrid').innerHTML = '<div style="color:red;padding:1rem;">Failed to load statistics</div>';
+  }
+  
+  try {
     const engRes = await fetch(API + '/admin/engagements', { headers: authHeaders() });
+    if (!engRes.ok) throw new Error(`HTTP ${engRes.status}`);
     const engs = await engRes.json();
-    const recent = engs.slice(0, 5);
+    const recent = (engs || []).slice(0, 5);
     if (!recent.length) { document.getElementById('recentEngagements').textContent = 'No engagements yet.'; return; }
     document.getElementById('recentEngagements').innerHTML = '<table><thead><tr><th>Student</th><th>Employer</th><th>Type</th><th>Feedback</th></tr></thead><tbody>' +
-      recent.map(e => `<tr><td>${e.student_name}</td><td>${e.employer_name || e.employer_email}</td><td><span class="badge ${e.type === 'internship' ? 'badge-intern' : 'badge-graduate'}">${e.type === 'internship' ? 'Intern' : 'Graduate'}</span></td><td><span class="badge ${e.feedback_status === 'submitted' ? 'badge-submitted' : 'badge-pending'}">${e.feedback_status}</span></td></tr>`).join('') + '</tbody></table>';
-  } catch (err) { console.error(err); }
+      recent.map(e => `<tr><td>${e.student_name || 'N/A'}</td><td>${e.employer_name || e.employer_email || 'N/A'}</td><td><span class="badge ${e.type === 'internship' ? 'badge-intern' : 'badge-graduate'}">${e.type === 'internship' ? 'Intern' : 'Graduate'}</span></td><td><span class="badge ${e.feedback_status === 'submitted' ? 'badge-submitted' : 'badge-pending'}">${e.feedback_status}</span></td></tr>`).join('') + '</tbody></table>';
+  } catch (err) {
+    console.error('Failed to load engagements:', err);
+    document.getElementById('recentEngagements').innerHTML = '<div style="color:red;">Failed to load engagements</div>';
+  }
 }
 
 let currentStudentStatus = '';
@@ -682,6 +693,7 @@ async function loadStudents() {
         + '&page=' + studentsCurrentPage + '&page_size=' + pageSize,
       { headers: authHeaders() }
     );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     const students = data.students || [];
     studentsTotalCount = data.total || 0;
@@ -701,12 +713,12 @@ async function loadStudents() {
     pagination.style.display = 'flex';
 
     tbody.innerHTML = students.map(s => `<tr>
-      <td>${s.full_name}</td><td>${s.enrollment_number}</td><td>${s.degree_program}</td><td>${s.batch}</td><td>${s.current_semester || '---'}</td>
-      <td>${statusBadges(s.statuses)}</td>
+      <td>${s.full_name || 'N/A'}</td><td>${s.enrollment_number || 'N/A'}</td><td>${s.degree_program || 'N/A'}</td><td>${s.batch || 'N/A'}</td><td>${s.current_semester || '---'}</td>
+      <td>${statusBadges(s.statuses || [])}</td>
       <td>
         <div style="display:flex;gap:6px;">
           <button class="btn btn-sm btn-secondary" onclick='openStudentModal(${JSON.stringify(s)})'>Edit</button>
-          <button class="btn btn-sm btn-danger" onclick="deleteStudent('${s.id}', '${s.full_name.replace(/'/g, "\\'")}')">Delete</button>
+          <button class="btn btn-sm btn-danger" onclick="deleteStudent('${s.id}', '${s.full_name ? s.full_name.replace(/'/g, "\\'") : 'Student'}')">Delete</button>
         </div>
       </td>
     </tr>`).join('');
