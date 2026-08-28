@@ -270,6 +270,11 @@ class AdminLoginRequest(BaseModel):
     email: str
     password: str
 
+class AdminSetupRequest(BaseModel):
+    email: str
+    password: str
+    name: str
+
 class AdminSessionResponse(BaseModel):
     token: str
     admin_name: str
@@ -316,6 +321,46 @@ def admin_login(data: AdminLoginRequest, db: DBSession = Depends(get_db)):
         "admin_name": admin["name"],
         "expires_at": expires_at.isoformat()
     }
+
+
+@app.get("/api/admin/me")
+def get_current_admin_info(admin: dict = Depends(get_current_admin)):
+    """Get current admin info for session verification."""
+    return {
+        "id": admin.get("id"),
+        "name": admin.get("name"),
+        "email": admin.get("email")
+    }
+
+
+@app.get("/api/admin/check-setup")
+def check_admin_setup(db: DBSession = Depends(get_db)):
+    """Check if any admin accounts exist (for first-time setup)."""
+    count = db.execute(text("SELECT COUNT(*) as cnt FROM admins")).mappings().first()
+    return {"has_admins": count["cnt"] > 0}
+
+
+@app.post("/api/admin/setup")
+def setup_first_admin(data: AdminSetupRequest, db: DBSession = Depends(get_db)):
+    """Create the first admin account (no key required, only works if no admins exist)."""
+    count = db.execute(text("SELECT COUNT(*) as cnt FROM admins")).mappings().first()
+    if count["cnt"] > 0:
+        raise HTTPException(status_code=400, detail="Admins already exist. Use create-admin endpoint.")
+    
+    admin_id = str(uuid.uuid4())
+    hashed = hash_password(data.password)
+    
+    try:
+        db.execute(
+            text("INSERT INTO admins (id, email, name, password_hash) VALUES (:id, :email, :name, :hash)"),
+            {"id": admin_id, "email": data.email, "name": data.name, "hash": hashed}
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Admin already exists")
+    
+    return {"message": "Admin created", "admin_id": admin_id}
 
 @app.post("/api/admin/create-admin")
 def create_admin(data: AdminLoginRequest, x_admin_key: str = Header(None), db: DBSession = Depends(get_db)):
