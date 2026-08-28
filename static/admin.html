@@ -556,25 +556,43 @@ function renderStudentProfileCard(s) {
 }
 
 async function checkAuth() {
-  if (!adminToken) { checkSetup(); return; }
+  if (!adminToken) { 
+    console.log('No token found, checking setup...');
+    checkSetup(); 
+    return; 
+  }
   try {
     const res = await fetch(API + '/admin/me', { headers: authHeaders() });
-    if (!res.ok) throw new Error();
+    if (!res.ok) throw new Error('Unauthorized');
     const admin = await res.json();
-    document.getElementById('adminName').textContent = admin.name;
+    document.getElementById('adminName').textContent = admin.name || 'Admin';
     document.getElementById('loginPage').style.display = 'none';
     document.getElementById('appShell').style.display = 'block';
     loadDashboard();
-  } catch { adminToken = null; localStorage.removeItem('admin_token'); checkSetup(); }
+  } catch (err) { 
+    console.error('Auth check failed:', err);
+    adminToken = null; 
+    localStorage.removeItem('admin_token'); 
+    checkSetup(); 
+  }
 }
 
 async function checkSetup() {
   try {
     const res = await fetch(API + '/admin/check-setup');
+    if (!res.ok) throw new Error('Setup check failed');
     const data = await res.json();
+    console.log('Setup check result:', data);
     document.getElementById('loginForm').style.display = data.has_admins ? 'block' : 'none';
     document.getElementById('setupForm').style.display = data.has_admins ? 'none' : 'block';
-  } catch { document.getElementById('loginForm').style.display = 'block'; }
+    document.getElementById('loginPage').style.display = 'block';
+    document.getElementById('appShell').style.display = 'none';
+  } catch (err) { 
+    console.error('Setup check error:', err);
+    document.getElementById('loginForm').style.display = 'block';
+    document.getElementById('loginPage').style.display = 'block';
+    document.getElementById('appShell').style.display = 'none';
+  }
 }
 
 async function adminLogin() {
@@ -585,15 +603,21 @@ async function adminLogin() {
   btn.disabled = true; btn.textContent = 'Signing in...';
   try {
     const res = await fetch(API + '/admin/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.detail || 'Login failed');
+    }
     const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || 'Login failed');
     adminToken = data.token;
     localStorage.setItem('admin_token', adminToken);
-    document.getElementById('adminName').textContent = data.admin_name;
+    document.getElementById('adminName').textContent = data.admin_name || 'Admin';
     document.getElementById('loginPage').style.display = 'none';
     document.getElementById('appShell').style.display = 'block';
     loadDashboard();
-  } catch (err) { showAlert('loginAlert', err.message, 'error'); }
+  } catch (err) { 
+    console.error('Login error:', err);
+    showAlert('loginAlert', err.message, 'error'); 
+  }
   finally { btn.disabled = false; btn.textContent = 'Sign in'; }
 }
 
@@ -602,17 +626,26 @@ async function setupAdmin() {
   const email = document.getElementById('setupEmail').value.trim();
   const password = document.getElementById('setupPassword').value;
   if (!name || !email || !password) { showAlert('loginAlert', 'Fill all fields.', 'error'); return; }
+  const btn = document.getElementById('setupBtn');
+  btn.disabled = true; btn.textContent = 'Creating...';
   try {
     const res = await fetch(API + '/admin/setup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, name, password }) });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.detail || 'Setup failed');
+    }
     const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || 'Setup failed');
     showAlert('loginAlert', 'Admin created. Signing in...', 'success');
     document.getElementById('loginEmail').value = email;
     document.getElementById('loginPassword').value = password;
     document.getElementById('setupForm').style.display = 'none';
     document.getElementById('loginForm').style.display = 'block';
     setTimeout(() => adminLogin(), 500);
-  } catch (err) { showAlert('loginAlert', err.message, 'error'); }
+  } catch (err) { 
+    console.error('Setup error:', err);
+    showAlert('loginAlert', err.message, 'error'); 
+  }
+  finally { btn.disabled = false; btn.textContent = 'Create admin account'; }
 }
 
 function logout() { adminToken = null; localStorage.removeItem('admin_token'); location.reload(); }

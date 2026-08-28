@@ -24,6 +24,15 @@ SessionLocal = sessionmaker(bind=engine)
 
 app = FastAPI(title="OBE Indirect Assessments Panel")
 
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins for development
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # --- Password helpers ---
 
 def generate_password(length=10):
