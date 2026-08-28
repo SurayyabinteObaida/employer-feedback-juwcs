@@ -1147,7 +1147,7 @@ function populateBatchSelect(selectId) {
     return;
   }
   select.innerHTML = '<option value="">Select a batch...</option>' +
-    alumniBatchSummaries.map(b => `<option value="${b.batch}">${b.batch} (${b.total_alumni} alumni)</option>`).join('');
+    alumniBatchSummaries.map(b => `<option value="${b.batch}">${b.batch} [${b.batch_status.toUpperCase()}] (${b.total_alumni} alumni)</option>`).join('');
   if (previousValue && alumniBatchSummaries.some(b => b.batch === previousValue)) {
     select.value = previousValue;
   }
@@ -1220,9 +1220,13 @@ async function loadAlumniRoster(scope) {
       if (!rows.length) { tbody.innerHTML = ''; empty.style.display = 'block'; return; }
       empty.style.display = 'none';
       tbody.innerHTML = rows.map(r => `
-        <tr><td>${r.full_name}</td><td>${r.enrollment_number}</td><td>${r.batch}</td>
-        <td><span class="badge ${r.info_status === 'pending' ? 'badge-pending' : 'badge-submitted'}">${r.info_status}</span></td>
-        <td><span class="badge ${r.exit_survey_status === 'pending' ? 'badge-pending' : 'badge-submitted'}">${r.exit_survey_status}</span></td></tr>
+        <tr>
+          <td>${r.full_name}</td>
+          <td>${r.enrollment_number}</td>
+          <td>${r.batch} <span style="font-size:11px;color:#6b7280;margin-left:4px;">[${r.batch_status}]</span></td>
+          <td><span class="badge ${r.info_status === 'pending' ? 'badge-pending' : 'badge-submitted'}">${r.info_status}</span></td>
+          <td><span class="badge ${r.exit_survey_status === 'pending' ? 'badge-pending' : 'badge-submitted'}">${r.exit_survey_status}</span></td>
+        </tr>
       `).join('');
     } else {
       const tbody = document.getElementById('alumniFbTrackBody');
@@ -1230,9 +1234,14 @@ async function loadAlumniRoster(scope) {
       if (!rows.length) { tbody.innerHTML = ''; empty.style.display = 'block'; return; }
       empty.style.display = 'none';
       tbody.innerHTML = rows.map(r => `
-        <tr><td>${r.full_name}</td><td>${r.enrollment_number}</td><td>${r.batch}</td><td>${r.email}</td>
-        <td><span class="badge ${r.info_status === 'pending' ? 'badge-pending' : 'badge-submitted'}">${r.info_status}</span></td>
-        <td>${r.feedback_completed} / ${r.feedback_sent}</td></tr>
+        <tr>
+          <td>${r.full_name}</td>
+          <td>${r.enrollment_number}</td>
+          <td>${r.batch} <span style="font-size:11px;color:#6b7280;margin-left:4px;">[${r.batch_status}]</span></td>
+          <td>${r.email}</td>
+          <td><span class="badge ${r.info_status === 'pending' ? 'badge-pending' : 'badge-submitted'}">${r.info_status}</span></td>
+          <td>${r.feedback_completed} / ${r.feedback_sent}</td>
+        </tr>
       `).join('');
     }
   } catch (err) { console.error(err); }
