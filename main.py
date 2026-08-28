@@ -633,21 +633,8 @@ def send_alumni_feedback_campaign(data: AlumniFeedbackCampaignRequest, admin: di
 
 @app.get("/api/admin/dashboard-stats")
 def get_dashboard_stats(admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
-    """Get overall dashboard statistics."""
-    stats = db.execute(text("""
-        SELECT
-            (SELECT COUNT(*) FROM students) as total_students,
-            (SELECT COUNT(DISTINCT employer_id) FROM org_proformas WHERE employer_id IS NOT NULL) as total_employers,
-            (SELECT COUNT(*) FROM org_proformas) as total_engagements,
-            (SELECT COUNT(*) FROM org_proformas WHERE engagement_type = 'internship') as internship_engagements,
-            (SELECT COUNT(*) FROM org_proformas WHERE engagement_type = 'job') as job_engagements,
-            (SELECT COUNT(*) FROM org_proformas WHERE validation_status IN ('validated', 'edited')) as proformas_validated,
-            (SELECT COUNT(*) FROM org_proformas WHERE validation_status = 'pending') as proformas_pending,
-            (SELECT COUNT(*) FROM internship_evaluations WHERE submitted_at IS NOT NULL) as evals_submitted,
-            (SELECT COUNT(*) FROM employer_surveys WHERE submitted_at IS NOT NULL) as surveys_submitted
-    """)).mappings().first()
-    
-    return dict(stats) if stats else {
+    """Get overall dashboard statistics with fallback for missing tables."""
+    stats = {
         "total_students": 0,
         "total_employers": 0,
         "total_engagements": 0,
@@ -658,46 +645,127 @@ def get_dashboard_stats(admin: dict = Depends(get_current_admin), db: DBSession 
         "evals_submitted": 0,
         "surveys_submitted": 0
     }
+    
+    try:
+        # Try to get student count
+        result = db.execute(text("SELECT COUNT(*) as cnt FROM students")).mappings().first()
+        if result:
+            stats["total_students"] = result["cnt"]
+    except:
+        pass
+    
+    try:
+        # Try to get employer count
+        result = db.execute(text("SELECT COUNT(DISTINCT employer_id) as cnt FROM org_proformas WHERE employer_id IS NOT NULL")).mappings().first()
+        if result:
+            stats["total_employers"] = result["cnt"]
+    except:
+        pass
+    
+    try:
+        # Try to get engagement counts
+        result = db.execute(text("SELECT COUNT(*) as cnt FROM org_proformas")).mappings().first()
+        if result:
+            stats["total_engagements"] = result["cnt"]
+    except:
+        pass
+    
+    try:
+        # Internship engagements
+        result = db.execute(text("SELECT COUNT(*) as cnt FROM org_proformas WHERE engagement_type = 'internship'")).mappings().first()
+        if result:
+            stats["internship_engagements"] = result["cnt"]
+    except:
+        pass
+    
+    try:
+        # Job engagements
+        result = db.execute(text("SELECT COUNT(*) as cnt FROM org_proformas WHERE engagement_type = 'job'")).mappings().first()
+        if result:
+            stats["job_engagements"] = result["cnt"]
+    except:
+        pass
+    
+    try:
+        # Proformas validated
+        result = db.execute(text("SELECT COUNT(*) as cnt FROM org_proformas WHERE validation_status IN ('validated', 'edited')")).mappings().first()
+        if result:
+            stats["proformas_validated"] = result["cnt"]
+    except:
+        pass
+    
+    try:
+        # Proformas pending
+        result = db.execute(text("SELECT COUNT(*) as cnt FROM org_proformas WHERE validation_status = 'pending'")).mappings().first()
+        if result:
+            stats["proformas_pending"] = result["cnt"]
+    except:
+        pass
+    
+    try:
+        # Evals submitted
+        result = db.execute(text("SELECT COUNT(*) as cnt FROM internship_evaluations WHERE submitted_at IS NOT NULL")).mappings().first()
+        if result:
+            stats["evals_submitted"] = result["cnt"]
+    except:
+        pass
+    
+    try:
+        # Surveys submitted
+        result = db.execute(text("SELECT COUNT(*) as cnt FROM employer_surveys WHERE submitted_at IS NOT NULL")).mappings().first()
+        if result:
+            stats["surveys_submitted"] = result["cnt"]
+    except:
+        pass
+    
+    return stats
 
 
 @app.get("/api/admin/engagements")
 def list_engagements(admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
     """List all engagements with feedback status, ordered by recency."""
-    rows = db.execute(text("""
-        SELECT
-            op.id,
-            s.full_name as student_name,
-            s.enrollment_number,
-            e.name as employer_name,
-            e.email as employer_email,
-            op.engagement_type as type,
-            op.validation_status,
-            CASE
-                WHEN op.engagement_type = 'internship' AND ie.submitted_at IS NOT NULL THEN 'submitted'
-                WHEN op.engagement_type = 'job' AND es.submitted_at IS NOT NULL THEN 'submitted'
-                ELSE 'pending'
-            END as feedback_status,
-            op.created_at
-        FROM org_proformas op
-        LEFT JOIN students s ON op.student_id = s.id
-        LEFT JOIN employers e ON op.employer_id = e.id
-        LEFT JOIN internship_evaluations ie ON op.id = ie.proforma_id
-        LEFT JOIN employer_surveys es ON op.id = es.proforma_id
-        ORDER BY op.created_at DESC
-    """)).mappings().all()
-    
-    return [dict(r) for r in rows]
+    try:
+        rows = db.execute(text("""
+            SELECT
+                op.id,
+                s.full_name as student_name,
+                s.enrollment_number,
+                e.name as employer_name,
+                e.email as employer_email,
+                op.engagement_type as type,
+                op.validation_status,
+                CASE
+                    WHEN op.engagement_type = 'internship' AND ie.submitted_at IS NOT NULL THEN 'submitted'
+                    WHEN op.engagement_type = 'job' AND es.submitted_at IS NOT NULL THEN 'submitted'
+                    ELSE 'pending'
+                END as feedback_status,
+                op.created_at
+            FROM org_proformas op
+            LEFT JOIN students s ON op.student_id = s.id
+            LEFT JOIN employers e ON op.employer_id = e.id
+            LEFT JOIN internship_evaluations ie ON op.id = ie.proforma_id
+            LEFT JOIN employer_surveys es ON op.id = es.proforma_id
+            ORDER BY op.created_at DESC
+        """)).mappings().all()
+        return [dict(r) for r in rows]
+    except:
+        # Table might not exist, return empty list
+        return []
 
 
 @app.get("/api/admin/students")
-def list_students(q: str = "", status: str = "", page: int = 1, page_size: int = 20, admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
-    """List students with optional search and filtering by status."""
+def list_students(q: str = "", status: str = "", batch: str = "", page: int = 1, page_size: int = 20, admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
+    """List students with optional search, status filtering, and batch filtering."""
     query = "SELECT id, full_name, enrollment_number, degree_program, batch, current_semester FROM students WHERE 1=1"
     params = {}
     
     if q:
         query += " AND (full_name ILIKE :q OR enrollment_number ILIKE :q)"
         params["q"] = f"%{q}%"
+    
+    if batch:
+        query += " AND batch = :batch"
+        params["batch"] = batch
     
     # Get total count
     count_query = query.replace("SELECT id, full_name, enrollment_number, degree_program, batch, current_semester", "SELECT COUNT(*)")

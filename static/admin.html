@@ -203,6 +203,13 @@ tr:hover td { background: #f8fafc; }
           <div class="tag-filter" data-status="alumni" onclick="filterStudents(this, 'alumni')">Alumni</div>
         </div>
 
+        <div style="display:flex;gap:0.75rem;align-items:center;margin-bottom:1rem;flex-wrap:wrap;">
+          <label style="font-size:13px;font-weight:600;color:var(--text);">Batch:</label>
+          <select id="studentBatchFilter" onchange="studentsCurrentPage = 1; loadStudents();" style="padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius);font-size:14px;min-width:200px;">
+            <option value="">All batches</option>
+          </select>
+        </div>
+
         <!-- Add / Edit student modal (inline card, not a true modal -- keeps things simple) -->
         <div class="card" id="studentModal" style="display:none;">
           <h3 id="studentModalTitle">Add student</h3>
@@ -617,7 +624,7 @@ function navigate(page) {
   document.querySelector(`.sidebar .nav-item[data-page="${page}"]`).classList.add('active');
 
   if (page === 'dashboard') loadDashboard();
-  if (page === 'students') loadStudents();
+  if (page === 'students') { loadStudentBatches(); loadStudents(); }
   if (page === 'employers') loadEmployers();
   if (page === 'form-intern-supervisor') loadFormTrack('intern');
   if (page === 'form-graduate-employer') loadFormTrack('grad');
@@ -660,12 +667,27 @@ async function loadDashboard() {
 }
 
 let currentStudentStatus = '';
+let currentStudentBatch = '';
+
 function filterStudents(el, status) {
   currentStudentStatus = status;
   studentsCurrentPage = 1;
   document.querySelectorAll('#page-students .tag-filter').forEach(f => f.classList.remove('active'));
   el.classList.add('active');
   loadStudents();
+}
+
+async function loadStudentBatches() {
+  try {
+    const res = await fetch(API + '/admin/batches-list', { headers: authHeaders() });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const batches = await res.json();
+    const select = document.getElementById('studentBatchFilter');
+    select.innerHTML = '<option value="">All batches</option>' +
+      batches.map(b => `<option value="${b.batch}">${b.batch} [${b.status.toUpperCase()}]</option>`).join('');
+  } catch (err) {
+    console.error('Failed to load batches:', err);
+  }
 }
 
 let studentsCurrentPage = 1;
@@ -687,9 +709,11 @@ function goToStudentsPage(page) {
 async function loadStudents() {
   const q = document.getElementById('studentSearchInput').value.trim();
   const pageSize = parseInt(document.getElementById('studentsPageSize').value, 10);
+  const batch = document.getElementById('studentBatchFilter').value.trim();
   try {
     const res = await fetch(
       API + '/admin/students?q=' + encodeURIComponent(q) + '&status=' + currentStudentStatus
+        + '&batch=' + encodeURIComponent(batch)
         + '&page=' + studentsCurrentPage + '&page_size=' + pageSize,
       { headers: authHeaders() }
     );
@@ -730,6 +754,11 @@ async function loadStudents() {
     document.getElementById('studentsPageLabel').textContent = `Page ${studentsCurrentPage} of ${maxPage}`;
     document.getElementById('studentsPrevBtn').disabled = studentsCurrentPage <= 1;
     document.getElementById('studentsNextBtn').disabled = studentsCurrentPage >= maxPage;
+  } catch (err) {
+    console.error('Failed to load students:', err);
+    document.getElementById('studentsBody').innerHTML = '';
+    document.getElementById('studentsEmpty').style.display = 'block';
+  }
   } catch (err) { console.error(err); }
 }
 
