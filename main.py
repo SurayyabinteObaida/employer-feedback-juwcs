@@ -74,6 +74,37 @@ def get_batch_status(batch_year: str) -> str:
     except (ValueError, IndexError):
         return "active"  # Default to active if parsing fails
 
+# --- Combined program+batch helpers ---
+# The `batch` column in the DB stores only the year (e.g. "2025"); the
+# program lives separately in `degree_program` (e.g. "BS(CS)"). The UI
+# wants to show/filter by the combined label "BS(CS) 2025" without any
+# DB or schema change, so these two helpers do the combine/split at the
+# API boundary only.
+
+def combine_program_batch(degree_program: str, batch: str) -> str:
+    """Build the display/filter label, e.g. 'BS(CS)' + '2025' -> 'BS(CS) 2025'."""
+    degree_program = (degree_program or "").strip()
+    batch = (batch or "").strip()
+    if degree_program and batch:
+        return f"{degree_program} {batch}"
+    return degree_program or batch
+
+
+def split_program_batch(combined: str):
+    """
+    Reverse of combine_program_batch. 'BS(CS) 2025' -> ('BS(CS)', '2025').
+    The batch is taken as the last whitespace-separated token; everything
+    before it is the program. If there's no space, treat the whole string
+    as the batch (backward compatible with a bare-year filter value).
+    """
+    combined = (combined or "").strip()
+    if not combined:
+        return "", ""
+    parts = combined.rsplit(" ", 1)
+    if len(parts) == 2:
+        return parts[0].strip(), parts[1].strip()
+    return "", combined
+
 # --- Ensure password_hash column exists ---
 
 @app.on_event("startup")
@@ -426,7 +457,11 @@ def save_alumni_record(data: AlumniSaveRequest, admin: dict = Depends(get_curren
 
 @app.get("/api/admin/alumni/roster")
 def list_alumni_roster(batch: str = "", admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
-    """List alumni with info confirmation and exit survey status, filtered by batch."""
+    """List alumni with info confirmation and exit survey status, filtered by batch.
+
+    `batch` may be a combined "BS(CS) 2025" label (from the batch dropdown)
+    or a bare year -- split_program_batch handles either.
+    """
     query = """
         SELECT a.id, s.full_name, s.enrollment_number, s.degree_program, s.batch, a.email,
                ic.validation_status AS info_status, ic.submitted_at AS info_submitted_at,
@@ -440,8 +475,14 @@ def list_alumni_roster(batch: str = "", admin: dict = Depends(get_current_admin)
     """
     params = {}
     if batch:
-        query += " WHERE s.batch = :batch"
-        params["batch"] = batch
+        program, year = split_program_batch(batch)
+        if program:
+            query += " WHERE s.batch = :batch AND s.degree_program = :program"
+            params["batch"] = year
+            params["program"] = program
+        else:
+            query += " WHERE s.batch = :batch"
+            params["batch"] = year
     query += " ORDER BY s.batch DESC, s.full_name"
 
     rows = db.execute(text(query), params).mappings().all()
@@ -457,9 +498,12 @@ def list_alumni_roster(batch: str = "", admin: dict = Depends(get_current_admin)
 
 @app.get("/api/admin/alumni/batches")
 def list_alumni_batches(admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
-    """Every batch that has at least one alumni record, with counts and status."""
+    """Every program+batch combination that has at least one alumni record,
+    with counts and status. Grouped by (degree_program, batch) so e.g.
+    "BS(CS) 2025" and "BS(SE) 2025" show as distinct entries."""
     rows = db.execute(text("""
         SELECT
+            s.degree_program,
             s.batch,
             COUNT(DISTINCT a.id) AS total_alumni,
             COUNT(DISTINCT a.id) FILTER (WHERE ic.submitted_at IS NOT NULL) AS info_confirmed,
@@ -470,13 +514,15 @@ def list_alumni_batches(admin: dict = Depends(get_current_admin), db: DBSession 
         JOIN students s ON a.student_id = s.id
         LEFT JOIN alumni_info_confirmations ic ON ic.alumnus_id = a.id
         LEFT JOIN alumni_exit_surveys es ON es.alumnus_id = a.id
-        GROUP BY s.batch
-        ORDER BY s.batch DESC
+        GROUP BY s.degree_program, s.batch
+        ORDER BY s.batch DESC, s.degree_program
     """)).mappings().all()
     
     result = []
     for r in rows:
         d = dict(r)
+        combined = combine_program_batch(d["degree_program"], d["batch"])
+        d["batch"] = combined
         d["batch_status"] = get_batch_status(d["batch"])
         result.append(d)
     return result
@@ -493,8 +539,14 @@ def list_students_without_alumni_record(batch: str = "", admin: dict = Depends(g
     """
     params = {}
     if batch:
-        query += " AND s.batch = :batch"
-        params["batch"] = batch
+        program, year = split_program_batch(batch)
+        if program:
+            query += " AND s.batch = :batch AND s.degree_program = :program"
+            params["batch"] = year
+            params["program"] = program
+        else:
+            query += " AND s.batch = :batch"
+            params["batch"] = year
     query += " ORDER BY s.full_name"
     
     rows = db.execute(text(query), params).mappings().all()
@@ -509,26 +561,27 @@ def list_students_without_alumni_record(batch: str = "", admin: dict = Depends(g
 @app.get("/api/admin/batches-list")
 def list_all_batches_with_status(status: str = "", admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
     """
-    Return all distinct batches with computed status.
+    Return all distinct program+batch combinations with computed status,
+    e.g. "BS(CS) 2025", "BS(SE) 2025" as separate entries.
     Query param: status=active|graduated| (empty = all)
     """
     query = """
-        SELECT DISTINCT s.batch
+        SELECT DISTINCT s.degree_program, s.batch
         FROM students s
-        ORDER BY s.batch DESC
+        ORDER BY s.batch DESC, s.degree_program
     """
     rows = db.execute(text(query)).mappings().all()
     
     result = []
     for r in rows:
-        batch_name = r["batch"]
-        batch_status = get_batch_status(batch_name)
+        combined = combine_program_batch(r["degree_program"], r["batch"])
+        batch_status = get_batch_status(r["batch"])
         
         if status and batch_status != status:
             continue
         
         result.append({
-            "batch": batch_name,
+            "batch": combined,
             "status": batch_status
         })
     
@@ -568,13 +621,17 @@ def _issue_alumni_action_link(db: DBSession, alumnus_id: str, name: str, email: 
 
 @app.post("/api/admin/alumni/campaigns/info-confirmation")
 def send_alumni_info_confirmation_campaign(data: AlumniCampaignRequest, admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
-    """Send info confirmation form links to pending alumni in a batch."""
-    rows = db.execute(
-        text("""SELECT a.id, a.email, s.full_name FROM alumni a JOIN students s ON a.student_id = s.id
+    """Send info confirmation form links to pending alumni in a batch.
+    `data.batch` may be a combined "BS(CS) 2025" label or a bare year."""
+    program, year = split_program_batch(data.batch)
+    query = """SELECT a.id, a.email, s.full_name FROM alumni a JOIN students s ON a.student_id = s.id
                 LEFT JOIN alumni_info_confirmations ic ON ic.alumnus_id = a.id
-                WHERE s.batch = :batch AND ic.submitted_at IS NULL"""),
-        {"batch": data.batch}
-    ).mappings().all()
+                WHERE s.batch = :batch AND ic.submitted_at IS NULL"""
+    params = {"batch": year}
+    if program:
+        query += " AND s.degree_program = :program"
+        params["program"] = program
+    rows = db.execute(text(query), params).mappings().all()
     if not rows:
         raise HTTPException(status_code=404, detail=f"No pending alumni found for batch {data.batch}")
 
@@ -587,15 +644,19 @@ def send_alumni_info_confirmation_campaign(data: AlumniCampaignRequest, admin: d
 
 @app.post("/api/admin/alumni/campaigns/exit-survey")
 def send_alumni_exit_survey_campaign(data: AlumniCampaignRequest, admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
-    """Send exit survey links to alumni who've confirmed their info."""
-    rows = db.execute(
-        text("""SELECT a.id, a.email, s.full_name FROM alumni a
+    """Send exit survey links to alumni who've confirmed their info.
+    `data.batch` may be a combined "BS(CS) 2025" label or a bare year."""
+    program, year = split_program_batch(data.batch)
+    query = """SELECT a.id, a.email, s.full_name FROM alumni a
                 JOIN students s ON a.student_id = s.id
                 JOIN alumni_info_confirmations ic ON ic.alumnus_id = a.id AND ic.submitted_at IS NOT NULL
                 LEFT JOIN alumni_exit_surveys es ON es.alumnus_id = a.id
-                WHERE s.batch = :batch AND es.submitted_at IS NULL"""),
-        {"batch": data.batch}
-    ).mappings().all()
+                WHERE s.batch = :batch AND es.submitted_at IS NULL"""
+    params = {"batch": year}
+    if program:
+        query += " AND s.degree_program = :program"
+        params["program"] = program
+    rows = db.execute(text(query), params).mappings().all()
     if not rows:
         raise HTTPException(status_code=404, detail=f"No eligible alumni found for batch {data.batch} "
                                                        f"(info confirmation must be completed first)")
@@ -609,11 +670,15 @@ def send_alumni_exit_survey_campaign(data: AlumniCampaignRequest, admin: dict = 
 
 @app.post("/api/admin/alumni/campaigns/feedback-form")
 def send_alumni_feedback_campaign(data: AlumniFeedbackCampaignRequest, admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
-    """Send alumni feedback form links for a specific survey year."""
-    rows = db.execute(
-        text("SELECT a.id, a.email, s.full_name FROM alumni a JOIN students s ON a.student_id = s.id WHERE s.batch = :batch"),
-        {"batch": data.batch}
-    ).mappings().all()
+    """Send alumni feedback form links for a specific survey year.
+    `data.batch` may be a combined "BS(CS) 2025" label or a bare year."""
+    program, year = split_program_batch(data.batch)
+    query = "SELECT a.id, a.email, s.full_name FROM alumni a JOIN students s ON a.student_id = s.id WHERE s.batch = :batch"
+    params = {"batch": year}
+    if program:
+        query += " AND s.degree_program = :program"
+        params["program"] = program
+    rows = db.execute(text(query), params).mappings().all()
     if not rows:
         raise HTTPException(status_code=404, detail=f"No alumni found for batch {data.batch}")
 
@@ -764,7 +829,9 @@ def list_engagements(admin: dict = Depends(get_current_admin), db: DBSession = D
 
 @app.get("/api/admin/students")
 def list_students(q: str = "", status: str = "", batch: str = "", page: int = 1, page_size: int = 20, admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
-    """List students with optional search, status filtering, and batch filtering."""
+    """List students with optional search, status filtering, and batch filtering.
+    `batch` may be a combined "BS(CS) 2025" label (from the batch dropdown)
+    or a bare year -- split_program_batch handles either transparently."""
     query = "SELECT id, full_name, enrollment_number, degree_program, batch, current_semester FROM students WHERE 1=1"
     params = {}
     
@@ -773,8 +840,14 @@ def list_students(q: str = "", status: str = "", batch: str = "", page: int = 1,
         params["q"] = f"%{q}%"
     
     if batch:
-        query += " AND batch = :batch"
-        params["batch"] = batch
+        program, year = split_program_batch(batch)
+        if program:
+            query += " AND batch = :batch AND degree_program = :program"
+            params["batch"] = year
+            params["program"] = program
+        else:
+            query += " AND batch = :batch"
+            params["batch"] = year
     
     # Get total count
     count_query = query.replace("SELECT id, full_name, enrollment_number, degree_program, batch, current_semester", "SELECT COUNT(*)")

@@ -3,643 +3,520 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Employer Feedback Portal</title>
+<title>Admin - OBE Indirect Assessments Panel</title>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
 :root {
-  --primary: #1e3a5f;
-  --primary-light: #2a5a8f;
-  --accent: #2563eb;
-  --accent-hover: #1d4ed8;
-  --surface: #ffffff;
-  --bg: #f5f7fa;
-  --border: #e2e6ed;
-  --border-strong: #cdd3dc;
-  --text: #1a1f2e;
-  --text-secondary: #5a6274;
-  --text-muted: #8a91a0;
-  --success: #16a34a;
-  --success-bg: #dcfce7;
-  --success-text: #15603a;
-  --warning: #d97706;
-  --warning-bg: #fef3c7;
-  --warning-text: #854d0e;
-  --danger: #dc2626;
-  --danger-bg: #fee2e2;
-  --danger-text: #991b1b;
-  --radius: 6px;
-  --radius-lg: 10px;
+  --primary: #1e3a5f; --accent: #2563eb; --accent-hover: #1d4ed8;
+  --surface: #ffffff; --bg: #f5f7fa; --border: #e2e6ed; --border-strong: #cdd3dc;
+  --text: #1a1f2e; --text-secondary: #5a6274; --text-muted: #8a91a0;
+  --success: #16a34a; --success-bg: #dcfce7; --warning: #d97706; --warning-bg: #fef3c7;
+  --danger: #dc2626; --danger-bg: #fee2e2; --radius: 6px;
 }
+html, body { height: 100%; }
+body { font-family: 'Segoe UI', -apple-system, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; margin: 0; }
 
-body {
-  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
-  background: var(--bg);
-  color: var(--text);
-  line-height: 1.5;
-  min-height: 100vh;
-}
+.login-wrapper { display: flex; justify-content: center; align-items: center; width: 100%; min-height: 100vh; padding: 2rem; }
+.login-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 2.5rem; width: 100%; max-width: 400px; }
+.login-card h1 { font-size: 20px; margin-bottom: 4px; }
+.login-card .sub { font-size: 13px; color: var(--text-secondary); margin-bottom: 1.5rem; }
 
-/* --- Header --- */
-.header {
-  background: var(--primary);
-  color: #fff;
-  padding: 0 2rem;
-  height: 60px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  position: sticky;
-  top: 0;
-  z-index: 100;
-}
-.header h1 {
-  font-size: 17px;
-  font-weight: 600;
-  letter-spacing: 0.2px;
-}
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  font-size: 13px;
-  color: rgba(255,255,255,0.8);
-}
-.btn-logout {
-  background: rgba(255,255,255,0.15);
-  border: 1px solid rgba(255,255,255,0.25);
-  color: #fff;
-  padding: 6px 14px;
-  border-radius: var(--radius);
-  cursor: pointer;
-  font-size: 13px;
-  transition: background 0.15s;
-}
-.btn-logout:hover { background: rgba(255,255,255,0.25); }
+.app-shell { display: none; min-height: 100vh; }
+.header { background: var(--primary); color: #fff; padding: 0 1.5rem; height: 56px; display: flex; align-items: center; justify-content: space-between; }
+.header h1 { font-size: 15px; font-weight: 600; }
+.header .admin-name { font-size: 13px; opacity: 0.8; }
+.header button { background: rgba(255,255,255,0.15); border: none; color: #fff; padding: 6px 14px; border-radius: var(--radius); font-size: 13px; cursor: pointer; }
 
-/* --- Layout --- */
-.container {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 1.75rem 1.5rem;
-}
+.layout { display: flex; min-height: calc(100vh - 56px); }
 
-/* --- Login --- */
-.login-wrapper {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 100vh;
-  padding: 1rem;
+.sidebar { width: 220px; background: var(--surface); border-right: 1px solid var(--border); padding: 1rem 0; flex-shrink: 0; }
+.sidebar .nav-item {
+  display: flex; align-items: center; gap: 10px; padding: 10px 1.25rem; font-size: 14px;
+  color: var(--text-secondary); cursor: pointer; border-left: 3px solid transparent; transition: all 0.15s;
 }
-.login-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 2.5rem;
-  max-width: 420px;
-  width: 100%;
-}
-.login-card h1 {
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--primary);
-  margin-bottom: 0.5rem;
-}
-.login-card p {
-  font-size: 14px;
-  color: var(--text-secondary);
-  margin-bottom: 1.5rem;
-  line-height: 1.6;
-}
-.login-card .help {
-  font-size: 13px;
-  color: var(--text-muted);
-  margin-top: 1rem;
-}
+.sidebar .nav-item:hover { background: var(--bg); color: var(--text); }
+.sidebar .nav-item.active { background: #f0f4ff; color: var(--accent); border-left-color: var(--accent); font-weight: 600; }
+.sidebar .nav-label { font-size: 11px; text-transform: uppercase; color: var(--text-muted); padding: 1.25rem 1.25rem 0.5rem; font-weight: 700; letter-spacing: 0.5px; }
 
-/* --- Alert --- */
-.alert {
-  padding: 0.75rem 1rem;
-  border-radius: var(--radius);
-  font-size: 13px;
-  margin-bottom: 1rem;
-  display: none;
-}
-.alert.visible { display: block; }
-.alert-error { background: var(--danger-bg); color: var(--danger-text); border: 1px solid #fecaca; }
-.alert-success { background: var(--success-bg); color: var(--success-text); border: 1px solid #bbf7d0; }
-.alert-info { background: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe; }
+.main { flex: 1; padding: 1.5rem 2rem; overflow-x: hidden; }
+.page { display: none; }
+.page.active { display: block; }
+.page-title { font-size: 20px; font-weight: 600; margin-bottom: 0.25rem; }
+.page-sub { font-size: 13px; color: var(--text-secondary); margin-bottom: 1.5rem; }
 
-/* --- Page heading --- */
-.page-heading {
-  margin-bottom: 1.5rem;
-}
-.page-heading h2 {
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--text);
-}
-.page-heading p {
-  font-size: 14px;
-  color: var(--text-secondary);
-  margin-top: 0.25rem;
-}
+.section-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); margin: 1.5rem 0 0.75rem; }
+.section-label:first-child { margin-top: 0; }
 
-/* --- Table card --- */
-.table-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-}
-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 14px;
-}
-thead th {
-  background: #f8f9fb;
-  padding: 0.75rem 1rem;
-  text-align: left;
-  font-weight: 600;
-  font-size: 12px;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-  border-bottom: 1px solid var(--border);
-  white-space: nowrap;
-}
-tbody td {
-  padding: 0.875rem 1rem;
-  border-bottom: 1px solid var(--border);
-  vertical-align: middle;
-}
-tbody tr:last-child td { border-bottom: none; }
-tbody tr:hover { background: #f8f9fb; }
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+.stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem; }
+.stat-card .value { font-size: 28px; font-weight: 700; color: var(--primary); }
+.stat-card .label { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
 
-/* --- Badge --- */
-.badge {
-  display: inline-block;
-  padding: 3px 10px;
-  border-radius: 20px;
-  font-size: 12px;
-  font-weight: 500;
-  white-space: nowrap;
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; margin-bottom: 1rem; }
+.card h3 { font-size: 15px; font-weight: 600; margin-bottom: 1rem; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.form-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
+.form-group { margin-bottom: 1rem; }
+.form-group label { display: block; font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+.form-group input, .form-group select, .form-group textarea {
+  width: 100%; padding: 9px 12px; border: 1px solid var(--border-strong);
+  border-radius: var(--radius); font-size: 14px; font-family: inherit;
 }
-.badge-pending { background: var(--warning-bg); color: var(--warning-text); }
-.badge-submitted { background: var(--success-bg); color: var(--success-text); }
-.badge-confirmed { background: var(--success-bg); color: var(--success-text); }
-.badge-unconfirmed { background: #f3f4f6; color: var(--text-secondary); }
-.badge-rejected { background: var(--danger-bg); color: var(--danger-text); }
-.badge-intern { background: #dbeafe; color: #1e40af; }
-.badge-graduate { background: #f3e8ff; color: #6b21a8; }
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(37,99,235,0.1); }
 
-/* --- Buttons --- */
-.btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 7px 14px;
-  border-radius: var(--radius);
-  font-size: 13px;
-  font-weight: 500;
-  border: none;
-  cursor: pointer;
-  transition: all 0.15s;
-  white-space: nowrap;
-  font-family: inherit;
-}
-.btn-sm { padding: 5px 10px; font-size: 12px; }
+.btn { padding: 9px 18px; border: none; border-radius: var(--radius); font-size: 14px; font-family: inherit; cursor: pointer; font-weight: 500; transition: all 0.15s; }
 .btn-primary { background: var(--accent); color: #fff; }
 .btn-primary:hover { background: var(--accent-hover); }
-.btn-primary:disabled { background: #93c5fd; cursor: not-allowed; }
-.btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border-strong); }
-.btn-secondary:hover { background: #f3f4f6; }
-.btn-success { background: var(--success); color: #fff; }
-.btn-success:hover { background: #15803d; }
-.btn-danger-outline { background: transparent; color: var(--danger); border: 1px solid #fecaca; }
-.btn-danger-outline:hover { background: var(--danger-bg); }
-.btn-ghost { background: transparent; color: var(--accent); border: none; padding: 5px 8px; }
-.btn-ghost:hover { background: #eff6ff; }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-secondary { background: var(--bg); color: var(--text); border: 1px solid var(--border-strong); }
+.btn-sm { padding: 5px 12px; font-size: 13px; }
+.btn-danger { background: var(--danger); color: #fff; }
 
-.action-btns {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-}
+.alert { padding: 10px 14px; border-radius: var(--radius); font-size: 13px; margin-bottom: 1rem; display: none; }
+.alert.visible { display: block; }
+.alert-success { background: var(--success-bg); color: #15603a; }
+.alert-error { background: var(--danger-bg); color: #991b1b; }
+.alert-warning { background: var(--warning-bg); color: #854d0e; }
 
-/* --- Expandable detail --- */
-.detail-row { display: none; }
-.detail-row.open { display: table-row; }
-.detail-row td {
-  padding: 0;
-  background: #f8f9fb;
-}
-.detail-content {
-  padding: 1.25rem 1rem;
-  border-top: 1px solid var(--border);
-}
-.detail-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 1.25rem;
-  margin-bottom: 1.25rem;
-}
-.detail-field label {
-  display: block;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-  margin-bottom: 3px;
-}
-.detail-field p {
-  font-size: 14px;
-  color: var(--text);
-}
-.detail-actions {
-  display: flex;
-  gap: 0.5rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--border);
-}
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; padding: 10px 12px; background: var(--bg); color: var(--text-secondary); font-weight: 600; border-bottom: 1px solid var(--border); }
+td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+tr:hover td { background: #f8fafc; }
 
-/* --- Feedback form page --- */
-.form-page {
-  display: none;
-}
-.form-page.active {
-  display: block;
-}
-.dashboard-page.active {
-  display: block;
-}
-.form-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 2rem;
-  margin-bottom: 1.5rem;
-}
-.form-card h3 {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--primary);
-  margin-bottom: 1.25rem;
-  padding-bottom: 0.75rem;
-  border-bottom: 1px solid var(--border);
-}
-.form-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1.25rem;
-  margin-bottom: 1.25rem;
-}
-.form-group {
-  margin-bottom: 1.25rem;
-}
-.form-group label {
-  display: block;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text);
-  margin-bottom: 6px;
-}
-.form-group input,
-.form-group textarea,
-.form-group select {
-  width: 100%;
-  padding: 9px 12px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius);
-  font-size: 14px;
-  font-family: inherit;
-  color: var(--text);
-  background: var(--surface);
-  transition: border-color 0.15s;
-}
-.form-group input:focus,
-.form-group textarea:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-}
-.form-group textarea { resize: vertical; min-height: 100px; }
+.badge { padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; text-transform: uppercase; margin-right: 4px; display: inline-block; }
+.badge-intern { background: #dbeafe; color: #1e40af; }
+.badge-graduate { background: #f3e8ff; color: #7c3aed; }
+.badge-alumni { background: #fce7f3; color: #9d174d; }
+.badge-undergrad { background: #e0f2fe; color: #0369a1; }
+.badge-submitted { background: var(--success-bg); color: #15603a; }
+.badge-pending { background: var(--warning-bg); color: #854d0e; }
+.badge-group { display: flex; flex-wrap: wrap; gap: 4px; }
 
-/* --- Rating row --- */
-.rating-table {
-  width: 100%;
-  border-collapse: collapse;
+.student-results { max-height: 200px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius); margin-top: 4px; }
+.student-results .student-item { padding: 8px 12px; cursor: pointer; font-size: 13px; border-bottom: 1px solid var(--border); }
+.student-results .student-item:hover { background: #f0f4ff; }
+.student-results .student-item .sub { font-size: 12px; color: var(--text-muted); }
+.student-profile-card {
+  background: #f0f4ff; border: 1px solid #93b5f0; border-radius: var(--radius);
+  padding: 12px 14px; font-size: 13px;
 }
-.rating-table th {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  padding: 0.5rem 0.75rem;
-  text-align: center;
-  background: #f8f9fb;
-  border-bottom: 1px solid var(--border);
-}
-.rating-table th:first-child { text-align: left; width: 40%; }
-.rating-table td {
-  padding: 0.75rem;
-  border-bottom: 1px solid var(--border);
-  text-align: center;
-  font-size: 14px;
-}
-.rating-table td:first-child {
-  text-align: left;
-  font-weight: 500;
-  color: var(--text);
-}
-.rating-table tbody tr:hover { background: #f8f9fb; }
-.rating-table input[type="radio"] {
-  width: 16px;
-  height: 16px;
-  cursor: pointer;
-  accent-color: var(--accent);
-}
-.rating-scale-labels {
-  display: flex;
-  justify-content: space-between;
-  font-size: 12px;
-  color: var(--text-muted);
-  padding: 0 0.75rem;
-  margin-bottom: 0.5rem;
-}
+.student-profile-card .profile-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+.student-profile-card .profile-name { font-weight: 700; font-size: 14px; }
+.student-profile-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 6px 12px; }
+.student-profile-grid .pf-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.3px; color: var(--text-muted); }
+.student-profile-grid .pf-value { font-size: 13px; color: var(--text); font-weight: 500; }
 
-/* --- Form actions --- */
-.form-actions {
-  display: flex;
-  gap: 0.75rem;
-  justify-content: flex-end;
-  padding-top: 1.5rem;
-  border-top: 1px solid var(--border);
-}
+.manual-link { background: var(--warning-bg); border: 1px solid #f59e0b; border-radius: var(--radius); padding: 12px; margin-top: 8px; word-break: break-all; font-size: 12px; font-family: monospace; }
+.checkbox-group { display: flex; align-items: center; gap: 8px; margin-top: 0.5rem; }
+.tag-filters { display: flex; gap: 8px; margin-bottom: 1rem; }
+.tag-filter { padding: 6px 14px; border-radius: 16px; font-size: 13px; cursor: pointer; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text-secondary); transition: all 0.15s; }
+.tag-filter.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 
-/* --- Student info (read-only on form) --- */
-.info-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 1rem;
-}
-.info-item label {
-  display: block;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-  margin-bottom: 2px;
-}
-.info-item span {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text);
-}
-
-/* --- Empty state --- */
-.empty-state {
-  text-align: center;
-  padding: 3rem 1rem;
-  color: var(--text-muted);
-}
-.empty-state p { font-size: 14px; }
-
-/* --- Loading --- */
-.loading {
-  text-align: center;
-  padding: 3rem;
-  color: var(--text-muted);
-  font-size: 14px;
-}
-
-/* --- Back link --- */
-.back-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 13px;
-  color: var(--accent);
-  text-decoration: none;
-  cursor: pointer;
-  margin-bottom: 1rem;
-  font-weight: 500;
-}
-.back-link:hover { text-decoration: underline; }
-
-/* --- Responsive --- */
 @media (max-width: 768px) {
-  .container { padding: 1rem; }
-  .header { padding: 0 1rem; }
-  .form-row { grid-template-columns: 1fr; }
-  .detail-grid { grid-template-columns: 1fr 1fr; }
-  .info-grid { grid-template-columns: 1fr 1fr; }
-  .rating-table th, .rating-table td { padding: 0.5rem 0.25rem; font-size: 13px; }
-  table { font-size: 13px; }
-  thead th, tbody td { padding: 0.625rem 0.5rem; }
-}
-@media (max-width: 480px) {
-  .detail-grid { grid-template-columns: 1fr; }
-  .info-grid { grid-template-columns: 1fr; }
-  .action-btns { flex-direction: column; }
+  .form-row, .form-row-3 { grid-template-columns: 1fr; }
+  .sidebar { width: 180px; }
+  .main { padding: 1rem; }
+  .stat-grid { grid-template-columns: 1fr 1fr; }
 }
 </style>
 </head>
 <body>
 
-<!-- ===== LOGIN PAGE ===== -->
 <div id="loginPage" class="login-wrapper">
   <div class="login-card">
-    <h1>Employer Feedback Portal</h1>
-    <p style="margin-bottom:1.25rem;">Department of Computer Science &amp; Software Engineering<br>Jinnah University for Women, Karachi</p>
+    <h1>OBE Indirect Assessments</h1>
+    <p class="sub">Panel - CSSE, JUW</p>
     <div id="loginAlert" class="alert"></div>
-    <div id="loginLoading" class="alert alert-info" style="display:none">Signing you in...</div>
-
-    <!-- Login form -->
     <div id="loginForm">
-      <div class="form-group" style="margin-bottom:1rem;">
-        <label for="loginEmail" style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px;display:block;">Work email</label>
-        <input type="email" id="loginEmail" placeholder="Enter your registered work email" style="width:100%;padding:10px 12px;border:1px solid var(--border-strong);border-radius:var(--radius);font-size:14px;font-family:inherit;">
-      </div>
-      <div class="form-group" style="margin-bottom:1.25rem;">
-        <label for="loginPassword" style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px;display:block;">Password</label>
-        <input type="password" id="loginPassword" placeholder="Enter your password" style="width:100%;padding:10px 12px;border:1px solid var(--border-strong);border-radius:var(--radius);font-size:14px;font-family:inherit;">
-      </div>
-      <button class="btn btn-primary" id="loginBtn" onclick="loginWithPassword()" style="width:100%;padding:10px;font-size:14px;">
-        Sign in
-      </button>
-      <p style="font-size:13px;color:var(--text-muted);text-align:center;margin-top:1rem;">
-        Your login credentials were shared via email when you were invited to the portal.
-      </p>
+      <div class="form-group"><label for="loginEmail">Email</label><input type="email" id="loginEmail" placeholder="admin@juw.edu.pk"></div>
+      <div class="form-group"><label for="loginPassword">Password</label><input type="password" id="loginPassword" placeholder="Enter password"></div>
+      <button class="btn btn-primary" id="loginBtn" onclick="adminLogin()" style="width:100%;">Sign in</button>
+    </div>
+    <div id="setupForm" style="display:none;">
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:1rem;">No admin account exists yet. Create the first one.</p>
+      <div class="form-group"><label for="setupName">Name</label><input type="text" id="setupName" placeholder="Your name"></div>
+      <div class="form-group"><label for="setupEmail">Email</label><input type="email" id="setupEmail" placeholder="admin@juw.edu.pk"></div>
+      <div class="form-group"><label for="setupPassword">Password</label><input type="password" id="setupPassword" placeholder="Choose a password"></div>
+      <button class="btn btn-primary" id="setupBtn" onclick="setupAdmin()" style="width:100%;">Create admin account</button>
     </div>
   </div>
 </div>
 
-<!-- ===== MAIN APP (hidden until login) ===== -->
-<div id="appShell" style="display:none">
-
-  <!-- Header -->
+<div id="appShell" class="app-shell">
   <div class="header">
-    <h1>Employer Feedback Portal</h1>
-    <div class="header-right">
-      <span id="employerName"></span>
-      <button class="btn-logout" onclick="logout()">Log out</button>
+    <h1>OBE Indirect Assessments Panel</h1>
+    <div style="display:flex;align-items:center;gap:1rem;">
+      <span class="admin-name" id="adminName"></span>
+      <button onclick="logout()">Sign out</button>
     </div>
   </div>
 
-  <!-- ===== DASHBOARD ===== -->
-  <div id="dashboardPage" class="dashboard-page active">
-    <div class="container">
-      <div class="page-heading">
-        <h2>Your students</h2>
-        <p>Review student details and provide performance feedback.</p>
-      </div>
+  <div class="layout">
+    <div class="sidebar">
+      <div class="nav-label">Overview</div>
+      <div class="nav-item active" data-page="dashboard" onclick="navigate('dashboard')">Dashboard</div>
 
-      <div id="dashboardAlert" class="alert"></div>
+      <div class="nav-label">Resources</div>
+      <div class="nav-item" data-page="students" onclick="navigate('students')">Students</div>
+      <div class="nav-item" data-page="employers" onclick="navigate('employers')">Employers</div>
 
-      <div class="table-card">
-        <table>
-          <thead>
-            <tr>
-              <th>Student</th>
-              <th>Enrollment</th>
-              <th>Type</th>
-              <th>Role</th>
-              <th>Details</th>
-              <th>Feedback</th>
-              <th style="text-align:center">Actions</th>
-            </tr>
-          </thead>
-          <tbody id="engagementTable">
-            <tr><td colspan="7" class="loading">Loading engagements...</td></tr>
-          </tbody>
-        </table>
-      </div>
+      <div class="nav-label">Forms</div>
+      <div class="nav-item" data-page="form-intern-supervisor" onclick="navigate('form-intern-supervisor')">Internship Supervisor</div>
+      <div class="nav-item" data-page="form-graduate-employer" onclick="navigate('form-graduate-employer')">Graduate Employer</div>
+      <div class="nav-item" data-page="form-exit-survey" onclick="navigate('form-exit-survey')">Exit Survey</div>
+      <div class="nav-item" data-page="form-alumni-feedback" onclick="navigate('form-alumni-feedback')">Alumni Feedback</div>
 
-      <div id="emptyState" class="empty-state" style="display:none">
-        <p>No student engagements found for your account.</p>
-      </div>
+      <div class="nav-label">Actions</div>
+      <div class="nav-item" data-page="email" onclick="navigate('email')">Send email</div>
+
+      <div class="nav-label">System</div>
+      <div class="nav-item" data-page="settings" onclick="navigate('settings')">Settings</div>
     </div>
-  </div>
 
-  <!-- ===== FEEDBACK FORM PAGE ===== -->
-  <div id="formPage" class="form-page">
-    <div class="container">
-      <a class="back-link" onclick="showDashboard()">&#8592; Back to dashboard</a>
-
-      <div class="page-heading">
-        <h2>Performance feedback</h2>
-        <p>Please evaluate the student based on their performance during the engagement period.</p>
-      </div>
-
-      <div id="formAlert" class="alert"></div>
-
-      <!-- Student Info -->
-      <div class="form-card">
-        <h3>Student information</h3>
-        <div class="info-grid" id="studentInfoGrid"></div>
-      </div>
-
-      <!-- Employment Context (graduate/job only) -->
-      <div class="form-card" id="employmentContextCard">
-        <h3>Employment context</h3>
-        <div class="form-row">
-          <div class="form-group">
-            <label for="current_job_role">Current job role</label>
-            <input type="text" id="current_job_role" placeholder="e.g. Junior Software Engineer">
-          </div>
-          <div class="form-group">
-            <label for="employment_department">Department</label>
-            <input type="text" id="employment_department" placeholder="e.g. Software Development">
-          </div>
-        </div>
-        <div class="form-group">
-          <label for="employment_duration">Duration of employment</label>
-          <input type="text" id="employment_duration" placeholder="e.g. 6 months, 1 year, ongoing">
+    <div class="main">
+      <div class="page active" id="page-dashboard">
+        <h2 class="page-title">Dashboard</h2>
+        <p class="page-sub">Overview of all activity across the OBE Indirect Assessments panel.</p>
+        <div class="stat-grid" id="statsGrid"></div>
+        <div class="card">
+          <h3>Recent engagements</h3>
+          <div id="recentEngagements" style="font-size:13px;color:var(--text-muted);">Loading...</div>
         </div>
       </div>
 
-      <!-- Performance Ratings (dynamic — populated by JS based on type) -->
-      <div class="form-card">
-        <h3>Performance evaluation</h3>
-        <p style="font-size:13px; color:var(--text-secondary); margin-bottom:0.25rem;">
-          5: Excellent &nbsp;&nbsp; 4: Good &nbsp;&nbsp; 3: Average &nbsp;&nbsp; 2: Fair &nbsp;&nbsp; 1: Needs Improvement
-        </p>
-        <div style="overflow-x:auto">
-          <table class="rating-table">
-            <thead>
-              <tr>
-                <th>Indicator</th>
-                <th>5</th><th>4</th><th>3</th><th>2</th><th>1</th>
-              </tr>
-            </thead>
-            <tbody id="ratingsBody"></tbody>
-          </table>
-        </div>
-      </div>
+      <div class="page" id="page-students">
+        <h2 class="page-title">Students</h2>
+        <p class="page-sub">Every student record, with all statuses that apply -- a student can be an intern, graduate, and alumnus at once.</p>
 
-      <!-- Section D: Overall Assessment (internship only) -->
-      <div class="form-card" id="internSectionD" style="display:none;">
-        <h3>Overall assessment</h3>
-        <div style="overflow-x:auto">
-          <table class="rating-table">
-            <thead>
-              <tr>
-                <th>Indicator</th>
-                <th>5</th><th>4</th><th>3</th><th>2</th><th>1</th>
-              </tr>
-            </thead>
-            <tbody id="sectionDBody"></tbody>
-          </table>
+        <div id="studentActionAlert" class="alert"></div>
+
+        <div style="display:flex;gap:0.75rem;align-items:center;margin-bottom:1rem;flex-wrap:wrap;">
+          <input type="text" id="studentSearchInput" placeholder="Search by name or enrollment..." oninput="studentsCurrentPage = 1; loadStudents();" style="flex:1;min-width:220px;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius);font-size:14px;">
+          <button class="btn btn-primary btn-sm" onclick="openStudentModal()">Add student</button>
+          <button class="btn btn-secondary btn-sm" onclick="openCsvModal()">Bulk upload CSV</button>
         </div>
-        <div class="form-group" style="margin-top:1.25rem;">
-          <label for="attendance_bracket">Attendance during internship</label>
-          <select id="attendance_bracket" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius);font-size:14px;font-family:inherit;">
-            <option value="">Select attendance range</option>
-            <option value="above_80">Above 80%</option>
-            <option value="71_80">71% - 80%</option>
-            <option value="61_70">61% - 70%</option>
-            <option value="50_60">50% - 60%</option>
-            <option value="below_50">Below 50%</option>
+
+        <div class="tag-filters">
+          <div class="tag-filter active" data-status="" onclick="filterStudents(this, '')">All</div>
+          <div class="tag-filter" data-status="undergrad" onclick="filterStudents(this, 'undergrad')">Undergrad</div>
+          <div class="tag-filter" data-status="intern" onclick="filterStudents(this, 'intern')">Intern</div>
+          <div class="tag-filter" data-status="graduate" onclick="filterStudents(this, 'graduate')">Graduate</div>
+          <div class="tag-filter" data-status="alumni" onclick="filterStudents(this, 'alumni')">Alumni</div>
+        </div>
+
+        <div style="display:flex;gap:0.75rem;align-items:center;margin-bottom:1rem;flex-wrap:wrap;">
+          <label style="font-size:13px;font-weight:600;color:var(--text);">Batch:</label>
+          <select id="studentBatchFilter" onchange="studentsCurrentPage = 1; loadStudents();" style="padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius);font-size:14px;min-width:200px;">
+            <option value="">All batches</option>
           </select>
         </div>
-      </div>
 
-      <!-- Overall Performance (graduate/job only) -->
-      <div class="form-card" id="graduateExtras" style="display:none;">
-        <h3>Overall performance</h3>
-        <p style="font-size:13px;color:var(--text-secondary);margin-bottom:1rem;">Among all employees in your organization, how would you rate the performance of this graduate?</p>
-        <div style="display:flex;gap:1.25rem;flex-wrap:wrap;">
-          <label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer;">
-            <input type="radio" name="overall_performance" value="outstanding" style="accent-color:var(--accent);"> Outstanding
-          </label>
-          <label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer;">
-            <input type="radio" name="overall_performance" value="above_average" style="accent-color:var(--accent);"> Above Average
-          </label>
-          <label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer;">
-            <input type="radio" name="overall_performance" value="average" style="accent-color:var(--accent);"> Average
-          </label>
-          <label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer;">
-            <input type="radio" name="overall_performance" value="below_average" style="accent-color:var(--accent);"> Below Average
-          </label>
+        <!-- Add / Edit student modal (inline card, not a true modal -- keeps things simple) -->
+        <div class="card" id="studentModal" style="display:none;">
+          <h3 id="studentModalTitle">Add student</h3>
+          <div id="studentModalAlert" class="alert"></div>
+          <input type="hidden" id="studentModalId" value="">
+          <div class="form-row">
+            <div class="form-group"><label>Full name</label><input type="text" id="studentModalName"></div>
+            <div class="form-group"><label>Enrollment number</label><input type="text" id="studentModalEnr"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Degree program</label><input type="text" id="studentModalProg" placeholder="e.g. BS Computer Science"></div>
+            <div class="form-group"><label>Batch</label><input type="text" id="studentModalBatch" placeholder="e.g. 2022"></div>
+          </div>
+          <div class="form-group" style="max-width:calc(50% - 0.5rem);"><label>Current semester</label><input type="text" id="studentModalSem"></div>
+          <div style="display:flex;gap:0.5rem;">
+            <button class="btn btn-primary" id="studentModalSaveBtn" onclick="saveStudent()">Save</button>
+            <button class="btn btn-secondary" onclick="closeStudentModal()">Cancel</button>
+          </div>
+        </div>
+
+        <!-- CSV bulk upload modal -->
+        <div class="card" id="csvModal" style="display:none;">
+          <h3>Bulk upload students from CSV</h3>
+          <div id="csvModalAlert" class="alert"></div>
+          <p style="font-size:13px;color:var(--text-secondary);margin-bottom:1rem;">
+            Upload the OBE student export directly (columns like <code>StudentName</code>, <code>RollNo</code>, <code>batch_name</code>, <code>batch_year</code>) -- it's auto-detected and mapped. A simpler CSV with <code>full_name, enrollment_number, degree_program, batch</code> headers also works.
+            Existing students are matched by enrollment number and updated in place; new enrollment numbers are added.
+          </p>
+          <div class="form-group">
+            <input type="file" id="csvFileInput" accept=".csv" onchange="handleCsvFileChange()">
+          </div>
+          <div id="csvPreview" style="display:none;margin-bottom:1rem;">
+            <p style="font-size:13px;font-weight:600;margin-bottom:0.5rem;">Preview (<span id="csvRowCount">0</span> rows)</p>
+            <div style="overflow-x:auto;max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius);">
+              <table><thead><tr><th>Name</th><th>Enrollment</th><th>Program</th><th>Batch</th></tr></thead>
+              <tbody id="csvPreviewBody"></tbody></table>
+            </div>
+          </div>
+          <div style="display:flex;gap:0.5rem;">
+            <button class="btn btn-primary" id="csvUploadBtn" onclick="submitCsvUpload()" disabled>Upload</button>
+            <button class="btn btn-secondary" onclick="closeCsvModal()">Cancel</button>
+          </div>
+        </div>
+
+        <div style="overflow-x:auto;">
+          <table><thead><tr><th>Name</th><th>Enrollment</th><th>Program</th><th>Batch</th><th>Semester</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="studentsBody"></tbody></table>
+        </div>
+        <p id="studentsEmpty" style="display:none;font-size:13px;color:var(--text-muted);padding:1rem 0;">No students found.</p>
+
+        <div id="studentsPagination" style="display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border);flex-wrap:wrap;">
+          <div style="font-size:13px;color:var(--text-secondary);" id="studentsPageInfo"></div>
+          <div style="display:flex;align-items:center;gap:0.75rem;">
+            <label style="font-size:13px;color:var(--text-secondary);display:flex;align-items:center;gap:6px;">
+              Rows per page
+              <select id="studentsPageSize" onchange="onStudentsPageSizeChange()" style="padding:5px 8px;border:1px solid var(--border-strong);border-radius:var(--radius);font-size:13px;">
+                <option value="25">25</option>
+                <option value="50" selected>50</option>
+                <option value="100">100</option>
+                <option value="200">200</option>
+              </select>
+            </label>
+            <button class="btn btn-sm btn-secondary" id="studentsPrevBtn" onclick="goToStudentsPage(studentsCurrentPage - 1)">Previous</button>
+            <span id="studentsPageLabel" style="font-size:13px;color:var(--text-secondary);"></span>
+            <button class="btn btn-sm btn-secondary" id="studentsNextBtn" onclick="goToStudentsPage(studentsCurrentPage + 1)">Next</button>
+          </div>
         </div>
       </div>
 
-      <!-- Comments -->
-      <div class="form-card">
-        <h3>Comments / suggestions for the academic institution</h3>
-        <div class="form-group">
-          <label for="comments">Share any additional observations about the student's performance, strengths, or areas for improvement.</label>
-          <textarea id="comments" rows="5" placeholder="Your feedback helps us improve our academic programs..."></textarea>
+      <div class="page" id="page-employers">
+        <h2 class="page-title">Employers</h2>
+        <p class="page-sub">Every registered employer, tagged by which engagement types they're linked to.</p>
+        <div class="tag-filters">
+          <div class="tag-filter active" data-status="" onclick="filterEmployers(this, '')">All</div>
+          <div class="tag-filter" data-status="intern_employer" onclick="filterEmployers(this, 'intern_employer')">Intern employer</div>
+          <div class="tag-filter" data-status="graduate_employer" onclick="filterEmployers(this, 'graduate_employer')">Graduate employer</div>
+        </div>
+        <div style="overflow-x:auto;">
+          <table><thead><tr><th>Email</th><th>Name</th><th>Designation</th><th>Status</th><th>Engagements</th><th>Feedback</th><th>Joined</th><th>Action</th></tr></thead>
+          <tbody id="employersBody"></tbody></table>
+        </div>
+      </div>
+
+      <div class="page" id="page-form-intern-supervisor">
+        <h2 class="page-title">Internship Supervisor Feedback</h2>
+        <p class="page-sub">Initiate and track the internship evaluation proforma, sent to each intern's supervisor.</p>
+
+        <div class="section-label">Initiate</div>
+        <div class="card">
+          <div id="createInternAlert" class="alert"></div>
+          <div class="form-group">
+            <label>Employer email</label>
+            <input type="email" id="internEmployerEmail" placeholder="employer@company.com">
+          </div>
+          <div class="form-group">
+            <label>Search student</label>
+            <input type="text" id="internStudentSearch" placeholder="Type name or enrollment..." oninput="searchStudentsFor('intern', this.value)">
+            <div id="internStudentResults" class="student-results" style="display:none;"></div>
+            <div id="internSelectedStudent" style="display:none;"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Host organization</label><input type="text" id="internOrg" placeholder="e.g. TechVentures"></div>
+            <div class="form-group"><label>Department served</label><input type="text" id="internDept"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Internship starting date</label><input type="date" id="internStart"></div>
+            <div class="form-group"><label>Internship completion date</label><input type="date" id="internEnd"></div>
+          </div>
+          <h3 style="font-size:13px;margin:1.25rem 0 0.75rem;color:var(--text-secondary);">Respondent contact details</h3>
+          <div class="form-row">
+            <div class="form-group"><label>Respondent name</label><input type="text" id="internSupervisor"></div>
+            <div class="form-group"><label>Designation</label><input type="text" id="internSupervisorDesig"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Contact email</label><input type="email" id="internContactEmail"></div>
+            <div class="form-group"><label>LinkedIn profile</label><input type="text" id="internLinkedin" placeholder="linkedin.com/in/..."></div>
+          </div>
+          <div class="form-group" style="max-width:calc(50% - 0.5rem);"><label>Phone number</label><input type="text" id="internPhone"></div>
+          <input type="hidden" id="internRole" value="">
+          <div class="checkbox-group"><input type="checkbox" id="internSendInvite" checked><label for="internSendInvite">Send invitation email to employer</label></div>
+          <div style="margin-top:1.25rem;"><button class="btn btn-primary" id="createInternBtn" onclick="createEngagementFor('internship')">Initiate internship evaluation</button></div>
+          <div id="internManualLink" class="manual-link" style="display:none;"></div>
         </div>
 
-        <div class="form-actions">
-          <button class="btn btn-secondary" onclick="showDashboard()">Cancel</button>
-          <button class="btn btn-primary" id="submitBtn" onclick="submitFeedback()">Submit feedback</button>
+        <div class="section-label">Track</div>
+        <div class="card" style="padding:0;">
+          <div style="overflow-x:auto;">
+            <table><thead><tr><th>Student</th><th>Enrollment</th><th>Employer</th><th>Proforma</th><th>Evaluation</th><th>Created</th></tr></thead>
+            <tbody id="internTrackBody"></tbody></table>
+          </div>
+        </div>
+      </div>
+
+      <div class="page" id="page-form-graduate-employer">
+        <h2 class="page-title">Graduate Employer Feedback</h2>
+        <p class="page-sub">Initiate and track the employer survey, sent to each graduate's employer.</p>
+
+        <div class="section-label">Initiate</div>
+        <div class="card">
+          <div id="createGradAlert" class="alert"></div>
+          <div class="form-group">
+            <label>Employer email</label>
+            <input type="email" id="gradEmployerEmail" placeholder="employer@company.com">
+          </div>
+          <div class="form-group">
+            <label>Search student</label>
+            <input type="text" id="gradStudentSearch" placeholder="Type name or enrollment..." oninput="searchStudentsFor('grad', this.value)">
+            <div id="gradStudentResults" class="student-results" style="display:none;"></div>
+            <div id="gradSelectedStudent" style="display:none;"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Organization name</label><input type="text" id="gradOrg" placeholder="e.g. TechVentures"></div>
+            <div class="form-group"><label>Department</label><input type="text" id="gradDept"></div>
+          </div>
+          <h3 style="font-size:13px;margin:1.25rem 0 0.75rem;color:var(--text-secondary);">Employer &amp; organization respondent</h3>
+          <div class="form-row">
+            <div class="form-group"><label>Respondent's name</label><input type="text" id="gradSupervisor"></div>
+            <div class="form-group"><label>Designation</label><input type="text" id="gradSupervisorDesig"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Email address</label><input type="email" id="gradContactEmail"></div>
+            <div class="form-group"><label>Contact number</label><input type="text" id="gradPhone"></div>
+          </div>
+          <div class="form-group" style="max-width:calc(50% - 0.5rem);"><label>LinkedIn (URL)</label><input type="text" id="gradLinkedin" placeholder="linkedin.com/in/..."></div>
+          <p style="font-size:12px;color:var(--text-muted);margin:1.25rem 0 0;">
+            Year of graduation, current job role, and duration of employment are captured directly from the employer when they submit their feedback -- not needed here.
+          </p>
+          <input type="hidden" id="gradRole" value="">
+          <input type="hidden" id="gradStart" value="">
+          <input type="hidden" id="gradEnd" value="">
+          <div class="checkbox-group" style="margin-top:1rem;"><input type="checkbox" id="gradSendInvite" checked><label for="gradSendInvite">Send invitation email to employer</label></div>
+          <div style="margin-top:1.25rem;"><button class="btn btn-primary" id="createGradBtn" onclick="createEngagementFor('job')">Initiate graduate feedback</button></div>
+          <div id="gradManualLink" class="manual-link" style="display:none;"></div>
+        </div>
+
+        <div class="section-label">Track</div>
+        <div class="card" style="padding:0;">
+          <div style="overflow-x:auto;">
+            <table><thead><tr><th>Student</th><th>Enrollment</th><th>Employer</th><th>Proforma</th><th>Feedback</th><th>Created</th></tr></thead>
+            <tbody id="gradTrackBody"></tbody></table>
+          </div>
+        </div>
+      </div>
+
+      <div class="page" id="page-form-exit-survey">
+        <h2 class="page-title">Exit Survey</h2>
+        <p class="page-sub">Initiate and track the graduating-batch exit survey, sent directly to alumni.</p>
+
+        <div class="section-label">Initiate</div>
+        <div class="card">
+          <div id="exitCampaignAlert" class="alert"></div>
+          <p style="font-size:13px;color:var(--text-secondary);margin-bottom:1rem;">
+            Sends the exit survey link to every alumnus in the batch who has already confirmed their info. Alumni without a confirmed info record are skipped -- send info confirmation for them first, from the Alumni Feedback tab.
+          </p>
+          <div class="form-group" style="max-width:420px;">
+            <label>Batch</label>
+            <select id="exitCampaignBatch" onchange="onExitBatchChange()">
+              <option value="">Loading batches...</option>
+            </select>
+          </div>
+          <div id="exitBatchSummary" style="display:none;font-size:13px;color:var(--text-secondary);margin-bottom:1rem;"></div>
+          <button class="btn btn-primary" id="exitSendBtn" onclick="sendCampaign('exit-survey', 'exitCampaignBatch', 'exitCampaignAlert')" disabled>Send to eligible alumni</button>
+        </div>
+
+        <div class="section-label">Track</div>
+        <div class="card">
+          <div class="form-group" style="max-width:240px;">
+            <label>Filter by batch</label>
+            <input type="text" id="exitRosterBatchFilter" placeholder="e.g. 2022" oninput="loadAlumniRoster('exit')">
+          </div>
+          <div style="overflow-x:auto;">
+            <table><thead><tr><th>Name</th><th>Enrollment</th><th>Batch</th><th>Info confirmed</th><th>Exit survey</th></tr></thead>
+            <tbody id="exitTrackBody"></tbody></table>
+          </div>
+          <p id="exitTrackEmpty" style="display:none;font-size:13px;color:var(--text-muted);padding:1rem 0;">No alumni records found.</p>
+        </div>
+      </div>
+
+      <div class="page" id="page-form-alumni-feedback">
+        <h2 class="page-title">Alumni Feedback</h2>
+        <p class="page-sub">Initiate and track alumni info confirmation and the alumni feedback form.</p>
+
+        <div class="section-label">Initiate</div>
+        <div class="card">
+          <div id="alumniFeedbackCampaignAlert" class="alert"></div>
+          <p style="font-size:13px;color:var(--text-secondary);margin-bottom:1rem;">
+            Send info confirmation first for a batch that hasn't confirmed contact details yet, then send the feedback form itself for a given survey year.
+          </p>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Batch</label>
+              <select id="alumniFbCampaignBatch" onchange="onAlumniFbBatchChange()">
+                <option value="">Loading batches...</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Send</label>
+              <select id="alumniFbCampaignType" onchange="toggleAlumniSurveyYear(); onAlumniFbBatchChange();">
+                <option value="info-confirmation">Info confirmation</option>
+                <option value="feedback-form">Alumni feedback form</option>
+              </select>
+            </div>
+          </div>
+          <div id="alumniFbBatchSummary" style="display:none;font-size:13px;color:var(--text-secondary);margin-bottom:1rem;"></div>
+          <div class="form-group" id="alumniFbSurveyYearGroup" style="display:none;">
+            <label>Survey year</label>
+            <input type="text" id="alumniFbSurveyYear" placeholder="e.g. 2025-2026">
+          </div>
+          <button class="btn btn-primary" id="alumniFbSendBtn" onclick="sendAlumniFeedbackCampaign()" disabled>Send to eligible alumni</button>
+        </div>
+
+        <div class="section-label">Track</div>
+        <div class="card">
+          <div class="form-group" style="max-width:240px;">
+            <label>Filter by batch</label>
+            <input type="text" id="alumniFbRosterBatchFilter" placeholder="e.g. 2022" oninput="loadAlumniRoster('feedback')">
+          </div>
+          <div style="overflow-x:auto;">
+            <table><thead><tr><th>Name</th><th>Enrollment</th><th>Batch</th><th>Email</th><th>Info confirmation</th><th>Feedback forms sent/completed</th></tr></thead>
+            <tbody id="alumniFbTrackBody"></tbody></table>
+          </div>
+          <p id="alumniFbTrackEmpty" style="display:none;font-size:13px;color:var(--text-muted);padding:1rem 0;">No alumni records found.</p>
+        </div>
+      </div>
+
+      <div class="page" id="page-email">
+        <h2 class="page-title">Send email</h2>
+        <p class="page-sub">Compose and send email to a group of employers.</p>
+        <div class="card">
+          <div id="emailAlert" class="alert"></div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Audience</label>
+              <select id="emailAudience" onchange="toggleSpecificEmails()">
+                <option value="all_employers">All employers</option>
+                <option value="intern_employers">Intern employers only</option>
+                <option value="graduate_employers">Graduate employers only</option>
+                <option value="specific">Specific email addresses</option>
+              </select>
+            </div>
+            <div class="form-group"><label>Subject</label><input type="text" id="emailSubject" placeholder="Email subject line"></div>
+          </div>
+          <div class="form-group" id="specificEmailsGroup" style="display:none;">
+            <label>Email addresses (comma-separated)</label>
+            <input type="text" id="specificEmails" placeholder="email1@company.com, email2@company.com">
+          </div>
+          <div class="form-group">
+            <label>Message body (HTML supported)</label>
+            <textarea id="emailBody" rows="8" placeholder="Type your message here..."></textarea>
+          </div>
+          <button class="btn btn-primary" id="emailBtn" onclick="sendBulkEmail()">Send email</button>
+        </div>
+      </div>
+
+      <div class="page" id="page-settings">
+        <h2 class="page-title">Settings</h2>
+        <p class="page-sub">Manage admin accounts.</p>
+        <div class="card">
+          <h3>Add new admin</h3>
+          <div id="settingsAlert" class="alert"></div>
+          <div class="form-row-3">
+            <div class="form-group"><label>Name</label><input type="text" id="newAdminName"></div>
+            <div class="form-group"><label>Email</label><input type="email" id="newAdminEmail"></div>
+            <div class="form-group"><label>Password</label><input type="password" id="newAdminPassword"></div>
+          </div>
+          <button class="btn btn-primary" onclick="createNewAdmin()">Create admin</button>
         </div>
       </div>
     </div>
@@ -648,507 +525,867 @@ tbody tr:hover { background: #f8f9fb; }
 
 <script>
 const API = window.location.origin + '/api';
-let sessionToken = null;
-let currentEngagementId = null;
-let currentEngagementType = null;
-let engagementsData = [];
+let adminToken = localStorage.getItem('admin_token');
+let selectedInternStudentId = null;
+let selectedGradStudentId = null;
+let searchTimeouts = {};
 
-// Internship Evaluation — Section C (9 indicators, exact form text)
-const INTERN_RATING_FIELDS = [
-  { key: 'rating_core_knowledge', label: "How would you rate the intern's knowledge of core computing concepts?" },
-  { key: 'rating_problem_solving', label: "How would you rate the intern's ability to identify, break down, debug, and analyze software/technical problems encountered during assigned tasks?" },
-  { key: 'rating_work_quality', label: "How would you rate the overall quality of work delivered by the intern on the assigned project(s)?" },
-  { key: 'rating_tool_usage', label: "How would you rate the intern's effective use of modern tools and technologies?" },
-  { key: 'rating_teamwork', label: "How would you rate the intern's ability to work effectively both independently and as part of a team?" },
-  { key: 'rating_communication', label: "How would you rate the intern's communication skills with team members, both oral and written?" },
-  { key: 'rating_societal_awareness', label: "How would you rate the intern's awareness of how their assigned work might affect end-users, clients, or the team?" },
-  { key: 'rating_ethics', label: "How would you rate the intern's professional ethics?" },
-  { key: 'rating_learning_attitude', label: "How well does the intern show interest in learning new tools, technologies, and skills, and adapting to changing work needs?" },
-];
+function authHeaders() { return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + adminToken }; }
+function showAlert(id, msg, type) { const el = document.getElementById(id); el.className = `alert alert-${type} visible`; el.textContent = msg; }
 
-// Internship Evaluation — Section D (2 additional rated questions)
-const INTERN_SECTION_D_FIELDS = [
-  { key: 'rating_task_completion', label: "How would you rate the intern's ability to complete tasks on time?" },
-  { key: 'rating_overall_competence', label: "How would you rate this intern's overall competence in comparison with other interns you have supervised?" },
-];
+function statusBadges(statuses) {
+  const labelMap = { undergrad: 'Undergrad', intern: 'Intern', graduate: 'Graduate', alumni: 'Alumni', intern_employer: 'Intern employer', graduate_employer: 'Graduate employer' };
+  const classMap = { undergrad: 'badge-undergrad', intern: 'badge-intern', graduate: 'badge-graduate', alumni: 'badge-alumni', intern_employer: 'badge-intern', graduate_employer: 'badge-graduate' };
+  return `<div class="badge-group">${statuses.map(s => `<span class="badge ${classMap[s] || 'badge-undergrad'}">${labelMap[s] || s}</span>`).join('')}</div>`;
+}
 
-// Employer Survey — Section C (10 indicators, exact form text)
-const GRADUATE_RATING_FIELDS = [
-  { key: 'rating_core_knowledge', label: 'Based on your observation, this employee demonstrates strong knowledge of core computing concepts' },
-  { key: 'rating_knowledge_application', label: 'In your experience, this employee effectively accomplishes assigned professional tasks' },
-  { key: 'rating_problem_solving', label: 'From what you have observed, this employee is able to identify, break down, debug, and analyze software/technical problems encountered during assigned tasks' },
-  { key: 'rating_dev_contribution', label: 'In your assessment, this employee contributes effectively to their assigned responsibilities' },
-  { key: 'rating_tool_usage', label: 'Based on your observation, this employee makes effective use of modern tools' },
-  { key: 'rating_teamwork', label: 'In your experience, this employee works effectively both independently and as part of a development/project team' },
-  { key: 'rating_communication', label: 'From your interactions, this employee communicates effectively, both written and oral, in all forms of communication' },
-  { key: 'rating_professionalism', label: 'Based on your observation, this employee demonstrates professional responsibility by maintaining punctuality, regular attendance, and fulfilling assigned duties' },
-  { key: 'rating_ethics', label: 'In your assessment, this employee upholds high standards of honesty and ethical behavior' },
-  { key: 'rating_learning_attitude', label: 'From what you have observed, this employee demonstrates enthusiasm for learning, accepts feedback positively, and independently acquires new knowledge/skills required for assigned tasks' },
-];
+function renderStudentProfileCard(s) {
+  return `
+    <div class="student-profile-card">
+      <div class="profile-top">
+        <span class="profile-name">${s.name}</span>
+        <button class="btn btn-sm btn-secondary" onclick="clearStudentFor('${s.prefix}')">Change</button>
+      </div>
+      <div class="student-profile-grid">
+        <div><div class="pf-label">Enrollment</div><div class="pf-value">${s.enr || '-'}</div></div>
+        <div><div class="pf-label">Program</div><div class="pf-value">${s.prog || '-'}</div></div>
+        <div><div class="pf-label">Batch</div><div class="pf-value">${s.batch || '-'}</div></div>
+        <div><div class="pf-label">Semester</div><div class="pf-value">${s.semester || '-'}</div></div>
+      </div>
+    </div>
+  `;
+}
 
-// --- Init ---
-document.addEventListener('DOMContentLoaded', () => {
-  const params = new URLSearchParams(window.location.search);
-  const token = params.get('token');
-  if (token) {
-    authenticate(token);
+async function checkAuth() {
+  if (!adminToken) { 
+    console.log('No token found, checking setup...');
+    checkSetup(); 
+    return; 
   }
-
-  // Enter key on login fields
-  const emailInput = document.getElementById('loginEmail');
-  const passInput = document.getElementById('loginPassword');
-  if (emailInput) {
-    emailInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') passInput.focus();
-    });
+  try {
+    const res = await fetch(API + '/admin/me', { headers: authHeaders() });
+    if (!res.ok) throw new Error('Unauthorized');
+    const admin = await res.json();
+    document.getElementById('adminName').textContent = admin.name || 'Admin';
+    document.getElementById('loginPage').style.display = 'none';
+    document.getElementById('appShell').style.display = 'block';
+    loadDashboard();
+  } catch (err) { 
+    console.error('Auth check failed:', err);
+    adminToken = null; 
+    localStorage.removeItem('admin_token'); 
+    checkSetup(); 
   }
-  if (passInput) {
-    passInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') loginWithPassword();
-    });
-  }
-});
+}
 
-// --- Auth ---
-async function loginWithPassword() {
+async function checkSetup() {
+  try {
+    const res = await fetch(API + '/admin/check-setup');
+    if (!res.ok) throw new Error('Setup check failed');
+    const data = await res.json();
+    console.log('Setup check result:', data);
+    document.getElementById('loginForm').style.display = data.has_admins ? 'block' : 'none';
+    document.getElementById('setupForm').style.display = data.has_admins ? 'none' : 'block';
+    document.getElementById('loginPage').style.display = 'block';
+    document.getElementById('appShell').style.display = 'none';
+  } catch (err) { 
+    console.error('Setup check error:', err);
+    document.getElementById('loginForm').style.display = 'block';
+    document.getElementById('loginPage').style.display = 'block';
+    document.getElementById('appShell').style.display = 'none';
+  }
+}
+
+async function adminLogin() {
   const email = document.getElementById('loginEmail').value.trim();
   const password = document.getElementById('loginPassword').value;
-
-  if (!email || !password) {
-    showAlert('loginAlert', 'Please enter both email and password.', 'error');
-    return;
-  }
-
+  if (!email || !password) { showAlert('loginAlert', 'Enter email and password.', 'error'); return; }
   const btn = document.getElementById('loginBtn');
-  btn.disabled = true;
-  btn.textContent = 'Signing in...';
-  document.getElementById('loginAlert').style.display = 'none';
-
+  btn.disabled = true; btn.textContent = 'Signing in...';
   try {
-    const res = await fetch(API + '/auth/login-password', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password })
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || 'Login failed');
-
-    sessionToken = data.session_token;
-    document.getElementById('employerName').textContent = data.employer?.name || data.employer?.email || '';
-    document.getElementById('loginPage').style.display = 'none';
-    document.getElementById('appShell').style.display = 'block';
-    loadDashboard();
-  } catch (err) {
-    showAlert('loginAlert', err.message, 'error');
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'Sign in';
-  }
-}
-
-async function authenticate(token) {
-  const loginAlert = document.getElementById('loginAlert');
-  const loginLoading = document.getElementById('loginLoading');
-  loginAlert.style.display = 'none';
-  loginLoading.style.display = 'block';
-
-  try {
-    const res = await fetch(API + '/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token })
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || 'Authentication failed');
-
-    sessionToken = data.session_token;
-    document.getElementById('employerName').textContent = data.employer?.name || data.employer?.email || '';
-    document.getElementById('loginPage').style.display = 'none';
-    document.getElementById('appShell').style.display = 'block';
-
-    // Clean URL
-    window.history.replaceState({}, '', window.location.pathname);
-    loadDashboard();
-  } catch (err) {
-    loginLoading.style.display = 'none';
-    loginAlert.textContent = err.message;
-    loginAlert.style.display = 'block';
-    loginAlert.className = 'alert alert-error visible';
-  }
-}
-
-function logout() {
-  fetch(API + '/auth/logout', {
-    method: 'POST',
-    headers: { 'Authorization': 'Bearer ' + sessionToken }
-  }).catch(() => {});
-  sessionToken = null;
-  document.getElementById('appShell').style.display = 'none';
-  document.getElementById('loginPage').style.display = 'flex';
-}
-
-function authHeaders() {
-  return { 'Authorization': 'Bearer ' + sessionToken, 'Content-Type': 'application/json' };
-}
-
-// --- Dashboard ---
-async function loadDashboard() {
-  const tbody = document.getElementById('engagementTable');
-  tbody.innerHTML = '<tr><td colspan="7" class="loading">Loading...</td></tr>';
-
-  try {
-    const res = await fetch(API + '/dashboard', { headers: authHeaders() });
-    if (!res.ok) throw new Error('Failed to load dashboard');
-    const data = await res.json();
-    engagementsData = data.engagements || [];
-
-    if (data.employer?.name) {
-      document.getElementById('employerName').textContent = data.employer.name;
+    const res = await fetch(API + '/admin/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.detail || 'Login failed');
     }
+    const data = await res.json();
+    adminToken = data.token;
+    localStorage.setItem('admin_token', adminToken);
+    document.getElementById('adminName').textContent = data.admin_name || 'Admin';
+    document.getElementById('loginPage').style.display = 'none';
+    document.getElementById('appShell').style.display = 'block';
+    loadDashboard();
+  } catch (err) { 
+    console.error('Login error:', err);
+    showAlert('loginAlert', err.message, 'error'); 
+  }
+  finally { btn.disabled = false; btn.textContent = 'Sign in'; }
+}
 
-    if (engagementsData.length === 0) {
+async function setupAdmin() {
+  const name = document.getElementById('setupName').value.trim();
+  const email = document.getElementById('setupEmail').value.trim();
+  const password = document.getElementById('setupPassword').value;
+  if (!name || !email || !password) { showAlert('loginAlert', 'Fill all fields.', 'error'); return; }
+  const btn = document.getElementById('setupBtn');
+  btn.disabled = true; btn.textContent = 'Creating...';
+  try {
+    const res = await fetch(API + '/admin/setup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, name, password }) });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.detail || 'Setup failed');
+    }
+    const data = await res.json();
+    showAlert('loginAlert', 'Admin created. Signing in...', 'success');
+    document.getElementById('loginEmail').value = email;
+    document.getElementById('loginPassword').value = password;
+    document.getElementById('setupForm').style.display = 'none';
+    document.getElementById('loginForm').style.display = 'block';
+    setTimeout(() => adminLogin(), 500);
+  } catch (err) { 
+    console.error('Setup error:', err);
+    showAlert('loginAlert', err.message, 'error'); 
+  }
+  finally { btn.disabled = false; btn.textContent = 'Create admin account'; }
+}
+
+function logout() { adminToken = null; localStorage.removeItem('admin_token'); location.reload(); }
+
+function navigate(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.sidebar .nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + page).classList.add('active');
+  document.querySelector(`.sidebar .nav-item[data-page="${page}"]`).classList.add('active');
+
+  if (page === 'dashboard') loadDashboard();
+  if (page === 'students') { loadStudentBatches(); loadStudents(); }
+  if (page === 'employers') loadEmployers();
+  if (page === 'form-intern-supervisor') loadFormTrack('intern');
+  if (page === 'form-graduate-employer') loadFormTrack('grad');
+  if (page === 'form-exit-survey') { loadAlumniRoster('exit'); loadAlumniBatches(); }
+  if (page === 'form-alumni-feedback') { loadAlumniRoster('feedback'); loadAlumniBatches(); }
+}
+
+async function loadDashboard() {
+  try {
+    const res = await fetch(API + '/admin/dashboard-stats', { headers: authHeaders() });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const s = await res.json();
+    document.getElementById('statsGrid').innerHTML = `
+      <div class="stat-card"><div class="value">${s.total_students || 0}</div><div class="label">Total students</div></div>
+      <div class="stat-card"><div class="value">${s.total_employers || 0}</div><div class="label">Employers</div></div>
+      <div class="stat-card"><div class="value">${s.total_engagements || 0}</div><div class="label">Engagements</div></div>
+      <div class="stat-card"><div class="value">${s.internship_engagements || 0}</div><div class="label">Internships</div></div>
+      <div class="stat-card"><div class="value">${s.job_engagements || 0}</div><div class="label">Graduate jobs</div></div>
+      <div class="stat-card"><div class="value">${s.proformas_validated || 0}</div><div class="label">Proformas validated</div></div>
+      <div class="stat-card"><div class="value">${s.proformas_pending || 0}</div><div class="label">Proformas pending</div></div>
+      <div class="stat-card"><div class="value">${(s.evals_submitted || 0) + (s.surveys_submitted || 0)}</div><div class="label">Feedback submitted</div></div>
+    `;
+  } catch (err) {
+    console.error('Failed to load stats:', err);
+    document.getElementById('statsGrid').innerHTML = '<div style="color:red;padding:1rem;">Failed to load statistics</div>';
+  }
+  
+  try {
+    const engRes = await fetch(API + '/admin/engagements', { headers: authHeaders() });
+    if (!engRes.ok) throw new Error(`HTTP ${engRes.status}`);
+    const engs = await engRes.json();
+    const recent = (engs || []).slice(0, 5);
+    if (!recent.length) { document.getElementById('recentEngagements').textContent = 'No engagements yet.'; return; }
+    document.getElementById('recentEngagements').innerHTML = '<table><thead><tr><th>Student</th><th>Employer</th><th>Type</th><th>Feedback</th></tr></thead><tbody>' +
+      recent.map(e => `<tr><td>${e.student_name || 'N/A'}</td><td>${e.employer_name || e.employer_email || 'N/A'}</td><td><span class="badge ${e.type === 'internship' ? 'badge-intern' : 'badge-graduate'}">${e.type === 'internship' ? 'Intern' : 'Graduate'}</span></td><td><span class="badge ${e.feedback_status === 'submitted' ? 'badge-submitted' : 'badge-pending'}">${e.feedback_status}</span></td></tr>`).join('') + '</tbody></table>';
+  } catch (err) {
+    console.error('Failed to load engagements:', err);
+    document.getElementById('recentEngagements').innerHTML = '<div style="color:red;">Failed to load engagements</div>';
+  }
+}
+
+let currentStudentStatus = '';
+let currentStudentBatch = '';
+
+function filterStudents(el, status) {
+  currentStudentStatus = status;
+  studentsCurrentPage = 1;
+  document.querySelectorAll('#page-students .tag-filter').forEach(f => f.classList.remove('active'));
+  el.classList.add('active');
+  loadStudents();
+}
+
+async function loadStudentBatches() {
+  try {
+    const res = await fetch(API + '/admin/batches-list', { headers: authHeaders() });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const batches = await res.json();
+    const select = document.getElementById('studentBatchFilter');
+    select.innerHTML = '<option value="">All batches</option>' +
+      batches.map(b => `<option value="${b.batch}">${b.batch} [${b.status.toUpperCase()}]</option>`).join('');
+  } catch (err) {
+    console.error('Failed to load batches:', err);
+  }
+}
+
+let studentsCurrentPage = 1;
+let studentsTotalCount = 0;
+
+function onStudentsPageSizeChange() {
+  studentsCurrentPage = 1;
+  loadStudents();
+}
+
+function goToStudentsPage(page) {
+  const pageSize = parseInt(document.getElementById('studentsPageSize').value, 10);
+  const maxPage = Math.max(1, Math.ceil(studentsTotalCount / pageSize));
+  if (page < 1 || page > maxPage) return;
+  studentsCurrentPage = page;
+  loadStudents();
+}
+
+async function loadStudents() {
+  const q = document.getElementById('studentSearchInput').value.trim();
+  const pageSize = parseInt(document.getElementById('studentsPageSize').value, 10);
+  const batch = document.getElementById('studentBatchFilter').value.trim();
+  try {
+    const res = await fetch(
+      API + '/admin/students?q=' + encodeURIComponent(q) + '&status=' + currentStudentStatus
+        + '&batch=' + encodeURIComponent(batch)
+        + '&page=' + studentsCurrentPage + '&page_size=' + pageSize,
+      { headers: authHeaders() }
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const students = data.students || [];
+    studentsTotalCount = data.total || 0;
+
+    const tbody = document.getElementById('studentsBody');
+    const empty = document.getElementById('studentsEmpty');
+    const pagination = document.getElementById('studentsPagination');
+
+    if (!students.length) {
       tbody.innerHTML = '';
-      document.getElementById('emptyState').style.display = 'block';
+      empty.style.display = 'block';
+      pagination.style.display = studentsTotalCount === 0 ? 'none' : 'flex';
+      document.getElementById('studentsPageInfo').textContent = studentsTotalCount === 0 ? '' : 'No results on this page.';
       return;
     }
+    empty.style.display = 'none';
+    pagination.style.display = 'flex';
 
-    document.getElementById('emptyState').style.display = 'none';
-    renderTable(engagementsData);
-  } catch (err) {
-    showAlert('dashboardAlert', err.message, 'error');
-    tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><p>Failed to load data.</p></td></tr>';
-  }
-}
-
-function renderTable(engagements) {
-  const tbody = document.getElementById('engagementTable');
-  tbody.innerHTML = '';
-
-  engagements.forEach((eng, idx) => {
-    // Main row
-    const tr = document.createElement('tr');
-    const typeBadge = eng.engagement_type === 'internship'
-      ? '<span class="badge badge-intern">Intern</span>'
-      : '<span class="badge badge-graduate">Graduate</span>';
-    const feedbackBadge = eng.feedback_status === 'submitted'
-      ? '<span class="badge badge-submitted">Submitted</span>'
-      : '<span class="badge badge-pending">Pending</span>';
-
-    let validationBadge = '<span class="badge badge-unconfirmed">Not confirmed</span>';
-    if (eng.validation_status === 'validated') validationBadge = '<span class="badge badge-confirmed">Confirmed</span>';
-    else if (eng.validation_status === 'rejected') validationBadge = '<span class="badge badge-rejected">Rejected</span>';
-
-    tr.innerHTML = `
-      <td style="font-weight:500">${eng.full_name || '—'}</td>
-      <td style="color:var(--text-secondary)">${eng.enrollment_number || '—'}</td>
-      <td>${typeBadge}</td>
-      <td style="color:var(--text-secondary)">${eng.role_designation || '—'}</td>
-      <td>${validationBadge}</td>
-      <td>${feedbackBadge}</td>
-      <td style="text-align:center">
-        <div class="action-btns">
-          <button class="btn btn-sm btn-secondary" onclick="toggleDetail('detail-${idx}')">View</button>
-          <button class="btn btn-sm btn-primary" onclick="openFeedbackForm('${eng.engagement_id}', '${eng.engagement_type}')" ${eng.feedback_status === 'submitted' ? 'disabled title="Already submitted"' : ''}>
-            ${eng.feedback_status === 'submitted' ? 'Submitted' : 'Feedback'}
-          </button>
+    tbody.innerHTML = students.map(s => `<tr>
+      <td>${s.full_name || 'N/A'}</td><td>${s.enrollment_number || 'N/A'}</td><td>${s.degree_program || 'N/A'}</td><td>${s.batch || 'N/A'}</td><td>${s.current_semester || '---'}</td>
+      <td>${statusBadges(s.statuses || [])}</td>
+      <td>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-sm btn-secondary" onclick='openStudentModal(${JSON.stringify(s)})'>Edit</button>
+          <button class="btn btn-sm btn-danger" onclick="deleteStudent('${s.id}', '${s.full_name ? s.full_name.replace(/'/g, "\\'") : 'Student'}')">Delete</button>
         </div>
       </td>
-    `;
-    tbody.appendChild(tr);
+    </tr>`).join('');
 
-    // Detail row
-    const detailTr = document.createElement('tr');
-    detailTr.className = 'detail-row';
-    detailTr.id = 'detail-' + idx;
-    const isConfirmed = eng.validation_status === 'validated' || eng.validation_status === 'edited';
-    const editable = !isConfirmed;
-
-    detailTr.innerHTML = `
-      <td colspan="7">
-        <div class="detail-content">
-          <div class="detail-grid">
-            <div class="detail-field"><label>Organization</label>${editable ? `<input type="text" class="proforma-input" data-field="organization_name" data-eng="${eng.engagement_id}" value="${eng.organization_name || ''}" style="width:100%;padding:6px 8px;border:1px solid var(--border-strong);border-radius:4px;font-size:13px;">` : `<p>${eng.organization_name || '—'}</p>`}</div>
-            <div class="detail-field"><label>Department</label>${editable ? `<input type="text" class="proforma-input" data-field="department_served" data-eng="${eng.engagement_id}" value="${eng.department_served || ''}" style="width:100%;padding:6px 8px;border:1px solid var(--border-strong);border-radius:4px;font-size:13px;">` : `<p>${eng.department_served || '—'}</p>`}</div>
-            <div class="detail-field"><label>Role / Position</label>${editable ? `<input type="text" class="proforma-input" data-field="role_designation" data-eng="${eng.engagement_id}" value="${eng.role_designation || ''}" style="width:100%;padding:6px 8px;border:1px solid var(--border-strong);border-radius:4px;font-size:13px;">` : `<p>${eng.role_designation || '—'}</p>`}</div>
-            <div class="detail-field"><label>Supervisor</label>${editable ? `<input type="text" class="proforma-input" data-field="supervisor_name" data-eng="${eng.engagement_id}" value="${eng.supervisor_name || ''}" style="width:100%;padding:6px 8px;border:1px solid var(--border-strong);border-radius:4px;font-size:13px;">` : `<p>${eng.supervisor_name || '—'}</p>`}</div>
-            <div class="detail-field"><label>Supervisor designation</label>${editable ? `<input type="text" class="proforma-input" data-field="supervisor_designation" data-eng="${eng.engagement_id}" value="${eng.supervisor_designation || ''}" style="width:100%;padding:6px 8px;border:1px solid var(--border-strong);border-radius:4px;font-size:13px;">` : `<p>${eng.supervisor_designation || '—'}</p>`}</div>
-            <div class="detail-field"><label>Contact email</label>${editable ? `<input type="text" class="proforma-input" data-field="contact_email" data-eng="${eng.engagement_id}" value="${eng.contact_email || ''}" style="width:100%;padding:6px 8px;border:1px solid var(--border-strong);border-radius:4px;font-size:13px;">` : `<p>${eng.contact_email || '—'}</p>`}</div>
-            <div class="detail-field"><label>Contact phone</label>${editable ? `<input type="text" class="proforma-input" data-field="contact_phone" data-eng="${eng.engagement_id}" value="${eng.contact_phone || ''}" style="width:100%;padding:6px 8px;border:1px solid var(--border-strong);border-radius:4px;font-size:13px;">` : `<p>${eng.contact_phone || '—'}</p>`}</div>
-            <div class="detail-field"><label>Start date</label><p>${formatDate(eng.start_date)}</p></div>
-            <div class="detail-field"><label>End date</label><p>${formatDate(eng.end_date)}</p></div>
-          </div>
-          ${editable ? `
-          <div class="detail-actions">
-            <button class="btn btn-sm btn-success" onclick="saveAndConfirmProforma('${eng.engagement_id}')">Save and confirm details</button>
-            <button class="btn btn-sm btn-secondary" onclick="validateProforma('${eng.engagement_id}', 'validated')">Confirm without changes</button>
-            <button class="btn btn-sm btn-danger-outline" onclick="validateProforma('${eng.engagement_id}', 'rejected')">Report incorrect</button>
-          </div>
-          ` : '<p style="font-size:13px;color:var(--success);">Details confirmed.</p>'}
-        </div>
-      </td>
-    `;
-    tbody.appendChild(detailTr);
-  });
-}
-
-function toggleDetail(id) {
-  const row = document.getElementById(id);
-  if (row) row.classList.toggle('open');
-}
-
-async function validateProforma(engagementId, status) {
-  try {
-    const res = await fetch(API + '/validate', {
-      method: 'POST',
-      headers: authHeaders(),
-      body: JSON.stringify({ engagement_id: engagementId, status })
-    });
-    if (!res.ok) {
-      const data = await res.json();
-      throw new Error(data.detail || 'Validation failed');
-    }
-    showAlert('dashboardAlert', status === 'validated' ? 'Details confirmed successfully.' : 'Details reported as incorrect.', 'success');
-    loadDashboard();
+    const maxPage = Math.max(1, Math.ceil(studentsTotalCount / pageSize));
+    const start = (studentsCurrentPage - 1) * pageSize + 1;
+    const end = Math.min(studentsCurrentPage * pageSize, studentsTotalCount);
+    document.getElementById('studentsPageInfo').textContent = `Showing ${start}-${end} of ${studentsTotalCount}`;
+    document.getElementById('studentsPageLabel').textContent = `Page ${studentsCurrentPage} of ${maxPage}`;
+    document.getElementById('studentsPrevBtn').disabled = studentsCurrentPage <= 1;
+    document.getElementById('studentsNextBtn').disabled = studentsCurrentPage >= maxPage;
   } catch (err) {
-    showAlert('dashboardAlert', err.message, 'error');
+    console.error('Failed to load students:', err);
+    document.getElementById('studentsBody').innerHTML = '';
+    document.getElementById('studentsEmpty').style.display = 'block';
   }
 }
 
-async function saveAndConfirmProforma(engagementId) {
-  const inputs = document.querySelectorAll(`.proforma-input[data-eng="${engagementId}"]`);
-  const payload = { engagement_id: engagementId };
-  inputs.forEach(inp => { payload[inp.dataset.field] = inp.value; });
-
-  try {
-    const res = await fetch(API + '/proforma/edit', {
-      method: 'POST',
-      headers: authHeaders(),
-      body: JSON.stringify(payload)
-    });
-    if (!res.ok) {
-      const data = await res.json();
-      throw new Error(data.detail || 'Update failed');
-    }
-    showAlert('dashboardAlert', 'Details updated and confirmed.', 'success');
-    loadDashboard();
-  } catch (err) {
-    showAlert('dashboardAlert', err.message, 'error');
-  }
-}
-
-// --- Feedback Form ---
-async function openFeedbackForm(engagementId, engagementType) {
-  currentEngagementId = engagementId;
-  currentEngagementType = engagementType;
-
-  document.getElementById('dashboardPage').style.display = 'none';
-  document.getElementById('formPage').style.display = 'block';
-  document.getElementById('formPage').className = 'form-page active';
-  document.getElementById('formAlert').style.display = 'none';
-  window.scrollTo(0, 0);
-
-  // Set form title based on type
-  const formTitle = engagementType === 'internship' ? 'Internship evaluation proforma' : 'Employer survey';
-  document.querySelector('#formPage .page-heading h2').textContent = formTitle;
-  document.querySelector('#formPage .page-heading p').textContent =
-    engagementType === 'internship'
-      ? 'Please rate the intern\'s performance on each indicator below on a scale of 1 (Needs Improvement) to 5 (Excellent).'
-      : 'Please rate the graduate against each attribute below based on your direct observation of their performance.';
-
-  // Build rating rows for the correct form
-  const ratingsBody = document.getElementById('ratingsBody');
-  ratingsBody.innerHTML = '';
-  const fields = engagementType === 'internship' ? INTERN_RATING_FIELDS : GRADUATE_RATING_FIELDS;
-  fields.forEach(f => {
-    const tr = document.createElement('tr');
-    let radios = '';
-    for (let i = 5; i >= 1; i--) {
-      radios += `<td><input type="radio" name="${f.key}" value="${i}"></td>`;
-    }
-    tr.innerHTML = `<td>${f.label}</td>${radios}`;
-    ratingsBody.appendChild(tr);
-  });
-
-  // Show/hide type-specific sections
-  const internSectionD = document.getElementById('internSectionD');
-  const graduateExtras = document.getElementById('graduateExtras');
-  const employmentContext = document.getElementById('employmentContextCard');
-
-  if (engagementType === 'internship') {
-    // Build Section D rating rows
-    const sectionDBody = document.getElementById('sectionDBody');
-    sectionDBody.innerHTML = '';
-    INTERN_SECTION_D_FIELDS.forEach(f => {
-      const tr = document.createElement('tr');
-      let radios = '';
-      for (let i = 5; i >= 1; i--) {
-        radios += `<td><input type="radio" name="${f.key}" value="${i}"></td>`;
-      }
-      tr.innerHTML = `<td>${f.label}</td>${radios}`;
-      sectionDBody.appendChild(tr);
-    });
-    internSectionD.style.display = 'block';
-    graduateExtras.style.display = 'none';
-    employmentContext.style.display = 'none';
+// --- Student CRUD ---
+function openStudentModal(student) {
+  document.getElementById('csvModal').style.display = 'none';
+  const modal = document.getElementById('studentModal');
+  modal.style.display = 'block';
+  document.getElementById('studentModalAlert').style.display = 'none';
+  if (student && student.id) {
+    document.getElementById('studentModalTitle').textContent = 'Edit student';
+    document.getElementById('studentModalId').value = student.id;
+    document.getElementById('studentModalName').value = student.full_name || '';
+    document.getElementById('studentModalEnr').value = student.enrollment_number || '';
+    document.getElementById('studentModalProg').value = student.degree_program || '';
+    document.getElementById('studentModalBatch').value = student.batch || '';
+    document.getElementById('studentModalSem').value = student.current_semester || '';
   } else {
-    internSectionD.style.display = 'none';
-    graduateExtras.style.display = 'block';
-    employmentContext.style.display = 'block';
+    document.getElementById('studentModalTitle').textContent = 'Add student';
+    document.getElementById('studentModalId').value = '';
+    ['studentModalName', 'studentModalEnr', 'studentModalProg', 'studentModalBatch', 'studentModalSem'].forEach(id => document.getElementById(id).value = '');
   }
-
-  // Fetch existing data
-  const endpoint = engagementType === 'internship' ? '/internship-eval/' : '/survey/';
-  try {
-    const res = await fetch(API + endpoint + engagementId, { headers: authHeaders() });
-    if (!res.ok) throw new Error('Failed to load form data');
-    const data = await res.json();
-
-    // Populate student info
-    const grid = document.getElementById('studentInfoGrid');
-    const s = data.student || {};
-    let infoHtml = `
-      <div class="info-item"><label>Name</label><span>${s.full_name || '—'}</span></div>
-      <div class="info-item"><label>Enrollment</label><span>${s.enrollment_number || '—'}</span></div>
-      <div class="info-item"><label>Batch</label><span>${s.batch || '—'}</span></div>
-      <div class="info-item"><label>Program</label><span>${s.degree_program || '—'}</span></div>
-      <div class="info-item"><label>Organization</label><span>${s.organization_name || '—'}</span></div>
-      <div class="info-item"><label>Role</label><span>${s.role_designation || '—'}</span></div>
-      <div class="info-item"><label>Period</label><span>${formatDate(s.start_date)} — ${formatDate(s.end_date)}</span></div>
-    `;
-    if (engagementType === 'internship' && s.current_semester) {
-      infoHtml += `<div class="info-item"><label>Semester</label><span>${s.current_semester}</span></div>`;
-    }
-    grid.innerHTML = infoHtml;
-
-    // Pre-fill if data exists
-    const existing = data.survey || data.evaluation || {};
-    if (engagementType === 'job') {
-      document.getElementById('current_job_role').value = existing.current_job_role || '';
-      document.getElementById('employment_department').value = existing.employment_department || '';
-      document.getElementById('employment_duration').value = existing.employment_duration || '';
-      if (existing.overall_performance) {
-        const perfRadio = document.querySelector(`input[name="overall_performance"][value="${existing.overall_performance}"]`);
-        if (perfRadio) perfRadio.checked = true;
-      }
-    }
-    document.getElementById('comments').value = existing.comments || '';
-
-    // Pre-fill ratings
-    const allFields = engagementType === 'internship'
-      ? [...INTERN_RATING_FIELDS, ...INTERN_SECTION_D_FIELDS]
-      : GRADUATE_RATING_FIELDS;
-    allFields.forEach(f => {
-      const val = existing[f.key];
-      if (val) {
-        const radio = document.querySelector(`input[name="${f.key}"][value="${val}"]`);
-        if (radio) radio.checked = true;
-      }
-    });
-    if (engagementType === 'internship' && existing.attendance_bracket) {
-      document.getElementById('attendance_bracket').value = existing.attendance_bracket;
-    }
-
-  } catch (err) {
-    showAlert('formAlert', err.message, 'error');
-  }
+  modal.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
-async function submitFeedback() {
-  const btn = document.getElementById('submitBtn');
-  btn.disabled = true;
-  btn.textContent = 'Submitting...';
-  document.getElementById('formAlert').style.display = 'none';
+function closeStudentModal() {
+  document.getElementById('studentModal').style.display = 'none';
+}
 
-  const isInternship = currentEngagementType === 'internship';
-  const fields = isInternship
-    ? [...INTERN_RATING_FIELDS, ...INTERN_SECTION_D_FIELDS]
-    : GRADUATE_RATING_FIELDS;
-
-  const payload = { engagement_id: currentEngagementId };
-
-  // Collect ratings
-  let allRated = true;
-  fields.forEach(f => {
-    const checked = document.querySelector(`input[name="${f.key}"]:checked`);
-    if (checked) {
-      payload[f.key] = parseInt(checked.value);
-    } else {
-      allRated = false;
-    }
-  });
-
-  if (!allRated) {
-    showAlert('formAlert', 'Please provide a rating for all questions.', 'error');
-    btn.disabled = false;
-    btn.textContent = 'Submit';
+async function saveStudent() {
+  const id = document.getElementById('studentModalId').value;
+  const payload = {
+    full_name: document.getElementById('studentModalName').value.trim(),
+    enrollment_number: document.getElementById('studentModalEnr').value.trim(),
+    degree_program: document.getElementById('studentModalProg').value.trim(),
+    batch: document.getElementById('studentModalBatch').value.trim(),
+    current_semester: document.getElementById('studentModalSem').value.trim(),
+  };
+  if (!payload.full_name || !payload.enrollment_number || !payload.degree_program || !payload.batch) {
+    showAlert('studentModalAlert', 'Name, enrollment number, program, and batch are required.', 'error');
     return;
   }
+  const btn = document.getElementById('studentModalSaveBtn');
+  btn.disabled = true; btn.textContent = 'Saving...';
+  try {
+    const url = id ? API + '/admin/students/' + id : API + '/admin/students';
+    const method = id ? 'PUT' : 'POST';
+    const res = await fetch(url, { method, headers: authHeaders(), body: JSON.stringify(payload) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Failed to save student');
+    showAlert('studentActionAlert', id ? 'Student updated.' : 'Student added.', 'success');
+    closeStudentModal();
+    loadStudents();
+  } catch (err) {
+    showAlert('studentModalAlert', err.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Save';
+  }
+}
 
-  if (isInternship) {
-    payload.attendance_bracket = document.getElementById('attendance_bracket').value;
-    if (!payload.attendance_bracket) {
-      showAlert('formAlert', 'Please select the attendance bracket.', 'error');
-      btn.disabled = false;
-      btn.textContent = 'Submit';
+async function deleteStudent(id, name) {
+  if (!confirm(`Delete ${name}? This can't be undone.`)) return;
+  try {
+    const res = await fetch(API + '/admin/students/' + id, { method: 'DELETE', headers: authHeaders() });
+    const data = await res.json();
+    if (res.ok) {
+      showAlert('studentActionAlert', 'Student deleted successfully.', 'success');
+      loadStudents();
       return;
     }
-  } else {
-    payload.current_job_role = document.getElementById('current_job_role').value;
-    payload.employment_department = document.getElementById('employment_department').value;
-    payload.employment_duration = document.getElementById('employment_duration').value;
-    const perfChecked = document.querySelector('input[name="overall_performance"]:checked');
-    payload.overall_performance = perfChecked ? perfChecked.value : '';
-  }
-
-  payload.comments = document.getElementById('comments').value;
-
-  const endpoint = isInternship ? '/internship-eval/submit' : '/survey/submit';
-
-  try {
-    const res = await fetch(API + endpoint, {
-      method: 'POST',
-      headers: authHeaders(),
-      body: JSON.stringify(payload)
-    });
-    if (!res.ok) {
-      const data = await res.json();
-      throw new Error(data.detail || 'Submission failed');
+    // If there are related records that can't be cascade deleted
+    if (res.status === 400 && data.detail && data.detail.includes('related records')) {
+      showAlert('studentActionAlert', 'Cannot delete: Student has related records. Please remove them first.', 'error');
+      return;
     }
-    showAlert('dashboardAlert', 'Feedback submitted successfully.', 'success');
-    showDashboard();
-    loadDashboard();
+    throw new Error(data.detail || 'Failed to delete student');
   } catch (err) {
-    showAlert('formAlert', err.message, 'error');
+    showAlert('studentActionAlert', err.message, 'error');
+  }
+}
+
+// --- CSV bulk upload ---
+let parsedCsvRows = [];
+
+function openCsvModal() {
+  document.getElementById('studentModal').style.display = 'none';
+  document.getElementById('csvModal').style.display = 'block';
+  document.getElementById('csvModalAlert').style.display = 'none';
+  document.getElementById('csvPreview').style.display = 'none';
+  document.getElementById('csvUploadBtn').disabled = true;
+  document.getElementById('csvFileInput').value = '';
+  parsedCsvRows = [];
+  document.getElementById('csvModal').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function closeCsvModal() {
+  document.getElementById('csvModal').style.display = 'none';
+}
+
+function parseCsv(text) {
+  // Minimal CSV parser: handles quoted fields with embedded commas, no
+  // embedded newlines inside quotes (fine for a flat roster export).
+  // Strip a leading UTF-8 BOM -- Excel/Windows CSV exports commonly add
+  // one, which otherwise corrupts the first header cell silently.
+  if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+  const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
+  if (!lines.length) return { header: [], rows: [] };
+  const parseLine = (line) => {
+    const out = [];
+    let cur = '', inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (inQuotes) {
+        if (c === '"' && line[i + 1] === '"') { cur += '"'; i++; }
+        else if (c === '"') { inQuotes = false; }
+        else { cur += c; }
+      } else {
+        if (c === '"') inQuotes = true;
+        else if (c === ',') { out.push(cur); cur = ''; }
+        else cur += c;
+      }
+    }
+    out.push(cur);
+    return out.map(v => v.trim());
+  };
+  const header = parseLine(lines[0]).map(h => h.toLowerCase().trim());
+  const rows = lines.slice(1).map(parseLine);
+  return { header, rows };
+}
+
+// Two known column layouts, checked in order. Each maps a target field
+// (full_name, enrollment_number, degree_program, batch) to one or more
+// candidate header names -- the first one present in the file wins.
+// This is how the real OBE export (StudentName/RollNo/batch_name/batch_year)
+// is accepted directly, without the user reformatting it first.
+const CSV_FIELD_ALIASES = {
+  full_name: ['full_name', 'studentname', 'student_name', 'name'],
+  enrollment_number: ['enrollment_number', 'rollno', 'roll_no', 'enrollment', 'enrollmentnumber'],
+  degree_program: ['degree_program', 'batch_name', 'program', 'degreeprogram'],
+  batch: ['batch', 'batch_year', 'batchyear'],
+};
+// Optional -- not required for a match, but used as the stable identity key
+// when present (the OBE export's S_ID column) so re-uploads update the
+// right row even if enrollment_number ever changes.
+const CSV_OPTIONAL_FIELD_ALIASES = {
+  obe_student_id: ['obe_student_id', 's_id', 'sid'],
+};
+
+function detectCsvMapping(header) {
+  const mapping = {};
+  const missing = [];
+  for (const [field, aliases] of Object.entries(CSV_FIELD_ALIASES)) {
+    const found = aliases.find(a => header.includes(a));
+    if (found) mapping[field] = header.indexOf(found);
+    else missing.push(field);
+  }
+  for (const [field, aliases] of Object.entries(CSV_OPTIONAL_FIELD_ALIASES)) {
+    const found = aliases.find(a => header.includes(a));
+    if (found) mapping[field] = header.indexOf(found);
+  }
+  return { mapping, missing };
+}
+
+function handleCsvFileChange() {
+  console.log('[csv] handleCsvFileChange fired');
+  const fileInput = document.getElementById('csvFileInput');
+  const file = fileInput.files[0];
+  if (!file) { console.log('[csv] no file selected'); return; }
+  console.log('[csv] reading file:', file.name, file.size, 'bytes');
+  const reader = new FileReader();
+  reader.onerror = () => {
+    console.error('[csv] FileReader error', reader.error);
+    showAlert('csvModalAlert', 'Could not read the file: ' + reader.error, 'error');
+  };
+  reader.onload = () => {
+    console.log('[csv] file read, length:', reader.result.length);
+    try {
+      const { header, rows } = parseCsv(reader.result);
+      console.log('[csv] parsed header:', header, 'row count:', rows.length);
+
+      const { mapping, missing } = detectCsvMapping(header);
+      console.log('[csv] detected mapping:', mapping, 'missing:', missing);
+
+      if (missing.length) {
+        showAlert('csvModalAlert', `Couldn't find a column for: ${missing.join(', ')}. Found columns: ${header.join(', ') || '(none detected)'}`, 'error');
+        document.getElementById('csvUploadBtn').disabled = true;
+        document.getElementById('csvPreview').style.display = 'none';
+        return;
+      }
+
+      parsedCsvRows = rows.map(r => ({
+        full_name: r[mapping.full_name] || '',
+        enrollment_number: r[mapping.enrollment_number] || '',
+        degree_program: r[mapping.degree_program] || '',
+        batch: r[mapping.batch] || '',
+        current_semester: '',
+        obe_student_id: mapping.obe_student_id !== undefined ? (r[mapping.obe_student_id] || '') : '',
+      })).filter(r => r.full_name && r.enrollment_number);
+
+      console.log('[csv] valid rows after filtering:', parsedCsvRows.length);
+
+      document.getElementById('csvRowCount').textContent = parsedCsvRows.length;
+      document.getElementById('csvPreviewBody').innerHTML = parsedCsvRows.slice(0, 20).map(r =>
+        `<tr><td>${r.full_name}</td><td>${r.enrollment_number}</td><td>${r.degree_program}</td><td>${r.batch}</td></tr>`
+      ).join('');
+      document.getElementById('csvPreview').style.display = 'block';
+      document.getElementById('csvUploadBtn').disabled = parsedCsvRows.length === 0;
+      if (!parsedCsvRows.length) {
+        showAlert('csvModalAlert', 'Found the right columns, but no rows had both a name and an enrollment number filled in.', 'error');
+      } else {
+        document.getElementById('csvModalAlert').style.display = 'none';
+      }
+    } catch (err) {
+      console.error('[csv] parse error', err);
+      showAlert('csvModalAlert', 'Could not parse this file as CSV: ' + err.message, 'error');
+    }
+  };
+  reader.readAsText(file);
+}
+
+async function submitCsvUpload() {
+  if (!parsedCsvRows.length) return;
+  const btn = document.getElementById('csvUploadBtn');
+  btn.disabled = true; btn.textContent = 'Uploading...';
+  try {
+    const res = await fetch(API + '/admin/students/bulk', {
+      method: 'POST', headers: authHeaders(), body: JSON.stringify({ rows: parsedCsvRows })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Upload failed');
+    console.log('[csv] upload result:', data);
+    const failedCount = data.failed_count || (data.failed ? data.failed.length : 0);
+    if (failedCount > 0) {
+      const sample = (data.failed || []).slice(0, 5).map(f => `Row ${f.row} (${f.enrollment_number}): ${f.error}`).join('\n');
+      console.error('[csv] failed rows:', data.failed);
+      showAlert('csvModalAlert', `Created ${data.created}, updated ${data.updated}, ${failedCount} failed. First few errors:\n${sample}`, 'error');
+      document.getElementById('csvModalAlert').style.whiteSpace = 'pre-line';
+      // Don't close the modal -- let the person see the errors and retry.
+      if (data.created > 0 || data.updated > 0) loadStudents();
+    } else {
+      showAlert('studentActionAlert', `Created ${data.created}, updated ${data.updated}.`, 'success');
+      closeCsvModal();
+      loadStudents();
+    }
+  } catch (err) {
+    showAlert('csvModalAlert', err.message, 'error');
   } finally {
-    btn.disabled = false;
-    btn.textContent = 'Submit';
+    btn.disabled = false; btn.textContent = 'Upload';
   }
 }
 
-function showDashboard() {
-  document.getElementById('formPage').style.display = 'none';
-  document.getElementById('formPage').className = 'form-page';
-  document.getElementById('dashboardPage').style.display = 'block';
-  currentEngagementId = null;
-  currentEngagementType = null;
-  window.scrollTo(0, 0);
+let currentEmployerStatus = '';
+function filterEmployers(el, status) {
+  currentEmployerStatus = status;
+  document.querySelectorAll('#page-employers .tag-filter').forEach(f => f.classList.remove('active'));
+  el.classList.add('active');
+  loadEmployers();
 }
 
-// --- Helpers ---
-function formatDate(d) {
-  if (!d) return '—';
-  return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+async function loadEmployers() {
+  try {
+    const res = await fetch(API + '/admin/employers?status=' + currentEmployerStatus, { headers: authHeaders() });
+    const data = await res.json();
+    document.getElementById('employersBody').innerHTML = data.map(e => `
+      <tr><td>${e.work_email}</td><td>${e.name || '---'}</td><td>${e.designation || '---'}</td>
+      <td>${statusBadges(e.statuses)}</td>
+      <td>${e.total_engagements}</td><td>${(e.surveys_submitted || 0) + (e.evals_submitted || 0)} submitted</td>
+      <td>${new Date(e.created_at).toLocaleDateString()}</td>
+      <td><button class="btn btn-sm btn-secondary" onclick="prefillEmail('${e.work_email}')">Email</button></td></tr>
+    `).join('');
+  } catch (err) { console.error(err); }
 }
 
-function showAlert(id, message, type) {
-  const el = document.getElementById(id);
-  el.textContent = message;
-  el.className = `alert alert-${type} visible`;
+function prefillEmail(email) {
+  navigate('email');
+  document.getElementById('emailAudience').value = 'specific';
+  toggleSpecificEmails();
+  document.getElementById('specificEmails').value = email;
+}
+
+function searchStudentsFor(prefix, q) {
+  clearTimeout(searchTimeouts[prefix]);
+  const resultsEl = document.getElementById(prefix + 'StudentResults');
+  if (q.length < 2) { resultsEl.style.display = 'none'; return; }
+  searchTimeouts[prefix] = setTimeout(async () => {
+    // Typeahead dropdown, not a browsable table -- cap results with
+    // page_size rather than paginating; 25 is plenty for a live search.
+    const res = await fetch(API + '/admin/students?q=' + encodeURIComponent(q) + '&page_size=25', { headers: authHeaders() });
+    const data = await res.json();
+    let students = data.students || [];
+
+    // Internship initiation only: hide students whose batch is old enough
+    // that they've almost certainly graduated (4-year BS program), since an
+    // internship offer doesn't make sense for someone years past graduation.
+    // Only filters on a batch that parses as a clean 4-digit year -- a
+    // missing or malformed batch value is left visible rather than silently
+    // hidden, since a wrongly-hidden active student is a worse failure than
+    // an unfiltered stale one.
+    if (prefix === 'intern') {
+      const currentYear = new Date().getFullYear();
+      const MAX_PROGRAM_YEARS = 4;
+      students = students.filter(s => {
+        const batchYear = parseInt(s.batch, 10);
+        if (isNaN(batchYear) || String(batchYear) !== String(s.batch).trim()) return true;
+        return (currentYear - batchYear) < MAX_PROGRAM_YEARS;
+      });
+    }
+
+    resultsEl.innerHTML = students.length
+      ? students.map(s => `<div class="student-item" onclick="selectStudentFor('${prefix}','${s.id}','${s.full_name}','${s.enrollment_number}','${s.degree_program}','${s.batch}','${s.current_semester || ''}')"><strong>${s.full_name}</strong><br><span class="sub">${s.enrollment_number} - ${s.degree_program} - Batch ${s.batch}</span></div>`).join('')
+      : `<div class="student-item" style="color:var(--text-muted)">No ${prefix === 'intern' ? 'active ' : ''}students found</div>`;
+    resultsEl.style.display = 'block';
+  }, 300);
+}
+
+function selectStudentFor(prefix, id, name, enr, prog, batch, semester) {
+  if (prefix === 'intern') selectedInternStudentId = id; else selectedGradStudentId = id;
+  document.getElementById(prefix + 'StudentResults').style.display = 'none';
+  document.getElementById(prefix + 'StudentSearch').style.display = 'none';
+  const el = document.getElementById(prefix + 'SelectedStudent');
   el.style.display = 'block';
-  if (type === 'success') {
-    setTimeout(() => { el.style.display = 'none'; }, 5000);
+  el.innerHTML = renderStudentProfileCard({ prefix, name, enr, prog, batch, semester });
+}
+function clearStudentFor(prefix) {
+  if (prefix === 'intern') selectedInternStudentId = null; else selectedGradStudentId = null;
+  document.getElementById(prefix + 'SelectedStudent').style.display = 'none';
+  document.getElementById(prefix + 'StudentSearch').style.display = 'block';
+  document.getElementById(prefix + 'StudentSearch').value = '';
+}
+
+async function createEngagementFor(type) {
+  const prefix = type === 'internship' ? 'intern' : 'grad';
+  const studentId = type === 'internship' ? selectedInternStudentId : selectedGradStudentId;
+  const email = document.getElementById(prefix + 'EmployerEmail').value.trim();
+  const alertId = type === 'internship' ? 'createInternAlert' : 'createGradAlert';
+  const btnId = type === 'internship' ? 'createInternBtn' : 'createGradBtn';
+
+  if (!email) { showAlert(alertId, 'Enter employer email.', 'error'); return; }
+  if (!studentId) { showAlert(alertId, 'Search and select a student.', 'error'); return; }
+
+  const btn = document.getElementById(btnId); btn.disabled = true; btn.textContent = 'Creating...';
+  try {
+    const payload = {
+      student_id: studentId, employer_email: email, engagement_type: type,
+      organization_name: document.getElementById(prefix + 'Org').value,
+      role_designation: document.getElementById(prefix + 'Role').value,
+      department_served: document.getElementById(prefix + 'Dept').value,
+      supervisor_name: document.getElementById(prefix + 'Supervisor').value,
+      supervisor_designation: document.getElementById(prefix + 'SupervisorDesig').value,
+      contact_email: document.getElementById(prefix + 'ContactEmail').value,
+      contact_phone: document.getElementById(prefix + 'Phone').value,
+      linkedin_url: document.getElementById(prefix + 'Linkedin') ? document.getElementById(prefix + 'Linkedin').value : '',
+      start_date: document.getElementById(prefix + 'Start').value,
+      end_date: document.getElementById(prefix + 'End').value,
+      send_invite: document.getElementById(prefix + 'SendInvite').checked,
+    };
+    const res = await fetch(API + '/admin/engagements', { method: 'POST', headers: authHeaders(), body: JSON.stringify(payload) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Failed');
+    showAlert(alertId, data.message, data.sent ? 'success' : 'warning');
+    if (data.manual_url) {
+      const l = document.getElementById(prefix + 'ManualLink'); l.style.display = 'block'; l.innerHTML = `<strong>Manual link:</strong><br>${data.manual_url}`;
+    }
+    clearStudentFor(prefix);
+    document.getElementById(prefix + 'EmployerEmail').value = '';
+    ['Org', 'Role', 'Dept', 'Supervisor', 'SupervisorDesig', 'ContactEmail', 'Phone', 'Linkedin', 'Start', 'End'].forEach(f => {
+      const elField = document.getElementById(prefix + f);
+      if (elField) elField.value = '';
+    });
+    loadFormTrack(prefix);
+  } catch (err) { showAlert(alertId, err.message, 'error'); }
+  finally { btn.disabled = false; btn.textContent = type === 'internship' ? 'Initiate internship evaluation' : 'Initiate graduate feedback'; }
+}
+
+async function loadFormTrack(kind) {
+  try {
+    const res = await fetch(API + '/admin/engagements', { headers: authHeaders() });
+    const data = await res.json();
+    const type = kind === 'intern' ? 'internship' : 'job';
+    const filtered = data.filter(e => e.type === type);
+    const tbody = document.getElementById(kind + 'TrackBody');
+    tbody.innerHTML = filtered.map(e => `
+      <tr><td>${e.student_name}</td><td>${e.enrollment_number}</td><td>${e.employer_name || e.employer_email}</td>
+      <td><span class="badge ${e.validation_status === 'validated' || e.validation_status === 'edited' ? 'badge-submitted' : 'badge-pending'}">${e.validation_status || 'pending'}</span></td>
+      <td><span class="badge ${e.feedback_status === 'submitted' ? 'badge-submitted' : 'badge-pending'}">${e.feedback_status}</span></td>
+      <td>${new Date(e.created_at).toLocaleDateString()}</td></tr>
+    `).join('');
+  } catch (err) { console.error(err); }
+}
+
+// --- Batch dropdown, shared by Exit Survey and Alumni Feedback initiate forms ---
+// Fetched once per tab visit; each batch option carries its own eligibility
+// counts so the person can see, before sending, whether there's anyone to
+// send to and why -- rather than discovering "no eligible alumni" only
+// after clicking send.
+let alumniBatchSummaries = [];
+
+async function loadAlumniBatches() {
+  try {
+    const res = await fetch(API + '/admin/alumni/batches', { headers: authHeaders() });
+    alumniBatchSummaries = await res.json();
+  } catch (err) {
+    console.error(err);
+    alumniBatchSummaries = [];
+  }
+  populateBatchSelect('exitCampaignBatch');
+  populateBatchSelect('alumniFbCampaignBatch');
+  onExitBatchChange();
+  onAlumniFbBatchChange();
+}
+
+function populateBatchSelect(selectId) {
+  const select = document.getElementById(selectId);
+  const previousValue = select.value;
+  if (!alumniBatchSummaries.length) {
+    select.innerHTML = '<option value="">No alumni batches on record</option>';
+    return;
+  }
+  select.innerHTML = '<option value="">Select a batch...</option>' +
+    alumniBatchSummaries.map(b => `<option value="${b.batch}">${b.batch} [${b.batch_status.toUpperCase()}] (${b.total_alumni} alumni)</option>`).join('');
+  if (previousValue && alumniBatchSummaries.some(b => b.batch === previousValue)) {
+    select.value = previousValue;
   }
 }
+
+function onExitBatchChange() {
+  const batch = document.getElementById('exitCampaignBatch').value;
+  const summaryEl = document.getElementById('exitBatchSummary');
+  const btn = document.getElementById('exitSendBtn');
+  const info = alumniBatchSummaries.find(b => b.batch === batch);
+  if (!batch || !info) {
+    summaryEl.style.display = 'none';
+    btn.disabled = true;
+    return;
+  }
+  summaryEl.style.display = 'block';
+  if (info.exit_survey_eligible > 0) {
+    summaryEl.innerHTML = `<strong>${info.exit_survey_eligible}</strong> alumni eligible to receive it now. ` +
+      `${info.info_pending} still need info confirmation first. ${info.exit_survey_completed} already completed the survey.`;
+    btn.disabled = false;
+  } else if (info.info_pending > 0) {
+    summaryEl.innerHTML = `No one is eligible yet -- all ${info.info_pending} alumni in this batch still need to confirm their info first (Alumni Feedback tab).`;
+    btn.disabled = true;
+  } else {
+    summaryEl.innerHTML = `Everyone in this batch (${info.exit_survey_completed} of ${info.total_alumni}) has already completed the exit survey.`;
+    btn.disabled = true;
+  }
+}
+
+function onAlumniFbBatchChange() {
+  const batch = document.getElementById('alumniFbCampaignBatch').value;
+  const type = document.getElementById('alumniFbCampaignType').value;
+  const summaryEl = document.getElementById('alumniFbBatchSummary');
+  const btn = document.getElementById('alumniFbSendBtn');
+  const info = alumniBatchSummaries.find(b => b.batch === batch);
+  if (!batch || !info) {
+    summaryEl.style.display = 'none';
+    btn.disabled = true;
+    return;
+  }
+  summaryEl.style.display = 'block';
+  if (type === 'info-confirmation') {
+    if (info.info_pending > 0) {
+      summaryEl.innerHTML = `<strong>${info.info_pending}</strong> alumni haven't confirmed their info yet. ${info.info_confirmed} already have.`;
+      btn.disabled = false;
+    } else {
+      summaryEl.innerHTML = `All ${info.total_alumni} alumni in this batch have already confirmed their info.`;
+      btn.disabled = true;
+    }
+  } else {
+    // Feedback form is repeatable per survey year, so it's never blocked by
+    // a "nobody eligible" state the way info-confirmation/exit-survey are --
+    // whether a given alumnus already has a form for the chosen year is
+    // only known once a year is typed in, so this just shows batch size.
+    summaryEl.innerHTML = `${info.total_alumni} alumni in this batch. Already-sent forms for the survey year you enter below are skipped automatically.`;
+    btn.disabled = false;
+  }
+}
+
+async function loadAlumniRoster(scope) {
+  const filterInputId = scope === 'exit' ? 'exitRosterBatchFilter' : 'alumniFbRosterBatchFilter';
+  const batch = document.getElementById(filterInputId).value.trim();
+  try {
+    const res = await fetch(API + '/admin/alumni/roster' + (batch ? '?batch=' + encodeURIComponent(batch) : ''), { headers: authHeaders() });
+    const rows = await res.json();
+
+    if (scope === 'exit') {
+      const tbody = document.getElementById('exitTrackBody');
+      const empty = document.getElementById('exitTrackEmpty');
+      if (!rows.length) { tbody.innerHTML = ''; empty.style.display = 'block'; return; }
+      empty.style.display = 'none';
+      tbody.innerHTML = rows.map(r => `
+        <tr>
+          <td>${r.full_name}</td>
+          <td>${r.enrollment_number}</td>
+          <td>${r.batch} <span style="font-size:11px;color:#6b7280;margin-left:4px;">[${r.batch_status}]</span></td>
+          <td><span class="badge ${r.info_status === 'pending' ? 'badge-pending' : 'badge-submitted'}">${r.info_status}</span></td>
+          <td><span class="badge ${r.exit_survey_status === 'pending' ? 'badge-pending' : 'badge-submitted'}">${r.exit_survey_status}</span></td>
+        </tr>
+      `).join('');
+    } else {
+      const tbody = document.getElementById('alumniFbTrackBody');
+      const empty = document.getElementById('alumniFbTrackEmpty');
+      if (!rows.length) { tbody.innerHTML = ''; empty.style.display = 'block'; return; }
+      empty.style.display = 'none';
+      tbody.innerHTML = rows.map(r => `
+        <tr>
+          <td>${r.full_name}</td>
+          <td>${r.enrollment_number}</td>
+          <td>${r.batch} <span style="font-size:11px;color:#6b7280;margin-left:4px;">[${r.batch_status}]</span></td>
+          <td>${r.email}</td>
+          <td><span class="badge ${r.info_status === 'pending' ? 'badge-pending' : 'badge-submitted'}">${r.info_status}</span></td>
+          <td>${r.feedback_completed} / ${r.feedback_sent}</td>
+        </tr>
+      `).join('');
+    }
+  } catch (err) { console.error(err); }
+}
+
+async function sendCampaign(type, batchSelectId, alertId) {
+  const batch = document.getElementById(batchSelectId).value;
+  if (!batch) { showAlert(alertId, 'Select a batch.', 'error'); return; }
+  try {
+    const res = await fetch(API + '/admin/alumni/campaigns/' + type, { method: 'POST', headers: authHeaders(), body: JSON.stringify({ batch }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Failed');
+    showAlert(alertId, `Sent to ${data.sent} alumni.`, 'success');
+    loadAlumniRoster('exit');
+    loadAlumniBatches();
+  } catch (err) { showAlert(alertId, err.message, 'error'); }
+}
+
+function toggleAlumniSurveyYear() {
+  document.getElementById('alumniFbSurveyYearGroup').style.display = document.getElementById('alumniFbCampaignType').value === 'feedback-form' ? 'block' : 'none';
+}
+
+async function sendAlumniFeedbackCampaign() {
+  const batch = document.getElementById('alumniFbCampaignBatch').value;
+  const type = document.getElementById('alumniFbCampaignType').value;
+  if (!batch) { showAlert('alumniFeedbackCampaignAlert', 'Select a batch.', 'error'); return; }
+  const body = { batch };
+  if (type === 'feedback-form') {
+    const year = document.getElementById('alumniFbSurveyYear').value.trim();
+    if (!year) { showAlert('alumniFeedbackCampaignAlert', 'Enter a survey year.', 'error'); return; }
+    body.survey_year = year;
+  }
+  try {
+    const res = await fetch(API + '/admin/alumni/campaigns/' + type, { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Failed');
+    const msg = 'skipped_already_has_form_for_year' in data
+      ? `Sent to ${data.sent} alumni (${data.skipped_already_has_form_for_year} already had a form for this year).`
+      : `Sent to ${data.sent} alumni.`;
+    showAlert('alumniFeedbackCampaignAlert', msg, 'success');
+    loadAlumniRoster('feedback');
+    loadAlumniBatches();
+  } catch (err) { showAlert('alumniFeedbackCampaignAlert', err.message, 'error'); }
+}
+
+function toggleSpecificEmails() { document.getElementById('specificEmailsGroup').style.display = document.getElementById('emailAudience').value === 'specific' ? 'block' : 'none'; }
+
+async function sendBulkEmail() {
+  const audience = document.getElementById('emailAudience').value;
+  const subject = document.getElementById('emailSubject').value.trim();
+  const body = document.getElementById('emailBody').value.trim();
+  if (!subject || !body) { showAlert('emailAlert', 'Subject and body are required.', 'error'); return; }
+  const emails = audience === 'specific' ? document.getElementById('specificEmails').value.split(',').map(e => e.trim()).filter(Boolean) : [];
+  if (audience === 'specific' && !emails.length) { showAlert('emailAlert', 'Enter at least one email.', 'error'); return; }
+  const btn = document.getElementById('emailBtn'); btn.disabled = true; btn.textContent = 'Sending...';
+  try {
+    const res = await fetch(API + '/admin/send-email', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ audience, subject, body, emails }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Failed');
+    showAlert('emailAlert', `Sent: ${data.sent}, Failed: ${data.failed} (out of ${data.total})`, data.failed > 0 ? 'warning' : 'success');
+  } catch (err) { showAlert('emailAlert', err.message, 'error'); }
+  finally { btn.disabled = false; btn.textContent = 'Send email'; }
+}
+
+async function createNewAdmin() {
+  const name = document.getElementById('newAdminName').value.trim();
+  const email = document.getElementById('newAdminEmail').value.trim();
+  const password = document.getElementById('newAdminPassword').value;
+  if (!name || !email || !password) { showAlert('settingsAlert', 'Fill all fields.', 'error'); return; }
+  try {
+    const res = await fetch(API + '/admin/create-admin', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ name, email, password }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Failed');
+    showAlert('settingsAlert', data.message, 'success');
+    ['newAdminName', 'newAdminEmail', 'newAdminPassword'].forEach(id => document.getElementById(id).value = '');
+  } catch (err) { showAlert('settingsAlert', err.message, 'error'); }
+}
+
+document.getElementById('loginPassword').addEventListener('keydown', e => { if (e.key === 'Enter') adminLogin(); });
+checkAuth();
 </script>
 </body>
 </html>
