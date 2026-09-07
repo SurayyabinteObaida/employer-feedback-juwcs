@@ -718,7 +718,7 @@ async function loadStudentBatches() {
     const batches = await res.json();
     const select = document.getElementById('studentBatchFilter');
     select.innerHTML = '<option value="">All batches</option>' +
-      batches.map(b => `<option value="${b.batch}">${b.batch} [${b.status.toUpperCase()}]</option>`).join('');
+      batches.map(b => `<option value="${b.batch}">${b.batch}</option>`).join('');
   } catch (err) {
     console.error('Failed to load batches:', err);
   }
@@ -1211,7 +1211,7 @@ function populateBatchSelect(selectId) {
     return;
   }
   select.innerHTML = '<option value="">Select a batch...</option>' +
-    alumniBatchSummaries.map(b => `<option value="${b.batch}">${b.batch} [${b.batch_status.toUpperCase()}] (${b.total_alumni} alumni)</option>`).join('');
+    alumniBatchSummaries.map(b => `<option value="${b.batch}">${b.batch}</option>`).join('');
   if (previousValue && alumniBatchSummaries.some(b => b.batch === previousValue)) {
     select.value = previousValue;
   }
