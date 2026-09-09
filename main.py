@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, Header, Request
+from fastapi import FastAPI, Depends, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, FileResponse
@@ -10,7 +10,6 @@ from typing import Optional
 import uuid
 import os
 import secrets
-import string
 import hashlib
 from dotenv import load_dotenv
 
@@ -24,10 +23,9 @@ SessionLocal = sessionmaker(bind=engine)
 
 app = FastAPI(title="OBE Indirect Assessments Panel")
 
-# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for development
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -35,19 +33,12 @@ app.add_middleware(
 
 # --- Password helpers ---
 
-def generate_password(length=10):
-    """Generate a readable random password."""
-    chars = string.ascii_letters + string.digits
-    return ''.join(secrets.choice(chars) for _ in range(length))
-
 def hash_password(password: str) -> str:
-    """Hash password using SHA-256 with salt."""
     salt = secrets.token_hex(16)
     hashed = hashlib.sha256((salt + password).encode()).hexdigest()
     return f"{salt}${hashed}"
 
 def verify_password(password: str, stored_hash: str) -> bool:
-    """Verify password against stored hash."""
     if not stored_hash or '$' not in stored_hash:
         return False
     salt, hashed = stored_hash.split('$', 1)
@@ -56,33 +47,16 @@ def verify_password(password: str, stored_hash: str) -> bool:
 # --- Batch status helper ---
 
 def get_batch_status(batch_year: str) -> str:
-    """
-    Determine if a batch is active or graduated based on batch year.
-    Assumes 4-year program: batch graduating in year X is marked:
-    - graduated if X <= current_year
-    - active if X > current_year
-    
-    Example: "BS(CS) 2022" → 2022 <= 2026 → graduated
-             "BS(CS) 2027" → 2027 > 2026 → active
-    """
     try:
-        # Extract year from batch string (e.g., "BS(CS) 2022" → 2022)
         year_str = batch_year.split()[-1]
         batch_year_int = int(year_str)
-        current_year = datetime.now().year
-        return "graduated" if batch_year_int <= current_year else "active"
+        return "graduated" if batch_year_int <= datetime.now().year else "active"
     except (ValueError, IndexError):
-        return "active"  # Default to active if parsing fails
+        return "active"
 
 # --- Combined program+batch helpers ---
-# The `batch` column in the DB stores only the year (e.g. "2025"); the
-# program lives separately in `degree_program` (e.g. "BS(CS)"). The UI
-# wants to show/filter by the combined label "BS(CS) 2025" without any
-# DB or schema change, so these two helpers do the combine/split at the
-# API boundary only.
 
 def combine_program_batch(degree_program: str, batch: str) -> str:
-    """Build the display/filter label, e.g. 'BS(CS)' + '2025' -> 'BS(CS) 2025'."""
     degree_program = (degree_program or "").strip()
     batch = (batch or "").strip()
     if degree_program and batch:
@@ -91,12 +65,6 @@ def combine_program_batch(degree_program: str, batch: str) -> str:
 
 
 def split_program_batch(combined: str):
-    """
-    Reverse of combine_program_batch. 'BS(CS) 2025' -> ('BS(CS)', '2025').
-    The batch is taken as the last whitespace-separated token; everything
-    before it is the program. If there's no space, treat the whole string
-    as the batch (backward compatible with a bare-year filter value).
-    """
     combined = (combined or "").strip()
     if not combined:
         return "", ""
@@ -105,11 +73,10 @@ def split_program_batch(combined: str):
         return parts[0].strip(), parts[1].strip()
     return "", combined
 
-# --- Ensure password_hash column exists ---
+# --- Startup migrations ---
 
 @app.on_event("startup")
 def ensure_columns():
-    """Add any missing columns/tables on startup — no manual migration needed."""
     db = SessionLocal()
     try:
         migrations = [
@@ -133,7 +100,6 @@ def ensure_columns():
                 END $$;
             """))
 
-        # Create admins table if not exists
         db.execute(text("""
             CREATE TABLE IF NOT EXISTS admins (
                 id VARCHAR PRIMARY KEY,
@@ -144,7 +110,6 @@ def ensure_columns():
             )
         """))
 
-        # Create admin_sessions table if not exists
         db.execute(text("""
             CREATE TABLE IF NOT EXISTS admin_sessions (
                 id VARCHAR PRIMARY KEY,
@@ -155,12 +120,6 @@ def ensure_columns():
             )
         """))
 
-        # --- Alumni panel tables ---
-        # `alumni` extends an existing `students` row with contact info the
-        # OBE sync doesn't carry. Identity fields (name, enrollment_number,
-        # degree_program, batch) are read from `students` via student_id,
-        # never duplicated here. students.id is UUID, so student_id/alumnus_id
-        # FK columns must be UUID too (not VARCHAR).
         db.execute(text("""
             CREATE TABLE IF NOT EXISTS alumni (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -188,7 +147,6 @@ def ensure_columns():
             )
         """))
 
-        # Section B = GA2-GA10 only (GA1 excluded per department decision).
         db.execute(text("""
             CREATE TABLE IF NOT EXISTS alumni_exit_surveys (
                 id VARCHAR PRIMARY KEY,
@@ -207,8 +165,6 @@ def ensure_columns():
             )
         """))
 
-        # Repeatable per survey_year -- admin spawns a new row each
-        # campaign; GA1-GA10 + single consolidated feedback field.
         db.execute(text("""
             CREATE TABLE IF NOT EXISTS alumni_feedback_forms (
                 id VARCHAR PRIMARY KEY,
@@ -239,9 +195,6 @@ def ensure_columns():
             )
         """))
 
-        # Single-use action tokens -- one per info-confirmation /
-        # exit-survey / feedback-form send. target_id points at the
-        # relevant alumni_feedback_forms row for repeatable actions.
         db.execute(text("""
             CREATE TABLE IF NOT EXISTS alumni_action_links (
                 id VARCHAR PRIMARY KEY,
@@ -271,38 +224,27 @@ def get_db():
     finally:
         db.close()
 
-# --- Auth & session helpers ---
-
-def require_admin_key(x_admin_key: str = Header(None)):
-    """Require a static admin key for certain routes."""
-    if x_admin_key != os.getenv("ADMIN_KEY"):
-        raise HTTPException(status_code=403, detail="Invalid admin key")
-    return x_admin_key
+# --- Auth helpers ---
 
 def get_current_admin(authorization: str = Header(None), db: DBSession = Depends(get_db)) -> dict:
-    """Extract admin from session token."""
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Not authenticated")
-    
+
     token = authorization.split(" ")[1]
     session = db.execute(
         text("SELECT admin_id, expires_at FROM admin_sessions WHERE token = :token"),
         {"token": token}
     ).mappings().first()
-    
+
     if not session or datetime.now(timezone.utc) > session["expires_at"].replace(tzinfo=timezone.utc):
         raise HTTPException(status_code=401, detail="Session expired")
-    
+
     admin = db.execute(
         text("SELECT id, name, email FROM admins WHERE id = :id"),
         {"id": session["admin_id"]}
     ).mappings().first()
-    
-    return dict(admin) if admin else {}
 
-def authHeaders():
-    """JavaScript helper for auth headers."""
-    return "Add to admin.html JS: function authHeaders() { return { 'Authorization': 'Bearer ' + localStorage.getItem('sessionToken'), 'Content-Type': 'application/json' }; }"
+    return dict(admin) if admin else {}
 
 # --- Pydantic models ---
 
@@ -315,10 +257,10 @@ class AdminSetupRequest(BaseModel):
     password: str
     name: str
 
-class AdminSessionResponse(BaseModel):
-    token: str
-    admin_name: str
-    expires_at: str
+class CreateAdminRequest(BaseModel):
+    email: str
+    password: str
+    name: str
 
 class AlumniSaveRequest(BaseModel):
     student_id: str
@@ -337,59 +279,47 @@ class AlumniFeedbackCampaignRequest(BaseModel):
 
 @app.post("/api/admin/login")
 def admin_login(data: AdminLoginRequest, db: DBSession = Depends(get_db)):
-    """Admin login — verify password, create session."""
     admin = db.execute(
         text("SELECT id, name, password_hash FROM admins WHERE email = :email"),
         {"email": data.email}
     ).mappings().first()
-    
+
     if not admin or not verify_password(data.password, admin["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid email or password")
-    
+
     token = secrets.token_urlsafe(32)
     expires_at = datetime.now(timezone.utc) + timedelta(hours=8)
     session_id = str(uuid.uuid4())
-    
+
     db.execute(
         text("INSERT INTO admin_sessions (id, admin_id, token, expires_at) VALUES (:id, :admin_id, :token, :expires)"),
         {"id": session_id, "admin_id": admin["id"], "token": token, "expires": expires_at}
     )
     db.commit()
-    
-    return {
-        "token": token,
-        "admin_name": admin["name"],
-        "expires_at": expires_at.isoformat()
-    }
+
+    return {"token": token, "admin_name": admin["name"], "expires_at": expires_at.isoformat()}
 
 
 @app.get("/api/admin/me")
 def get_current_admin_info(admin: dict = Depends(get_current_admin)):
-    """Get current admin info for session verification."""
-    return {
-        "id": admin.get("id"),
-        "name": admin.get("name"),
-        "email": admin.get("email")
-    }
+    return {"id": admin.get("id"), "name": admin.get("name"), "email": admin.get("email")}
 
 
 @app.get("/api/admin/check-setup")
 def check_admin_setup(db: DBSession = Depends(get_db)):
-    """Check if any admin accounts exist (for first-time setup)."""
     count = db.execute(text("SELECT COUNT(*) as cnt FROM admins")).mappings().first()
     return {"has_admins": count["cnt"] > 0}
 
 
 @app.post("/api/admin/setup")
 def setup_first_admin(data: AdminSetupRequest, db: DBSession = Depends(get_db)):
-    """Create the first admin account (no key required, only works if no admins exist)."""
     count = db.execute(text("SELECT COUNT(*) as cnt FROM admins")).mappings().first()
     if count["cnt"] > 0:
         raise HTTPException(status_code=400, detail="Admins already exist. Use create-admin endpoint.")
-    
+
     admin_id = str(uuid.uuid4())
     hashed = hash_password(data.password)
-    
+
     try:
         db.execute(
             text("INSERT INTO admins (id, email, name, password_hash) VALUES (:id, :email, :name, :hash)"),
@@ -399,42 +329,38 @@ def setup_first_admin(data: AdminSetupRequest, db: DBSession = Depends(get_db)):
     except Exception:
         db.rollback()
         raise HTTPException(status_code=400, detail="Admin already exists")
-    
+
     return {"message": "Admin created", "admin_id": admin_id}
 
+
 @app.post("/api/admin/create-admin")
-def create_admin(data: AdminLoginRequest, x_admin_key: str = Header(None), db: DBSession = Depends(get_db)):
-    """Create new admin (requires X-Admin-Key header)."""
-    if x_admin_key != os.getenv("ADMIN_KEY"):
-        raise HTTPException(status_code=403, detail="Invalid admin key")
-    
+def create_admin(data: CreateAdminRequest, admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
+    """Create new admin (requires active admin session)."""
     admin_id = str(uuid.uuid4())
     hashed = hash_password(data.password)
-    
+
     try:
         db.execute(
             text("INSERT INTO admins (id, email, name, password_hash) VALUES (:id, :email, :name, :hash)"),
-            {"id": admin_id, "email": data.email, "name": data.email.split('@')[0], "hash": hashed}
+            {"id": admin_id, "email": data.email, "name": data.name, "hash": hashed}
         )
         db.commit()
     except Exception:
         db.rollback()
         raise HTTPException(status_code=400, detail="Admin already exists")
-    
+
     return {"message": "Admin created", "admin_id": admin_id}
 
 # --- Alumni Management ---
 
 @app.post("/api/admin/alumni/save")
 def save_alumni_record(data: AlumniSaveRequest, admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
-    """Save or update an alumnus record."""
     student = db.execute(
-        text("SELECT id FROM students WHERE id = :sid"),
-        {"sid": data.student_id}
+        text("SELECT id FROM students WHERE id = :sid"), {"sid": data.student_id}
     ).mappings().first()
-    
+
     if not student:
-        raise HTTPException(status_code=404, detail="Student not found - check the student ID")
+        raise HTTPException(status_code=404, detail="Student not found")
 
     existing = db.execute(text("SELECT id FROM alumni WHERE student_id = :sid"), {"sid": student["id"]}).mappings().first()
     if existing:
@@ -457,11 +383,6 @@ def save_alumni_record(data: AlumniSaveRequest, admin: dict = Depends(get_curren
 
 @app.get("/api/admin/alumni/roster")
 def list_alumni_roster(batch: str = "", admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
-    """List alumni with info confirmation and exit survey status, filtered by batch.
-
-    `batch` may be a combined "BS(CS) 2025" label (from the batch dropdown)
-    or a bare year -- split_program_batch handles either.
-    """
     query = """
         SELECT a.id, s.full_name, s.enrollment_number, s.degree_program, s.batch, a.email,
                ic.validation_status AS info_status, ic.submitted_at AS info_submitted_at,
@@ -498,13 +419,9 @@ def list_alumni_roster(batch: str = "", admin: dict = Depends(get_current_admin)
 
 @app.get("/api/admin/alumni/batches")
 def list_alumni_batches(admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
-    """Every program+batch combination that has at least one alumni record,
-    with counts and status. Grouped by (degree_program, batch) so e.g.
-    "BS(CS) 2025" and "BS(SE) 2025" show as distinct entries."""
     rows = db.execute(text("""
         SELECT
-            s.degree_program,
-            s.batch,
+            s.degree_program, s.batch,
             COUNT(DISTINCT a.id) AS total_alumni,
             COUNT(DISTINCT a.id) FILTER (WHERE ic.submitted_at IS NOT NULL) AS info_confirmed,
             COUNT(DISTINCT a.id) FILTER (WHERE ic.submitted_at IS NULL) AS info_pending,
@@ -517,7 +434,7 @@ def list_alumni_batches(admin: dict = Depends(get_current_admin), db: DBSession 
         GROUP BY s.degree_program, s.batch
         ORDER BY s.batch DESC, s.degree_program
     """)).mappings().all()
-    
+
     result = []
     for r in rows:
         d = dict(r)
@@ -530,11 +447,9 @@ def list_alumni_batches(admin: dict = Depends(get_current_admin), db: DBSession 
 
 @app.get("/api/admin/alumni/students-without-record")
 def list_students_without_alumni_record(batch: str = "", admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
-    """List students who don't have an alumni record yet, with batch status."""
     query = """
         SELECT s.id, s.full_name, s.enrollment_number, s.degree_program, s.batch
-        FROM students s
-        LEFT JOIN alumni a ON a.student_id = s.id
+        FROM students s LEFT JOIN alumni a ON a.student_id = s.id
         WHERE a.id IS NULL
     """
     params = {}
@@ -548,52 +463,33 @@ def list_students_without_alumni_record(batch: str = "", admin: dict = Depends(g
             query += " AND s.batch = :batch"
             params["batch"] = year
     query += " ORDER BY s.full_name"
-    
+
     rows = db.execute(text(query), params).mappings().all()
-    result = []
-    for r in rows:
-        d = dict(r)
-        d["batch_status"] = get_batch_status(d["batch"])
-        result.append(d)
-    return result
+    return [dict(r) | {"batch_status": get_batch_status(r["batch"])} for r in rows]
 
 
 @app.get("/api/admin/batches-list")
 def list_all_batches_with_status(status: str = "", admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
-    """
-    Return all distinct program+batch combinations with computed status,
-    e.g. "BS(CS) 2025", "BS(SE) 2025" as separate entries.
-    Query param: status=active|graduated| (empty = all)
-    """
-    query = """
+    rows = db.execute(text("""
         SELECT DISTINCT s.degree_program, s.batch
-        FROM students s
-        ORDER BY s.batch DESC, s.degree_program
-    """
-    rows = db.execute(text(query)).mappings().all()
-    
+        FROM students s ORDER BY s.batch DESC, s.degree_program
+    """)).mappings().all()
+
     result = []
     for r in rows:
         combined = combine_program_batch(r["degree_program"], r["batch"])
         batch_status = get_batch_status(r["batch"])
-        
         if status and batch_status != status:
             continue
-        
-        result.append({
-            "batch": combined,
-            "status": batch_status
-        })
-    
+        result.append({"batch": combined, "status": batch_status})
     return result
 
 
 def _issue_alumni_action_link(db: DBSession, alumnus_id: str, name: str, email: str, action_type: str, target_id: str = None):
-    """Issue a single-use action link for alumni forms."""
     token = secrets.token_urlsafe(32)
     link_id = str(uuid.uuid4())
     expires_at = datetime.now(timezone.utc) + timedelta(hours=48)
-    
+
     db.execute(
         text("""INSERT INTO alumni_action_links (id, alumnus_id, action_type, target_id, token, expires_at)
                 VALUES (:id, :aid, :action, :target, :token, :expires)"""),
@@ -601,28 +497,13 @@ def _issue_alumni_action_link(db: DBSession, alumnus_id: str, name: str, email: 
          "token": token, "expires": expires_at}
     )
     db.commit()
-    
-    link = f"{FRONTEND_URL}/alumni/{action_type}/{token}"
-    subject = "OBE Alumni Program - Action Required"
-    
-    if action_type == "info_confirmation":
-        subject = "Confirm Your Information | OBE Alumni Program"
-        body = f"<p>Hi {name},</p><p>Please confirm your information: <a href='{link}'>Click here</a></p>"
-    elif action_type == "exit_survey":
-        subject = "Exit Survey | OBE Alumni Program"
-        body = f"<p>Hi {name},</p><p>Your exit survey is ready: <a href='{link}'>Click here</a></p>"
-    elif action_type == "feedback_form":
-        subject = "Alumni Feedback Form | OBE Alumni Program"
-        body = f"<p>Hi {name},</p><p>We'd love your feedback: <a href='{link}'>Click here</a></p>"
-    
-    # Email sending logic here (Gmail SMTP, etc.)
-    # Placeholder for now
+
+    # TODO: send email via SMTP
+    # link = f"{FRONTEND_URL}/alumni/{action_type}/{token}"
 
 
 @app.post("/api/admin/alumni/campaigns/info-confirmation")
 def send_alumni_info_confirmation_campaign(data: AlumniCampaignRequest, admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
-    """Send info confirmation form links to pending alumni in a batch.
-    `data.batch` may be a combined "BS(CS) 2025" label or a bare year."""
     program, year = split_program_batch(data.batch)
     query = """SELECT a.id, a.email, s.full_name FROM alumni a JOIN students s ON a.student_id = s.id
                 LEFT JOIN alumni_info_confirmations ic ON ic.alumnus_id = a.id
@@ -644,8 +525,6 @@ def send_alumni_info_confirmation_campaign(data: AlumniCampaignRequest, admin: d
 
 @app.post("/api/admin/alumni/campaigns/exit-survey")
 def send_alumni_exit_survey_campaign(data: AlumniCampaignRequest, admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
-    """Send exit survey links to alumni who've confirmed their info.
-    `data.batch` may be a combined "BS(CS) 2025" label or a bare year."""
     program, year = split_program_batch(data.batch)
     query = """SELECT a.id, a.email, s.full_name FROM alumni a
                 JOIN students s ON a.student_id = s.id
@@ -670,8 +549,6 @@ def send_alumni_exit_survey_campaign(data: AlumniCampaignRequest, admin: dict = 
 
 @app.post("/api/admin/alumni/campaigns/feedback-form")
 def send_alumni_feedback_campaign(data: AlumniFeedbackCampaignRequest, admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
-    """Send alumni feedback form links for a specific survey year.
-    `data.batch` may be a combined "BS(CS) 2025" label or a bare year."""
     program, year = split_program_batch(data.batch)
     query = "SELECT a.id, a.email, s.full_name FROM alumni a JOIN students s ON a.student_id = s.id WHERE s.batch = :batch"
     params = {"batch": year}
@@ -707,107 +584,43 @@ def send_alumni_feedback_campaign(data: AlumniFeedbackCampaignRequest, admin: di
 
 @app.get("/api/admin/dashboard-stats")
 def get_dashboard_stats(admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
-    """Get overall dashboard statistics with fallback for missing tables."""
     stats = {
-        "total_students": 0,
-        "total_employers": 0,
-        "total_engagements": 0,
-        "internship_engagements": 0,
-        "job_engagements": 0,
-        "proformas_validated": 0,
-        "proformas_pending": 0,
-        "evals_submitted": 0,
-        "surveys_submitted": 0
+        "total_students": 0, "total_employers": 0, "total_engagements": 0,
+        "internship_engagements": 0, "job_engagements": 0,
+        "proformas_validated": 0, "proformas_pending": 0,
+        "evals_submitted": 0, "surveys_submitted": 0
     }
-    
-    try:
-        # Try to get student count
-        result = db.execute(text("SELECT COUNT(*) as cnt FROM students")).mappings().first()
-        if result:
-            stats["total_students"] = result["cnt"]
-    except:
-        pass
-    
-    try:
-        # Try to get employer count
-        result = db.execute(text("SELECT COUNT(DISTINCT employer_id) as cnt FROM org_proformas WHERE employer_id IS NOT NULL")).mappings().first()
-        if result:
-            stats["total_employers"] = result["cnt"]
-    except:
-        pass
-    
-    try:
-        # Try to get engagement counts
-        result = db.execute(text("SELECT COUNT(*) as cnt FROM org_proformas")).mappings().first()
-        if result:
-            stats["total_engagements"] = result["cnt"]
-    except:
-        pass
-    
-    try:
-        # Internship engagements
-        result = db.execute(text("SELECT COUNT(*) as cnt FROM org_proformas WHERE engagement_type = 'internship'")).mappings().first()
-        if result:
-            stats["internship_engagements"] = result["cnt"]
-    except:
-        pass
-    
-    try:
-        # Job engagements
-        result = db.execute(text("SELECT COUNT(*) as cnt FROM org_proformas WHERE engagement_type = 'job'")).mappings().first()
-        if result:
-            stats["job_engagements"] = result["cnt"]
-    except:
-        pass
-    
-    try:
-        # Proformas validated
-        result = db.execute(text("SELECT COUNT(*) as cnt FROM org_proformas WHERE validation_status IN ('validated', 'edited')")).mappings().first()
-        if result:
-            stats["proformas_validated"] = result["cnt"]
-    except:
-        pass
-    
-    try:
-        # Proformas pending
-        result = db.execute(text("SELECT COUNT(*) as cnt FROM org_proformas WHERE validation_status = 'pending'")).mappings().first()
-        if result:
-            stats["proformas_pending"] = result["cnt"]
-    except:
-        pass
-    
-    try:
-        # Evals submitted
-        result = db.execute(text("SELECT COUNT(*) as cnt FROM internship_evaluations WHERE submitted_at IS NOT NULL")).mappings().first()
-        if result:
-            stats["evals_submitted"] = result["cnt"]
-    except:
-        pass
-    
-    try:
-        # Surveys submitted
-        result = db.execute(text("SELECT COUNT(*) as cnt FROM employer_surveys WHERE submitted_at IS NOT NULL")).mappings().first()
-        if result:
-            stats["surveys_submitted"] = result["cnt"]
-    except:
-        pass
-    
+
+    queries = [
+        ("total_students", "SELECT COUNT(*) as cnt FROM students"),
+        ("total_employers", "SELECT COUNT(DISTINCT employer_id) as cnt FROM org_proformas WHERE employer_id IS NOT NULL"),
+        ("total_engagements", "SELECT COUNT(*) as cnt FROM org_proformas"),
+        ("internship_engagements", "SELECT COUNT(*) as cnt FROM org_proformas WHERE engagement_type = 'internship'"),
+        ("job_engagements", "SELECT COUNT(*) as cnt FROM org_proformas WHERE engagement_type = 'job'"),
+        ("proformas_validated", "SELECT COUNT(*) as cnt FROM org_proformas WHERE validation_status IN ('validated', 'edited')"),
+        ("proformas_pending", "SELECT COUNT(*) as cnt FROM org_proformas WHERE validation_status = 'pending'"),
+        ("evals_submitted", "SELECT COUNT(*) as cnt FROM internship_evaluations WHERE submitted_at IS NOT NULL"),
+        ("surveys_submitted", "SELECT COUNT(*) as cnt FROM employer_surveys WHERE submitted_at IS NOT NULL"),
+    ]
+    for key, q in queries:
+        try:
+            result = db.execute(text(q)).mappings().first()
+            if result:
+                stats[key] = result["cnt"]
+        except Exception:
+            pass
+
     return stats
 
 
 @app.get("/api/admin/engagements")
 def list_engagements(admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
-    """List all engagements with feedback status, ordered by recency."""
     try:
         rows = db.execute(text("""
             SELECT
-                op.id,
-                s.full_name as student_name,
-                s.enrollment_number,
-                e.name as employer_name,
-                e.email as employer_email,
-                op.engagement_type as type,
-                op.validation_status,
+                op.id, s.full_name as student_name, s.enrollment_number,
+                e.name as employer_name, e.email as employer_email,
+                op.engagement_type as type, op.validation_status,
                 CASE
                     WHEN op.engagement_type = 'internship' AND ie.submitted_at IS NOT NULL THEN 'submitted'
                     WHEN op.engagement_type = 'job' AND es.submitted_at IS NOT NULL THEN 'submitted'
@@ -822,23 +635,19 @@ def list_engagements(admin: dict = Depends(get_current_admin), db: DBSession = D
             ORDER BY op.created_at DESC
         """)).mappings().all()
         return [dict(r) for r in rows]
-    except:
-        # Table might not exist, return empty list
+    except Exception:
         return []
 
 
 @app.get("/api/admin/students")
 def list_students(q: str = "", status: str = "", batch: str = "", page: int = 1, page_size: int = 20, admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
-    """List students with optional search, status filtering, and batch filtering.
-    `batch` may be a combined "BS(CS) 2025" label (from the batch dropdown)
-    or a bare year -- split_program_batch handles either transparently."""
     query = "SELECT id, full_name, enrollment_number, degree_program, batch, current_semester FROM students WHERE 1=1"
     params = {}
-    
+
     if q:
         query += " AND (full_name ILIKE :q OR enrollment_number ILIKE :q)"
         params["q"] = f"%{q}%"
-    
+
     if batch:
         program, year = split_program_batch(batch)
         if program:
@@ -848,79 +657,91 @@ def list_students(q: str = "", status: str = "", batch: str = "", page: int = 1,
         else:
             query += " AND batch = :batch"
             params["batch"] = year
-    
-    # Get total count
+
     count_query = query.replace("SELECT id, full_name, enrollment_number, degree_program, batch, current_semester", "SELECT COUNT(*)")
     total = db.execute(text(count_query), params).scalar()
-    
-    # Add pagination
+
     offset = (page - 1) * page_size
     query += f" ORDER BY full_name LIMIT {page_size} OFFSET {offset}"
-    
+
     rows = db.execute(text(query), params).mappings().all()
-    
+
     students = []
     for r in rows:
         d = dict(r)
-        d["statuses"] = ["student"]  # Base status
+        d["statuses"] = ["student"]
         students.append(d)
-    
+
     return {"students": students, "total": total}
 
 
 @app.get("/api/admin/employers")
 def list_employers(status: str = "", admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
-    """List employers."""
-    rows = db.execute(text("""
-        SELECT
-            id, email, name, designation, 
-            COUNT(DISTINCT op.id) as engagement_count,
-            COUNT(DISTINCT es.id) as feedback_count,
-            created_at
-        FROM employers e
-        LEFT JOIN org_proformas op ON op.employer_id = e.id
-        LEFT JOIN employer_surveys es ON es.employer_id = e.id
-        GROUP BY e.id, e.email, e.name, e.designation, e.created_at
-        ORDER BY e.created_at DESC
-    """)).mappings().all()
-    
-    return [dict(r) for r in rows]
+    """List employers with engagement types and feedback counts."""
+    try:
+        rows = db.execute(text("""
+            SELECT
+                e.id, e.email, e.name, e.designation, e.created_at,
+                COUNT(DISTINCT op.id) as total_engagements,
+                COUNT(DISTINCT op.id) FILTER (WHERE op.engagement_type = 'internship') as intern_engagements,
+                COUNT(DISTINCT op.id) FILTER (WHERE op.engagement_type = 'job') as job_engagements,
+                COUNT(DISTINCT ie.id) FILTER (WHERE ie.submitted_at IS NOT NULL) as evals_submitted,
+                COUNT(DISTINCT es.id) FILTER (WHERE es.submitted_at IS NOT NULL) as surveys_submitted
+            FROM employers e
+            LEFT JOIN org_proformas op ON op.employer_id = e.id
+            LEFT JOIN internship_evaluations ie ON ie.proforma_id = op.id
+            LEFT JOIN employer_surveys es ON es.proforma_id = op.id
+            GROUP BY e.id, e.email, e.name, e.designation, e.created_at
+            ORDER BY e.created_at DESC
+        """)).mappings().all()
+
+        result = []
+        for r in rows:
+            d = dict(r)
+            # Build statuses list from engagement types
+            statuses = []
+            if d["intern_engagements"] > 0:
+                statuses.append("intern_employer")
+            if d["job_engagements"] > 0:
+                statuses.append("graduate_employer")
+            d["statuses"] = statuses
+
+            # Apply status filter
+            if status and status not in statuses:
+                continue
+
+            result.append(d)
+        return result
+    except Exception:
+        return []
 
 
 @app.delete("/api/admin/students/{student_id}")
 def delete_student(student_id: str, admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
-    """Delete a student and cascade delete related records."""
     try:
-        # First, delete related alumni records
         db.execute(text("DELETE FROM alumni WHERE student_id = :id"), {"id": student_id})
-        
-        # Then delete the student
         result = db.execute(text("DELETE FROM students WHERE id = :id"), {"id": student_id})
         db.commit()
-        
+
         if result.rowcount == 0:
             raise HTTPException(status_code=404, detail="Student not found")
-        
         return {"message": "Student deleted"}
     except HTTPException:
         raise
     except Exception as e:
         db.rollback()
-        # Check if it's a foreign key error and provide helpful message
         if "foreign key" in str(e).lower():
-            raise HTTPException(status_code=400, detail="Student has related records and cannot be deleted. Please remove related records first.")
+            raise HTTPException(status_code=400, detail="Student has related records and cannot be deleted.")
         raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.post("/api/admin/send-email")
 def send_email(data: dict, admin: dict = Depends(get_current_admin)):
     """Send bulk email (placeholder)."""
-    # This would use SMTP to send emails in a real implementation
-    # For now, return success
     return {"sent": data.get("total", 0), "failed": 0, "total": data.get("total", 0)}
 
 
-# --- Serve frontend (static files) ---
+# --- Serve frontend ---
 
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 if os.path.exists(STATIC_DIR):

@@ -13,10 +13,9 @@
   --success: #16a34a; --success-bg: #dcfce7; --warning: #d97706; --warning-bg: #fef3c7;
   --danger: #dc2626; --danger-bg: #fee2e2; --radius: 6px;
 }
-html, body { height: 100%; }
 body { font-family: 'Segoe UI', -apple-system, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; margin: 0; }
 
-.login-wrapper { display: flex; justify-content: center; align-items: center; width: 100%; min-height: 100vh; padding: 2rem; }
+.login-wrapper { display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 2rem; }
 .login-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 2.5rem; width: 100%; max-width: 400px; }
 .login-card h1 { font-size: 20px; margin-bottom: 4px; }
 .login-card .sub { font-size: 13px; color: var(--text-secondary); margin-bottom: 1.5rem; }
@@ -108,7 +107,7 @@ tr:hover td { background: #f8fafc; }
 
 .manual-link { background: var(--warning-bg); border: 1px solid #f59e0b; border-radius: var(--radius); padding: 12px; margin-top: 8px; word-break: break-all; font-size: 12px; font-family: monospace; }
 .checkbox-group { display: flex; align-items: center; gap: 8px; margin-top: 0.5rem; }
-.tag-filters { display: flex; gap: 8px; margin-bottom: 1rem; }
+.tag-filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 1rem; }
 .tag-filter { padding: 6px 14px; border-radius: 16px; font-size: 13px; cursor: pointer; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text-secondary); transition: all 0.15s; }
 .tag-filter.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 
@@ -204,11 +203,9 @@ tr:hover td { background: #f8fafc; }
           <div class="tag-filter" data-status="alumni" onclick="filterStudents(this, 'alumni')">Alumni</div>
         </div>
 
-        <div style="display:flex;gap:0.75rem;align-items:center;margin-bottom:1rem;flex-wrap:wrap;">
-          <label style="font-size:13px;font-weight:600;color:var(--text);">Batch:</label>
-          <select id="studentBatchFilter" onchange="studentsCurrentPage = 1; loadStudents();" style="padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius);font-size:14px;min-width:200px;">
-            <option value="">All batches</option>
-          </select>
+        <div class="tag-filters" id="batchTagFilters">
+          <div class="tag-filter active" data-batch="" onclick="filterBatch(this, '')">All batches</div>
+          <!-- Populated dynamically by loadStudentBatches() -->
         </div>
 
         <!-- Add / Edit student modal (inline card, not a true modal -- keeps things simple) -->
@@ -557,11 +554,7 @@ function renderStudentProfileCard(s) {
 }
 
 async function checkAuth() {
-  if (!adminToken) { 
-    console.log('No token found, checking setup...');
-    checkSetup(); 
-    return; 
-  }
+  if (!adminToken) { checkSetup(); return; }
   try {
     const res = await fetch(API + '/admin/me', { headers: authHeaders() });
     if (!res.ok) throw new Error('Unauthorized');
@@ -570,11 +563,10 @@ async function checkAuth() {
     document.getElementById('loginPage').style.display = 'none';
     document.getElementById('appShell').style.display = 'block';
     loadDashboard();
-  } catch (err) { 
-    console.error('Auth check failed:', err);
-    adminToken = null; 
-    localStorage.removeItem('admin_token'); 
-    checkSetup(); 
+  } catch (err) {
+    adminToken = null;
+    localStorage.removeItem('admin_token');
+    checkSetup();
   }
 }
 
@@ -583,13 +575,11 @@ async function checkSetup() {
     const res = await fetch(API + '/admin/check-setup');
     if (!res.ok) throw new Error('Setup check failed');
     const data = await res.json();
-    console.log('Setup check result:', data);
     document.getElementById('loginForm').style.display = data.has_admins ? 'block' : 'none';
     document.getElementById('setupForm').style.display = data.has_admins ? 'none' : 'block';
     document.getElementById('loginPage').style.display = 'block';
     document.getElementById('appShell').style.display = 'none';
-  } catch (err) { 
-    console.error('Setup check error:', err);
+  } catch (err) {
     document.getElementById('loginForm').style.display = 'block';
     document.getElementById('loginPage').style.display = 'block';
     document.getElementById('appShell').style.display = 'none';
@@ -615,9 +605,8 @@ async function adminLogin() {
     document.getElementById('loginPage').style.display = 'none';
     document.getElementById('appShell').style.display = 'block';
     loadDashboard();
-  } catch (err) { 
-    console.error('Login error:', err);
-    showAlert('loginAlert', err.message, 'error'); 
+  } catch (err) {
+    showAlert('loginAlert', err.message, 'error');
   }
   finally { btn.disabled = false; btn.textContent = 'Sign in'; }
 }
@@ -635,16 +624,14 @@ async function setupAdmin() {
       const data = await res.json();
       throw new Error(data.detail || 'Setup failed');
     }
-    const data = await res.json();
     showAlert('loginAlert', 'Admin created. Signing in...', 'success');
     document.getElementById('loginEmail').value = email;
     document.getElementById('loginPassword').value = password;
     document.getElementById('setupForm').style.display = 'none';
     document.getElementById('loginForm').style.display = 'block';
     setTimeout(() => adminLogin(), 500);
-  } catch (err) { 
-    console.error('Setup error:', err);
-    showAlert('loginAlert', err.message, 'error'); 
+  } catch (err) {
+    showAlert('loginAlert', err.message, 'error');
   }
   finally { btn.disabled = false; btn.textContent = 'Create admin account'; }
 }
@@ -682,10 +669,9 @@ async function loadDashboard() {
       <div class="stat-card"><div class="value">${(s.evals_submitted || 0) + (s.surveys_submitted || 0)}</div><div class="label">Feedback submitted</div></div>
     `;
   } catch (err) {
-    console.error('Failed to load stats:', err);
     document.getElementById('statsGrid').innerHTML = '<div style="color:red;padding:1rem;">Failed to load statistics</div>';
   }
-  
+
   try {
     const engRes = await fetch(API + '/admin/engagements', { headers: authHeaders() });
     if (!engRes.ok) throw new Error(`HTTP ${engRes.status}`);
@@ -695,10 +681,11 @@ async function loadDashboard() {
     document.getElementById('recentEngagements').innerHTML = '<table><thead><tr><th>Student</th><th>Employer</th><th>Type</th><th>Feedback</th></tr></thead><tbody>' +
       recent.map(e => `<tr><td>${e.student_name || 'N/A'}</td><td>${e.employer_name || e.employer_email || 'N/A'}</td><td><span class="badge ${e.type === 'internship' ? 'badge-intern' : 'badge-graduate'}">${e.type === 'internship' ? 'Intern' : 'Graduate'}</span></td><td><span class="badge ${e.feedback_status === 'submitted' ? 'badge-submitted' : 'badge-pending'}">${e.feedback_status}</span></td></tr>`).join('') + '</tbody></table>';
   } catch (err) {
-    console.error('Failed to load engagements:', err);
     document.getElementById('recentEngagements').innerHTML = '<div style="color:red;">Failed to load engagements</div>';
   }
 }
+
+// --- Students ---
 
 let currentStudentStatus = '';
 let currentStudentBatch = '';
@@ -706,7 +693,15 @@ let currentStudentBatch = '';
 function filterStudents(el, status) {
   currentStudentStatus = status;
   studentsCurrentPage = 1;
-  document.querySelectorAll('#page-students .tag-filter').forEach(f => f.classList.remove('active'));
+  document.querySelectorAll('#page-students .tag-filters:first-of-type .tag-filter').forEach(f => f.classList.remove('active'));
+  el.classList.add('active');
+  loadStudents();
+}
+
+function filterBatch(el, batch) {
+  currentStudentBatch = batch;
+  studentsCurrentPage = 1;
+  document.querySelectorAll('#batchTagFilters .tag-filter').forEach(f => f.classList.remove('active'));
   el.classList.add('active');
   loadStudents();
 }
@@ -716,9 +711,19 @@ async function loadStudentBatches() {
     const res = await fetch(API + '/admin/batches-list', { headers: authHeaders() });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const batches = await res.json();
-    const select = document.getElementById('studentBatchFilter');
-    select.innerHTML = '<option value="">All batches</option>' +
-      batches.map(b => `<option value="${b.batch}">${b.batch}</option>`).join('');
+    const container = document.getElementById('batchTagFilters');
+    container.innerHTML = '<div class="tag-filter active" data-batch="" onclick="filterBatch(this, \'\')">All batches</div>' +
+      batches.map(b => `<div class="tag-filter" data-batch="${b.batch}" onclick="filterBatch(this, '${b.batch}')">${b.batch}</div>`).join('');
+    // Re-highlight current selection if it still exists
+    if (currentStudentBatch) {
+      const match = container.querySelector(`[data-batch="${currentStudentBatch}"]`);
+      if (match) {
+        container.querySelector('.tag-filter.active').classList.remove('active');
+        match.classList.add('active');
+      } else {
+        currentStudentBatch = '';
+      }
+    }
   } catch (err) {
     console.error('Failed to load batches:', err);
   }
@@ -743,11 +748,10 @@ function goToStudentsPage(page) {
 async function loadStudents() {
   const q = document.getElementById('studentSearchInput').value.trim();
   const pageSize = parseInt(document.getElementById('studentsPageSize').value, 10);
-  const batch = document.getElementById('studentBatchFilter').value.trim();
   try {
     const res = await fetch(
       API + '/admin/students?q=' + encodeURIComponent(q) + '&status=' + currentStudentStatus
-        + '&batch=' + encodeURIComponent(batch)
+        + '&batch=' + encodeURIComponent(currentStudentBatch)
         + '&page=' + studentsCurrentPage + '&page_size=' + pageSize,
       { headers: authHeaders() }
     );
@@ -817,9 +821,7 @@ function openStudentModal(student) {
   modal.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
-function closeStudentModal() {
-  document.getElementById('studentModal').style.display = 'none';
-}
+function closeStudentModal() { document.getElementById('studentModal').style.display = 'none'; }
 
 async function saveStudent() {
   const id = document.getElementById('studentModalId').value;
@@ -862,7 +864,6 @@ async function deleteStudent(id, name) {
       loadStudents();
       return;
     }
-    // If there are related records that can't be cascade deleted
     if (res.status === 400 && data.detail && data.detail.includes('related records')) {
       showAlert('studentActionAlert', 'Cannot delete: Student has related records. Please remove them first.', 'error');
       return;
@@ -887,15 +888,9 @@ function openCsvModal() {
   document.getElementById('csvModal').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
-function closeCsvModal() {
-  document.getElementById('csvModal').style.display = 'none';
-}
+function closeCsvModal() { document.getElementById('csvModal').style.display = 'none'; }
 
 function parseCsv(text) {
-  // Minimal CSV parser: handles quoted fields with embedded commas, no
-  // embedded newlines inside quotes (fine for a flat roster export).
-  // Strip a leading UTF-8 BOM -- Excel/Windows CSV exports commonly add
-  // one, which otherwise corrupts the first header cell silently.
   if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
   const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
   if (!lines.length) return { header: [], rows: [] };
@@ -922,20 +917,12 @@ function parseCsv(text) {
   return { header, rows };
 }
 
-// Two known column layouts, checked in order. Each maps a target field
-// (full_name, enrollment_number, degree_program, batch) to one or more
-// candidate header names -- the first one present in the file wins.
-// This is how the real OBE export (StudentName/RollNo/batch_name/batch_year)
-// is accepted directly, without the user reformatting it first.
 const CSV_FIELD_ALIASES = {
   full_name: ['full_name', 'studentname', 'student_name', 'name'],
   enrollment_number: ['enrollment_number', 'rollno', 'roll_no', 'enrollment', 'enrollmentnumber'],
   degree_program: ['degree_program', 'batch_name', 'program', 'degreeprogram'],
   batch: ['batch', 'batch_year', 'batchyear'],
 };
-// Optional -- not required for a match, but used as the stable identity key
-// when present (the OBE export's S_ID column) so re-uploads update the
-// right row even if enrollment_number ever changes.
 const CSV_OPTIONAL_FIELD_ALIASES = {
   obe_student_id: ['obe_student_id', 's_id', 'sid'],
 };
@@ -956,25 +943,15 @@ function detectCsvMapping(header) {
 }
 
 function handleCsvFileChange() {
-  console.log('[csv] handleCsvFileChange fired');
   const fileInput = document.getElementById('csvFileInput');
   const file = fileInput.files[0];
-  if (!file) { console.log('[csv] no file selected'); return; }
-  console.log('[csv] reading file:', file.name, file.size, 'bytes');
+  if (!file) return;
   const reader = new FileReader();
-  reader.onerror = () => {
-    console.error('[csv] FileReader error', reader.error);
-    showAlert('csvModalAlert', 'Could not read the file: ' + reader.error, 'error');
-  };
+  reader.onerror = () => showAlert('csvModalAlert', 'Could not read the file: ' + reader.error, 'error');
   reader.onload = () => {
-    console.log('[csv] file read, length:', reader.result.length);
     try {
       const { header, rows } = parseCsv(reader.result);
-      console.log('[csv] parsed header:', header, 'row count:', rows.length);
-
       const { mapping, missing } = detectCsvMapping(header);
-      console.log('[csv] detected mapping:', mapping, 'missing:', missing);
-
       if (missing.length) {
         showAlert('csvModalAlert', `Couldn't find a column for: ${missing.join(', ')}. Found columns: ${header.join(', ') || '(none detected)'}`, 'error');
         document.getElementById('csvUploadBtn').disabled = true;
@@ -991,8 +968,6 @@ function handleCsvFileChange() {
         obe_student_id: mapping.obe_student_id !== undefined ? (r[mapping.obe_student_id] || '') : '',
       })).filter(r => r.full_name && r.enrollment_number);
 
-      console.log('[csv] valid rows after filtering:', parsedCsvRows.length);
-
       document.getElementById('csvRowCount').textContent = parsedCsvRows.length;
       document.getElementById('csvPreviewBody').innerHTML = parsedCsvRows.slice(0, 20).map(r =>
         `<tr><td>${r.full_name}</td><td>${r.enrollment_number}</td><td>${r.degree_program}</td><td>${r.batch}</td></tr>`
@@ -1005,7 +980,6 @@ function handleCsvFileChange() {
         document.getElementById('csvModalAlert').style.display = 'none';
       }
     } catch (err) {
-      console.error('[csv] parse error', err);
       showAlert('csvModalAlert', 'Could not parse this file as CSV: ' + err.message, 'error');
     }
   };
@@ -1022,14 +996,11 @@ async function submitCsvUpload() {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || 'Upload failed');
-    console.log('[csv] upload result:', data);
     const failedCount = data.failed_count || (data.failed ? data.failed.length : 0);
     if (failedCount > 0) {
       const sample = (data.failed || []).slice(0, 5).map(f => `Row ${f.row} (${f.enrollment_number}): ${f.error}`).join('\n');
-      console.error('[csv] failed rows:', data.failed);
       showAlert('csvModalAlert', `Created ${data.created}, updated ${data.updated}, ${failedCount} failed. First few errors:\n${sample}`, 'error');
       document.getElementById('csvModalAlert').style.whiteSpace = 'pre-line';
-      // Don't close the modal -- let the person see the errors and retry.
       if (data.created > 0 || data.updated > 0) loadStudents();
     } else {
       showAlert('studentActionAlert', `Created ${data.created}, updated ${data.updated}.`, 'success');
@@ -1042,6 +1013,8 @@ async function submitCsvUpload() {
     btn.disabled = false; btn.textContent = 'Upload';
   }
 }
+
+// --- Employers ---
 
 let currentEmployerStatus = '';
 function filterEmployers(el, status) {
@@ -1056,11 +1029,11 @@ async function loadEmployers() {
     const res = await fetch(API + '/admin/employers?status=' + currentEmployerStatus, { headers: authHeaders() });
     const data = await res.json();
     document.getElementById('employersBody').innerHTML = data.map(e => `
-      <tr><td>${e.work_email}</td><td>${e.name || '---'}</td><td>${e.designation || '---'}</td>
-      <td>${statusBadges(e.statuses)}</td>
-      <td>${e.total_engagements}</td><td>${(e.surveys_submitted || 0) + (e.evals_submitted || 0)} submitted</td>
+      <tr><td>${e.email}</td><td>${e.name || '---'}</td><td>${e.designation || '---'}</td>
+      <td>${statusBadges(e.statuses || [])}</td>
+      <td>${e.total_engagements || 0}</td><td>${(e.evals_submitted || 0) + (e.surveys_submitted || 0)} submitted</td>
       <td>${new Date(e.created_at).toLocaleDateString()}</td>
-      <td><button class="btn btn-sm btn-secondary" onclick="prefillEmail('${e.work_email}')">Email</button></td></tr>
+      <td><button class="btn btn-sm btn-secondary" onclick="prefillEmail('${e.email}')">Email</button></td></tr>
     `).join('');
   } catch (err) { console.error(err); }
 }
@@ -1072,31 +1045,23 @@ function prefillEmail(email) {
   document.getElementById('specificEmails').value = email;
 }
 
+// --- Student search for engagement forms ---
+
 function searchStudentsFor(prefix, q) {
   clearTimeout(searchTimeouts[prefix]);
   const resultsEl = document.getElementById(prefix + 'StudentResults');
   if (q.length < 2) { resultsEl.style.display = 'none'; return; }
   searchTimeouts[prefix] = setTimeout(async () => {
-    // Typeahead dropdown, not a browsable table -- cap results with
-    // page_size rather than paginating; 25 is plenty for a live search.
     const res = await fetch(API + '/admin/students?q=' + encodeURIComponent(q) + '&page_size=25', { headers: authHeaders() });
     const data = await res.json();
     let students = data.students || [];
 
-    // Internship initiation only: hide students whose batch is old enough
-    // that they've almost certainly graduated (4-year BS program), since an
-    // internship offer doesn't make sense for someone years past graduation.
-    // Only filters on a batch that parses as a clean 4-digit year -- a
-    // missing or malformed batch value is left visible rather than silently
-    // hidden, since a wrongly-hidden active student is a worse failure than
-    // an unfiltered stale one.
     if (prefix === 'intern') {
       const currentYear = new Date().getFullYear();
-      const MAX_PROGRAM_YEARS = 4;
       students = students.filter(s => {
         const batchYear = parseInt(s.batch, 10);
         if (isNaN(batchYear) || String(batchYear) !== String(s.batch).trim()) return true;
-        return (currentYear - batchYear) < MAX_PROGRAM_YEARS;
+        return (currentYear - batchYear) < 4;
       });
     }
 
@@ -1121,6 +1086,8 @@ function clearStudentFor(prefix) {
   document.getElementById(prefix + 'StudentSearch').style.display = 'block';
   document.getElementById(prefix + 'StudentSearch').value = '';
 }
+
+// --- Engagements ---
 
 async function createEngagementFor(type) {
   const prefix = type === 'internship' ? 'intern' : 'grad';
@@ -1172,8 +1139,7 @@ async function loadFormTrack(kind) {
     const data = await res.json();
     const type = kind === 'intern' ? 'internship' : 'job';
     const filtered = data.filter(e => e.type === type);
-    const tbody = document.getElementById(kind + 'TrackBody');
-    tbody.innerHTML = filtered.map(e => `
+    document.getElementById(kind + 'TrackBody').innerHTML = filtered.map(e => `
       <tr><td>${e.student_name}</td><td>${e.enrollment_number}</td><td>${e.employer_name || e.employer_email}</td>
       <td><span class="badge ${e.validation_status === 'validated' || e.validation_status === 'edited' ? 'badge-submitted' : 'badge-pending'}">${e.validation_status || 'pending'}</span></td>
       <td><span class="badge ${e.feedback_status === 'submitted' ? 'badge-submitted' : 'badge-pending'}">${e.feedback_status}</span></td>
@@ -1182,11 +1148,8 @@ async function loadFormTrack(kind) {
   } catch (err) { console.error(err); }
 }
 
-// --- Batch dropdown, shared by Exit Survey and Alumni Feedback initiate forms ---
-// Fetched once per tab visit; each batch option carries its own eligibility
-// counts so the person can see, before sending, whether there's anyone to
-// send to and why -- rather than discovering "no eligible alumni" only
-// after clicking send.
+// --- Alumni campaigns ---
+
 let alumniBatchSummaries = [];
 
 async function loadAlumniBatches() {
@@ -1194,7 +1157,6 @@ async function loadAlumniBatches() {
     const res = await fetch(API + '/admin/alumni/batches', { headers: authHeaders() });
     alumniBatchSummaries = await res.json();
   } catch (err) {
-    console.error(err);
     alumniBatchSummaries = [];
   }
   populateBatchSelect('exitCampaignBatch');
@@ -1211,7 +1173,7 @@ function populateBatchSelect(selectId) {
     return;
   }
   select.innerHTML = '<option value="">Select a batch...</option>' +
-    alumniBatchSummaries.map(b => `<option value="${b.batch}">${b.batch}</option>`).join('');
+    alumniBatchSummaries.map(b => `<option value="${b.batch}">${b.batch} [${b.batch_status.toUpperCase()}] (${b.total_alumni} alumni)</option>`).join('');
   if (previousValue && alumniBatchSummaries.some(b => b.batch === previousValue)) {
     select.value = previousValue;
   }
@@ -1222,15 +1184,10 @@ function onExitBatchChange() {
   const summaryEl = document.getElementById('exitBatchSummary');
   const btn = document.getElementById('exitSendBtn');
   const info = alumniBatchSummaries.find(b => b.batch === batch);
-  if (!batch || !info) {
-    summaryEl.style.display = 'none';
-    btn.disabled = true;
-    return;
-  }
+  if (!batch || !info) { summaryEl.style.display = 'none'; btn.disabled = true; return; }
   summaryEl.style.display = 'block';
   if (info.exit_survey_eligible > 0) {
-    summaryEl.innerHTML = `<strong>${info.exit_survey_eligible}</strong> alumni eligible to receive it now. ` +
-      `${info.info_pending} still need info confirmation first. ${info.exit_survey_completed} already completed the survey.`;
+    summaryEl.innerHTML = `<strong>${info.exit_survey_eligible}</strong> alumni eligible to receive it now. ${info.info_pending} still need info confirmation first. ${info.exit_survey_completed} already completed the survey.`;
     btn.disabled = false;
   } else if (info.info_pending > 0) {
     summaryEl.innerHTML = `No one is eligible yet -- all ${info.info_pending} alumni in this batch still need to confirm their info first (Alumni Feedback tab).`;
@@ -1247,11 +1204,7 @@ function onAlumniFbBatchChange() {
   const summaryEl = document.getElementById('alumniFbBatchSummary');
   const btn = document.getElementById('alumniFbSendBtn');
   const info = alumniBatchSummaries.find(b => b.batch === batch);
-  if (!batch || !info) {
-    summaryEl.style.display = 'none';
-    btn.disabled = true;
-    return;
-  }
+  if (!batch || !info) { summaryEl.style.display = 'none'; btn.disabled = true; return; }
   summaryEl.style.display = 'block';
   if (type === 'info-confirmation') {
     if (info.info_pending > 0) {
@@ -1262,10 +1215,6 @@ function onAlumniFbBatchChange() {
       btn.disabled = true;
     }
   } else {
-    // Feedback form is repeatable per survey year, so it's never blocked by
-    // a "nobody eligible" state the way info-confirmation/exit-survey are --
-    // whether a given alumnus already has a form for the chosen year is
-    // only known once a year is typed in, so this just shows batch size.
     summaryEl.innerHTML = `${info.total_alumni} alumni in this batch. Already-sent forms for the survey year you enter below are skipped automatically.`;
     btn.disabled = false;
   }
@@ -1285,8 +1234,7 @@ async function loadAlumniRoster(scope) {
       empty.style.display = 'none';
       tbody.innerHTML = rows.map(r => `
         <tr>
-          <td>${r.full_name}</td>
-          <td>${r.enrollment_number}</td>
+          <td>${r.full_name}</td><td>${r.enrollment_number}</td>
           <td>${r.batch} <span style="font-size:11px;color:#6b7280;margin-left:4px;">[${r.batch_status}]</span></td>
           <td><span class="badge ${r.info_status === 'pending' ? 'badge-pending' : 'badge-submitted'}">${r.info_status}</span></td>
           <td><span class="badge ${r.exit_survey_status === 'pending' ? 'badge-pending' : 'badge-submitted'}">${r.exit_survey_status}</span></td>
@@ -1299,8 +1247,7 @@ async function loadAlumniRoster(scope) {
       empty.style.display = 'none';
       tbody.innerHTML = rows.map(r => `
         <tr>
-          <td>${r.full_name}</td>
-          <td>${r.enrollment_number}</td>
+          <td>${r.full_name}</td><td>${r.enrollment_number}</td>
           <td>${r.batch} <span style="font-size:11px;color:#6b7280;margin-left:4px;">[${r.batch_status}]</span></td>
           <td>${r.email}</td>
           <td><span class="badge ${r.info_status === 'pending' ? 'badge-pending' : 'badge-submitted'}">${r.info_status}</span></td>
@@ -1351,6 +1298,8 @@ async function sendAlumniFeedbackCampaign() {
   } catch (err) { showAlert('alumniFeedbackCampaignAlert', err.message, 'error'); }
 }
 
+// --- Email ---
+
 function toggleSpecificEmails() { document.getElementById('specificEmailsGroup').style.display = document.getElementById('emailAudience').value === 'specific' ? 'block' : 'none'; }
 
 async function sendBulkEmail() {
@@ -1369,6 +1318,8 @@ async function sendBulkEmail() {
   } catch (err) { showAlert('emailAlert', err.message, 'error'); }
   finally { btn.disabled = false; btn.textContent = 'Send email'; }
 }
+
+// --- Settings ---
 
 async function createNewAdmin() {
   const name = document.getElementById('newAdminName').value.trim();
