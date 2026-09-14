@@ -5,18 +5,30 @@ from fastapi.responses import HTMLResponse, FileResponse
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session as DBSession
 from pydantic import BaseModel
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, date
 from typing import Optional
 import uuid
 import os
 import secrets
 import hashlib
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from dotenv import load_dotenv
 
 load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
+
+# --- SMTP configuration ---
+SMTP_HOST = os.getenv("SMTP_HOST", "")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USER = os.getenv("SMTP_USER", "")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
+SMTP_FROM_EMAIL = os.getenv("SMTP_FROM_EMAIL", SMTP_USER)
+SMTP_FROM_NAME = os.getenv("SMTP_FROM_NAME", "CSSE, JUW - OBE Indirect Assessments")
+SMTP_USE_TLS = os.getenv("SMTP_USE_TLS", "true").lower() != "false"
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(bind=engine)
@@ -43,6 +55,37 @@ def verify_password(password: str, stored_hash: str) -> bool:
         return False
     salt, hashed = stored_hash.split('$', 1)
     return hashlib.sha256((salt + password).encode()).hexdigest() == hashed
+
+# --- Email helper ---
+
+def send_email_smtp(to_email: str, subject: str, html_body: str) -> tuple[bool, str]:
+    """
+    Send a single email via SMTP. Returns (success, error_message).
+    Requires SMTP_HOST, SMTP_USER, SMTP_PASSWORD to be set in the environment;
+    if they're missing, this is a no-op that reports the misconfiguration
+    instead of silently pretending the email went out.
+    """
+    if not SMTP_HOST or not SMTP_USER or not SMTP_PASSWORD:
+        return False, "SMTP is not configured (missing SMTP_HOST/SMTP_USER/SMTP_PASSWORD)"
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
+    msg["From"] = f"{SMTP_FROM_NAME} <{SMTP_FROM_EMAIL}>"
+    msg["To"] = to_email
+    msg.attach(MIMEText(html_body, "html"))
+
+    try:
+        if SMTP_USE_TLS:
+            server = smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15)
+            server.starttls()
+        else:
+            server = smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=15)
+        server.login(SMTP_USER, SMTP_PASSWORD)
+        server.sendmail(SMTP_FROM_EMAIL, [to_email], msg.as_string())
+        server.quit()
+        return True, ""
+    except Exception as e:
+        return False, str(e)
 
 # --- Batch status helper ---
 
@@ -87,6 +130,14 @@ def ensure_columns():
             ("employer_surveys", "overall_performance", "VARCHAR"),
             ("org_proformas", "linkedin_url", "VARCHAR"),
             ("employer_surveys", "year_of_graduation", "VARCHAR"),
+            # Graduate info fields, editable inline in the admin panel when
+            # initiating a graduate-employer engagement (per Feb 2026 revision).
+            ("org_proformas", "graduate_full_name", "VARCHAR"),
+            ("org_proformas", "graduate_degree_program", "VARCHAR"),
+            ("org_proformas", "year_of_graduation", "VARCHAR"),
+            ("org_proformas", "current_job_role", "VARCHAR"),
+            ("org_proformas", "job_department", "VARCHAR"),
+            ("org_proformas", "duration_of_employment", "VARCHAR"),
         ]
         for table, col, coltype in migrations:
             db.execute(text(f"""
@@ -274,6 +325,30 @@ class AlumniCampaignRequest(BaseModel):
 class AlumniFeedbackCampaignRequest(BaseModel):
     batch: str
     survey_year: Optional[str] = None
+
+class CreateEngagementRequest(BaseModel):
+    student_id: str
+    employer_email: str
+    engagement_type: str  # 'internship' | 'job'
+    organization_name: Optional[str] = None
+    role_designation: Optional[str] = None
+    department_served: Optional[str] = None
+    supervisor_name: Optional[str] = None
+    supervisor_designation: Optional[str] = None
+    contact_email: Optional[str] = None
+    contact_phone: Optional[str] = None
+    linkedin_url: Optional[str] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    send_invite: bool = True
+    # Graduate-only fields (engagement_type == 'job'), editable inline in the
+    # admin panel rather than collected from the employer separately.
+    graduate_full_name: Optional[str] = None
+    graduate_degree_program: Optional[str] = None
+    year_of_graduation: Optional[str] = None
+    current_job_role: Optional[str] = None
+    job_department: Optional[str] = None
+    duration_of_employment: Optional[str] = None
 
 # --- Admin Authentication ---
 
@@ -498,8 +573,33 @@ def _issue_alumni_action_link(db: DBSession, alumnus_id: str, name: str, email: 
     )
     db.commit()
 
-    # TODO: send email via SMTP
-    # link = f"{FRONTEND_URL}/alumni/{action_type}/{token}"
+    link = f"{FRONTEND_URL}/alumni/{action_type}/{token}"
+    action_labels = {
+        "info_confirmation": "confirm your contact information",
+        "exit_survey": "complete the exit survey",
+        "feedback_form": "share your alumni feedback",
+    }
+    action_label = action_labels.get(action_type, "complete the requested form")
+
+    subject_labels = {
+        "info_confirmation": "Please confirm your information",
+        "exit_survey": "Exit survey",
+        "feedback_form": "Alumni feedback form",
+    }
+    subject = f"{subject_labels.get(action_type, 'Action required')} - CSSE, JUW"
+
+    html_body = f"""
+    <p>Dear {name},</p>
+    <p>Please click the link below to {action_label}:</p>
+    <p><a href="{link}">{link}</a></p>
+    <p>This link will expire in 48 hours.</p>
+    <p>Regards,<br>Department of Computer Science and Software Engineering<br>Jinnah University for Women</p>
+    """
+
+    sent, error = send_email_smtp(email, subject, html_body)
+    if not sent:
+        print(f"Failed to send {action_type} email to {email}: {error}")
+    return sent, link
 
 
 @app.post("/api/admin/alumni/campaigns/info-confirmation")
@@ -518,8 +618,9 @@ def send_alumni_info_confirmation_campaign(data: AlumniCampaignRequest, admin: d
 
     sent = 0
     for r in rows:
-        _issue_alumni_action_link(db, r["id"], r["full_name"], r["email"], "info_confirmation")
-        sent += 1
+        ok, _ = _issue_alumni_action_link(db, r["id"], r["full_name"], r["email"], "info_confirmation")
+        if ok:
+            sent += 1
     return {"sent": sent}
 
 
@@ -542,8 +643,9 @@ def send_alumni_exit_survey_campaign(data: AlumniCampaignRequest, admin: dict = 
 
     sent = 0
     for r in rows:
-        _issue_alumni_action_link(db, r["id"], r["full_name"], r["email"], "exit_survey")
-        sent += 1
+        ok, _ = _issue_alumni_action_link(db, r["id"], r["full_name"], r["email"], "exit_survey")
+        if ok:
+            sent += 1
     return {"sent": sent}
 
 
@@ -574,8 +676,9 @@ def send_alumni_feedback_campaign(data: AlumniFeedbackCampaignRequest, admin: di
             {"id": form_id, "aid": r["id"], "year": data.survey_year}
         )
         db.commit()
-        _issue_alumni_action_link(db, r["id"], r["full_name"], r["email"], "feedback_form", target_id=form_id)
-        sent += 1
+        ok, _ = _issue_alumni_action_link(db, r["id"], r["full_name"], r["email"], "feedback_form", target_id=form_id)
+        if ok:
+            sent += 1
 
     return {"sent": sent, "skipped_already_has_form_for_year": skipped}
 
@@ -735,10 +838,165 @@ def delete_student(student_id: str, admin: dict = Depends(get_current_admin), db
         raise HTTPException(status_code=400, detail=str(e))
 
 
+# --- Engagements (internship supervisor / graduate employer initiation) ---
+
+@app.post("/api/admin/engagements")
+def create_engagement(data: CreateEngagementRequest, admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
+    if data.engagement_type not in ("internship", "job"):
+        raise HTTPException(status_code=400, detail="engagement_type must be 'internship' or 'job'")
+
+    student = db.execute(
+        text("SELECT id, full_name, enrollment_number FROM students WHERE id = :id"),
+        {"id": data.student_id}
+    ).mappings().first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+
+    # Restrict date: internship starting date must be before the completion date.
+    if data.engagement_type == "internship" and data.start_date and data.end_date:
+        try:
+            start = date.fromisoformat(data.start_date)
+            end = date.fromisoformat(data.end_date)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Dates must be in YYYY-MM-DD format")
+        if start >= end:
+            raise HTTPException(status_code=400, detail="Internship starting date must be before the completion date")
+
+    # Employer = respondent: find-or-create by email, and keep name/designation
+    # in sync with what was entered for this engagement (single identity, per
+    # the merged Employer block on the Graduate Employer tab).
+    employer = db.execute(
+        text("SELECT id FROM employers WHERE email = :email"),
+        {"email": data.employer_email}
+    ).mappings().first()
+
+    if employer:
+        employer_id = employer["id"]
+        db.execute(
+            text("""UPDATE employers SET name = COALESCE(NULLIF(:name, ''), name),
+                                          designation = COALESCE(NULLIF(:desig, ''), designation)
+                    WHERE id = :id"""),
+            {"name": data.supervisor_name, "desig": data.supervisor_designation, "id": employer_id}
+        )
+    else:
+        employer_id = str(uuid.uuid4())
+        db.execute(
+            text("""INSERT INTO employers (id, email, name, designation, created_at)
+                    VALUES (:id, :email, :name, :desig, NOW())"""),
+            {"id": employer_id, "email": data.employer_email,
+             "name": data.supervisor_name, "desig": data.supervisor_designation}
+        )
+
+    proforma_id = str(uuid.uuid4())
+    contact_email = data.contact_email or data.employer_email
+    db.execute(
+        text("""
+            INSERT INTO org_proformas (
+                id, student_id, employer_id, engagement_type,
+                organization_name, role_designation, department_served,
+                supervisor_name, supervisor_designation, contact_email, contact_phone,
+                linkedin_url, start_date, end_date, validation_status,
+                graduate_full_name, graduate_degree_program, year_of_graduation,
+                current_job_role, job_department, duration_of_employment,
+                created_at
+            ) VALUES (
+                :id, :student_id, :employer_id, :engagement_type,
+                :org, :role, :dept,
+                :supervisor, :supervisor_desig, :contact_email, :contact_phone,
+                :linkedin, :start_date, :end_date, 'pending',
+                :grad_name, :grad_prog, :grad_year,
+                :grad_role, :grad_dept, :grad_duration,
+                NOW()
+            )
+        """),
+        {
+            "id": proforma_id, "student_id": student["id"], "employer_id": employer_id,
+            "engagement_type": data.engagement_type,
+            "org": data.organization_name, "role": data.role_designation, "dept": data.department_served,
+            "supervisor": data.supervisor_name, "supervisor_desig": data.supervisor_designation,
+            "contact_email": contact_email, "contact_phone": data.contact_phone,
+            "linkedin": data.linkedin_url,
+            "start_date": data.start_date or None, "end_date": data.end_date or None,
+            "grad_name": data.graduate_full_name, "grad_prog": data.graduate_degree_program,
+            "grad_year": data.year_of_graduation, "grad_role": data.current_job_role,
+            "grad_dept": data.job_department, "grad_duration": data.duration_of_employment,
+        }
+    )
+    db.commit()
+
+    sent = False
+    manual_url = None
+    if data.send_invite:
+        token = secrets.token_urlsafe(32)
+        link = f"{FRONTEND_URL}/employer/{data.engagement_type}/{token}"
+        db.execute(
+            text("UPDATE org_proformas SET invite_token = :token WHERE id = :id"),
+            {"token": token, "id": proforma_id}
+        ) if _has_column(db, "org_proformas", "invite_token") else None
+        db.commit()
+
+        action_label = "the internship evaluation form" if data.engagement_type == "internship" else "the graduate employer survey"
+        subject = "Internship Evaluation Request - CSSE, JUW" if data.engagement_type == "internship" else "Graduate Employer Feedback Request - CSSE, JUW"
+        html_body = f"""
+        <p>Dear {data.supervisor_name or 'Sir/Madam'},</p>
+        <p>You are being requested to complete {action_label} for {student['full_name']} ({student['enrollment_number']}).</p>
+        <p><a href="{link}">{link}</a></p>
+        <p>Regards,<br>Department of Computer Science and Software Engineering<br>Jinnah University for Women</p>
+        """
+        sent, error = send_email_smtp(data.employer_email, subject, html_body)
+        if not sent:
+            manual_url = link
+            print(f"Failed to send engagement invite to {data.employer_email}: {error}")
+
+    message = "Engagement created and invitation sent." if sent else (
+        "Engagement created, but the invitation email could not be sent -- use the manual link below."
+        if data.send_invite else "Engagement created."
+    )
+    return {"message": message, "proforma_id": proforma_id, "sent": sent, "manual_url": manual_url}
+
+
+def _has_column(db: DBSession, table: str, column: str) -> bool:
+    row = db.execute(
+        text("SELECT 1 FROM information_schema.columns WHERE table_name = :t AND column_name = :c"),
+        {"t": table, "c": column}
+    ).first()
+    return row is not None
+
+
 @app.post("/api/admin/send-email")
-def send_email(data: dict, admin: dict = Depends(get_current_admin)):
-    """Send bulk email (placeholder)."""
-    return {"sent": data.get("total", 0), "failed": 0, "total": data.get("total", 0)}
+def send_email(data: dict, admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
+    """Send bulk email to a filtered set of employers."""
+    audience = data.get("audience", "all_employers")
+    subject = data.get("subject", "")
+    body = data.get("body", "")
+    explicit_emails = data.get("emails", [])
+
+    if audience == "specific":
+        emails = [e for e in explicit_emails if e]
+    else:
+        status_filter = {
+            "intern_employers": "intern_employer",
+            "graduate_employers": "graduate_employer",
+        }.get(audience)
+        rows = db.execute(text("SELECT DISTINCT e.email FROM employers e")).mappings().all()
+        emails = [r["email"] for r in rows]
+        if status_filter:
+            filtered_rows = db.execute(text("""
+                SELECT DISTINCT e.email FROM employers e
+                JOIN org_proformas op ON op.employer_id = e.id
+                WHERE op.engagement_type = :etype
+            """), {"etype": "internship" if status_filter == "intern_employer" else "job"}).mappings().all()
+            emails = [r["email"] for r in filtered_rows]
+
+    sent, failed = 0, 0
+    for email in emails:
+        ok, _ = send_email_smtp(email, subject, body)
+        if ok:
+            sent += 1
+        else:
+            failed += 1
+
+    return {"sent": sent, "failed": failed, "total": len(emails)}
 
 
 # --- Serve frontend ---
