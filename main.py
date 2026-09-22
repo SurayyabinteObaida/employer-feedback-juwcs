@@ -1074,7 +1074,7 @@ def list_engagements(page: int = 1, page_size: int = 10, engagement_type: str = 
         rows = db.execute(text(f"""
             SELECT
                 op.id, s.full_name as student_name, s.enrollment_number,
-                e.name as employer_name, e.email as employer_email,
+                e.name as employer_name, e.work_email as employer_email,
                 op.engagement_type as type, op.validation_status,
                 op.year_of_graduation,
                 CASE
