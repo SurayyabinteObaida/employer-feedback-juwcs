@@ -1023,10 +1023,10 @@ def get_dashboard_stats(admin: dict = Depends(get_current_admin), db: DBSession 
 
     queries = [
         ("total_students", "SELECT COUNT(*) as cnt FROM students"),
-        ("total_employers", "SELECT COUNT(DISTINCT employer_id) as cnt FROM org_proformas WHERE employer_id IS NOT NULL"),
-        ("total_engagements", "SELECT COUNT(*) as cnt FROM org_proformas"),
-        ("internship_engagements", "SELECT COUNT(*) as cnt FROM org_proformas WHERE engagement_type = 'internship'"),
-        ("job_engagements", "SELECT COUNT(*) as cnt FROM org_proformas WHERE engagement_type = 'job'"),
+        ("total_employers", "SELECT COUNT(DISTINCT employer_id) as cnt FROM engagements"),
+        ("total_engagements", "SELECT COUNT(*) as cnt FROM engagements"),
+        ("internship_engagements", "SELECT COUNT(*) as cnt FROM engagements WHERE type = 'internship'"),
+        ("job_engagements", "SELECT COUNT(*) as cnt FROM engagements WHERE type = 'job'"),
         ("proformas_validated", "SELECT COUNT(*) as cnt FROM org_proformas WHERE validation_status IN ('validated', 'edited')"),
         ("proformas_pending", "SELECT COUNT(*) as cnt FROM org_proformas WHERE validation_status = 'pending'"),
         ("evals_submitted", "SELECT COUNT(*) as cnt FROM internship_evaluations WHERE submitted_at IS NOT NULL"),
@@ -1053,16 +1053,17 @@ def list_engagements(page: int = 1, page_size: int = 10, engagement_type: str = 
     """
     try:
         base_query = """
-            FROM org_proformas op
-            LEFT JOIN students s ON op.student_id = s.id
-            LEFT JOIN employers e ON op.employer_id = e.id
-            LEFT JOIN internship_evaluations ie ON op.id = ie.proforma_id
-            LEFT JOIN employer_surveys es ON op.id = es.proforma_id
+            FROM engagements eng
+            LEFT JOIN org_proformas op ON op.engagement_id = eng.id
+            LEFT JOIN students s ON eng.student_id = s.id
+            LEFT JOIN employers e ON eng.employer_id = e.id
+            LEFT JOIN internship_evaluations ie ON ie.engagement_id = eng.id
+            LEFT JOIN employer_surveys es ON es.engagement_id = eng.id
             WHERE 1=1
         """
         params = {}
         if engagement_type:
-            base_query += " AND op.engagement_type = :etype"
+            base_query += " AND eng.type = :etype"
             params["etype"] = engagement_type
 
         total = db.execute(text(f"SELECT COUNT(*) {base_query}"), params).scalar()
@@ -1073,18 +1074,18 @@ def list_engagements(page: int = 1, page_size: int = 10, engagement_type: str = 
 
         rows = db.execute(text(f"""
             SELECT
-                op.id, s.full_name as student_name, s.enrollment_number,
+                eng.id, s.full_name as student_name, s.enrollment_number,
                 e.name as employer_name, e.work_email as employer_email,
-                op.engagement_type as type, op.validation_status,
+                eng.type as type, op.validation_status,
                 op.year_of_graduation,
                 CASE
-                    WHEN op.engagement_type = 'internship' AND ie.submitted_at IS NOT NULL THEN 'submitted'
-                    WHEN op.engagement_type = 'job' AND es.submitted_at IS NOT NULL THEN 'submitted'
+                    WHEN eng.type = 'internship' AND ie.submitted_at IS NOT NULL THEN 'submitted'
+                    WHEN eng.type = 'job' AND es.submitted_at IS NOT NULL THEN 'submitted'
                     ELSE 'pending'
                 END as feedback_status,
-                op.created_at
+                eng.created_at
             {base_query}
-            ORDER BY op.created_at DESC
+            ORDER BY eng.created_at DESC
             LIMIT :limit OFFSET :offset
         """), params).mappings().all()
 
@@ -1130,14 +1131,14 @@ def list_students(q: str = "", status: str = "", batch: str = "", page: int = 1,
     intern_ids, graduate_ids, alumni_ids = set(), set(), set()
     if student_ids:
         intern_rows = db.execute(text("""
-            SELECT DISTINCT student_id FROM org_proformas
-            WHERE engagement_type = 'internship' AND student_id = ANY(:ids)
+            SELECT DISTINCT student_id FROM engagements
+            WHERE type = 'internship' AND student_id = ANY(:ids)
         """), {"ids": student_ids}).mappings().all()
         intern_ids = {r["student_id"] for r in intern_rows}
 
         graduate_rows = db.execute(text("""
-            SELECT DISTINCT student_id FROM org_proformas
-            WHERE engagement_type = 'job' AND student_id = ANY(:ids)
+            SELECT DISTINCT student_id FROM engagements
+            WHERE type = 'job' AND student_id = ANY(:ids)
         """), {"ids": student_ids}).mappings().all()
         graduate_ids = {r["student_id"] for r in graduate_rows}
 
@@ -1177,15 +1178,15 @@ def list_employers(q: str = "", status: str = "", admin: dict = Depends(get_curr
         query = """
             SELECT
                 e.id, e.work_email AS email, e.name, e.designation, e.created_at,
-                COUNT(DISTINCT op.id) as total_engagements,
-                COUNT(DISTINCT op.id) FILTER (WHERE op.engagement_type = 'internship') as intern_engagements,
-                COUNT(DISTINCT op.id) FILTER (WHERE op.engagement_type = 'job') as job_engagements,
+                COUNT(DISTINCT eng.id) as total_engagements,
+                COUNT(DISTINCT eng.id) FILTER (WHERE eng.type = 'internship') as intern_engagements,
+                COUNT(DISTINCT eng.id) FILTER (WHERE eng.type = 'job') as job_engagements,
                 COUNT(DISTINCT ie.id) FILTER (WHERE ie.submitted_at IS NOT NULL) as evals_submitted,
                 COUNT(DISTINCT es.id) FILTER (WHERE es.submitted_at IS NOT NULL) as surveys_submitted
             FROM employers e
-            LEFT JOIN org_proformas op ON op.employer_id = e.id
-            LEFT JOIN internship_evaluations ie ON ie.proforma_id = op.id
-            LEFT JOIN employer_surveys es ON es.proforma_id = op.id
+            LEFT JOIN engagements eng ON eng.employer_id = e.id
+            LEFT JOIN internship_evaluations ie ON ie.engagement_id = eng.id
+            LEFT JOIN employer_surveys es ON es.engagement_id = eng.id
         """
         params = {}
         if q:
@@ -1287,31 +1288,38 @@ def create_engagement(data: CreateEngagementRequest, admin: dict = Depends(get_c
              "name": data.supervisor_name, "desig": data.supervisor_designation}
         )
 
+    # Create the engagement record first (central table with student/employer/type)
+    engagement_id = str(uuid.uuid4())
+    db.execute(
+        text("""INSERT INTO engagements (id, student_id, employer_id, type, created_at)
+                VALUES (:id, :student_id, :employer_id, :type, NOW())"""),
+        {"id": engagement_id, "student_id": student["id"], "employer_id": employer_id,
+         "type": data.engagement_type}
+    )
+
+    # Then create the org_proforma detail record linked via engagement_id
     proforma_id = str(uuid.uuid4())
     contact_email = data.contact_email or data.employer_email
     db.execute(
         text("""
             INSERT INTO org_proformas (
-                id, student_id, employer_id, engagement_type,
+                id, engagement_id,
                 organization_name, role_designation, department_served,
                 supervisor_name, supervisor_designation, contact_email, contact_phone,
                 linkedin_url, start_date, end_date, validation_status,
                 graduate_full_name, graduate_degree_program, year_of_graduation,
-                current_job_role, job_department, duration_of_employment,
-                created_at
+                current_job_role, job_department, duration_of_employment
             ) VALUES (
-                :id, :student_id, :employer_id, :engagement_type,
+                :id, :engagement_id,
                 :org, :role, :dept,
                 :supervisor, :supervisor_desig, :contact_email, :contact_phone,
                 :linkedin, :start_date, :end_date, 'pending',
                 :grad_name, :grad_prog, :grad_year,
-                :grad_role, :grad_dept, :grad_duration,
-                NOW()
+                :grad_role, :grad_dept, :grad_duration
             )
         """),
         {
-            "id": proforma_id, "student_id": student["id"], "employer_id": employer_id,
-            "engagement_type": data.engagement_type,
+            "id": proforma_id, "engagement_id": engagement_id,
             "org": data.organization_name, "role": data.role_designation, "dept": data.department_served,
             "supervisor": data.supervisor_name, "supervisor_desig": data.supervisor_designation,
             "contact_email": contact_email, "contact_phone": data.contact_phone,
@@ -1375,7 +1383,9 @@ def resolve_engagement_invite(token: str, db: DBSession = Depends(get_db)):
     consume_engagement_invite, so a plain page load doesn't burn the link.
     """
     row = db.execute(
-        text("SELECT id, invite_expires_at, invite_used_at, validation_status, engagement_type FROM org_proformas WHERE invite_token = :token"),
+        text("""SELECT op.id, op.invite_expires_at, op.invite_used_at, op.validation_status, eng.type as engagement_type
+               FROM org_proformas op JOIN engagements eng ON op.engagement_id = eng.id
+               WHERE op.invite_token = :token"""),
         {"token": token}
     ).mappings().first()
     if not row:
@@ -1449,8 +1459,8 @@ def send_email(data: dict, admin: dict = Depends(get_current_admin), db: DBSessi
         if status_filter:
             filtered_rows = db.execute(text("""
                 SELECT DISTINCT e.work_email AS email FROM employers e
-                JOIN org_proformas op ON op.employer_id = e.id
-                WHERE op.engagement_type = :etype
+                JOIN engagements eng ON eng.employer_id = e.id
+                WHERE eng.type = :etype
             """), {"etype": "internship" if status_filter == "intern_employer" else "job"}).mappings().all()
             emails = [r["email"] for r in filtered_rows]
 
