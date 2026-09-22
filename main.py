@@ -12,6 +12,7 @@ import os
 import secrets
 import hashlib
 import smtplib
+import traceback
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from dotenv import load_dotenv
@@ -921,12 +922,14 @@ def _issue_student_exit_form_link(db: DBSession, form_id: str, student_id: str, 
 @app.post("/api/admin/students/exit-form/initiate")
 def initiate_student_exit_form(data: InitiateStudentExitFormRequest, admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
     student = db.execute(
-        text("SELECT id, full_name, email FROM students WHERE id = :id"), {"id": data.student_id}
+        text("""SELECT s.id, s.full_name, a.email
+                FROM students s LEFT JOIN alumni a ON a.student_id = s.id
+                WHERE s.id = :id"""), {"id": data.student_id}
     ).mappings().first()
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
     if not student["email"]:
-        raise HTTPException(status_code=400, detail="Student has no email on file")
+        raise HTTPException(status_code=400, detail="Student has no email on file (no alumni record with email found)")
 
     existing = db.execute(
         text("SELECT id, status FROM student_exit_forms WHERE student_id = :sid"), {"sid": student["id"]}
@@ -961,13 +964,15 @@ def run_student_exit_form_reminders(db: DBSession) -> dict:
     recurring alumni survey dispatch above.
     """
     expired = db.execute(text("""
-        SELECT f.id AS form_id, f.reminder_count, s.id AS student_id, s.full_name, s.email
+        SELECT f.id AS form_id, f.reminder_count, s.id AS student_id, s.full_name, a.email
         FROM student_exit_forms f
         JOIN students s ON s.id = f.student_id
+        LEFT JOIN alumni a ON a.student_id = s.id
         WHERE f.status = 'pending'
           AND f.used_at IS NULL
           AND f.expires_at <= NOW()
           AND f.reminder_count < :max_reminders
+          AND a.email IS NOT NULL
     """), {"max_reminders": STUDENT_EXIT_FORM_MAX_REMINDERS}).mappings().all()
 
     sent, failed = 0, 0
@@ -1038,7 +1043,7 @@ def get_dashboard_stats(admin: dict = Depends(get_current_admin), db: DBSession 
             if result:
                 stats[key] = result["cnt"]
         except Exception:
-            pass
+            traceback.print_exc()
 
     return stats
 
@@ -1089,9 +1094,19 @@ def list_engagements(page: int = 1, page_size: int = 10, engagement_type: str = 
             LIMIT :limit OFFSET :offset
         """), params).mappings().all()
 
-        return {"engagements": [dict(r) for r in rows], "total": total, "page": page, "page_size": page_size}
-    except Exception:
-        return {"engagements": [], "total": 0, "page": page, "page_size": page_size}
+        engagements = []
+        for r in rows:
+            d = dict(r)
+            # Explicit JSON-safe conversion for UUID/datetime/enum values
+            d["id"] = str(d["id"]) if d.get("id") else None
+            d["created_at"] = d["created_at"].isoformat() if d.get("created_at") else None
+            d["type"] = str(d["type"]) if d.get("type") else None
+            d["validation_status"] = str(d["validation_status"]) if d.get("validation_status") else None
+            engagements.append(d)
+        return {"engagements": engagements, "total": total, "page": page, "page_size": page_size}
+    except Exception as exc:
+        traceback.print_exc()
+        return {"engagements": [], "total": 0, "page": page, "page_size": page_size, "error": str(exc)}
 
 
 @app.get("/api/admin/students")
@@ -1216,7 +1231,8 @@ def list_employers(q: str = "", status: str = "", admin: dict = Depends(get_curr
 
             result.append(d)
         return result
-    except Exception:
+    except Exception as exc:
+        traceback.print_exc()
         return []
 
 
@@ -1282,8 +1298,8 @@ def create_engagement(data: CreateEngagementRequest, admin: dict = Depends(get_c
     else:
         employer_id = str(uuid.uuid4())
         db.execute(
-            text("""INSERT INTO employers (id, work_email, name, designation, created_at)
-                    VALUES (:id, :email, :name, :desig, NOW())"""),
+            text("""INSERT INTO employers (id, work_email, name, designation, created_via, created_at)
+                    VALUES (:id, :email, :name, :desig, 'admin', NOW())"""),
             {"id": employer_id, "email": data.employer_email,
              "name": data.supervisor_name, "desig": data.supervisor_designation}
         )
@@ -1291,8 +1307,8 @@ def create_engagement(data: CreateEngagementRequest, admin: dict = Depends(get_c
     # Create the engagement record first (central table with student/employer/type)
     engagement_id = str(uuid.uuid4())
     db.execute(
-        text("""INSERT INTO engagements (id, student_id, employer_id, type, created_at)
-                VALUES (:id, :student_id, :employer_id, :type, NOW())"""),
+        text("""INSERT INTO engagements (id, student_id, employer_id, type, status, created_at)
+                VALUES (:id, :student_id, :employer_id, :type, 'active', NOW())"""),
         {"id": engagement_id, "student_id": student["id"], "employer_id": employer_id,
          "type": data.engagement_type}
     )

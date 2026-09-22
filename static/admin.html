@@ -1213,10 +1213,11 @@ async function createEngagementFor(type) {
 
 async function loadFormTrack(kind) {
   try {
-    const res = await fetch(API + '/admin/engagements', { headers: authHeaders() });
+    const res = await fetch(API + '/admin/engagements?page_size=100', { headers: authHeaders() });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     const type = kind === 'intern' ? 'internship' : 'job';
-    const filtered = data.filter(e => e.type === type);
+    const filtered = (data.engagements || []).filter(e => e.type === type);
     document.getElementById(kind + 'TrackBody').innerHTML = filtered.map(e => `
       <tr><td>${e.student_name}</td><td>${e.enrollment_number}</td><td>${e.employer_name || e.employer_email}</td>
       <td><span class="badge ${e.validation_status === 'validated' || e.validation_status === 'edited' ? 'badge-submitted' : 'badge-pending'}">${e.validation_status || 'pending'}</span></td>
