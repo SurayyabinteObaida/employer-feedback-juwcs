@@ -1074,7 +1074,7 @@ def list_engagements(page: int = 1, page_size: int = 10, engagement_type: str = 
         rows = db.execute(text(f"""
             SELECT
                 op.id, s.full_name as student_name, s.enrollment_number,
-                e.name as employer_name, e.email as employer_email,
+                e.name as employer_name, e.work_email as employer_email,
                 op.engagement_type as type, op.validation_status,
                 op.year_of_graduation,
                 CASE
@@ -1176,7 +1176,7 @@ def list_employers(q: str = "", status: str = "", admin: dict = Depends(get_curr
     try:
         query = """
             SELECT
-                e.id, e.email, e.name, e.designation, e.created_at,
+                e.id, e.work_email AS email, e.name, e.designation, e.created_at,
                 COUNT(DISTINCT op.id) as total_engagements,
                 COUNT(DISTINCT op.id) FILTER (WHERE op.engagement_type = 'internship') as intern_engagements,
                 COUNT(DISTINCT op.id) FILTER (WHERE op.engagement_type = 'job') as job_engagements,
@@ -1192,7 +1192,7 @@ def list_employers(q: str = "", status: str = "", admin: dict = Depends(get_curr
             query += " WHERE e.name ILIKE :q"
             params["q"] = f"%{q}%"
         query += """
-            GROUP BY e.id, e.email, e.name, e.designation, e.created_at
+            GROUP BY e.id, e.work_email, e.name, e.designation, e.created_at
             ORDER BY e.created_at DESC
         """
 
@@ -1266,7 +1266,7 @@ def create_engagement(data: CreateEngagementRequest, admin: dict = Depends(get_c
     # in sync with what was entered for this engagement (single identity, per
     # the merged Employer block on the Graduate Employer tab).
     employer = db.execute(
-        text("SELECT id FROM employers WHERE email = :email"),
+        text("SELECT id FROM employers WHERE work_email = :email"),
         {"email": data.employer_email}
     ).mappings().first()
 
@@ -1281,7 +1281,7 @@ def create_engagement(data: CreateEngagementRequest, admin: dict = Depends(get_c
     else:
         employer_id = str(uuid.uuid4())
         db.execute(
-            text("""INSERT INTO employers (id, email, name, designation, created_at)
+            text("""INSERT INTO employers (id, work_email, name, designation, created_at)
                     VALUES (:id, :email, :name, :desig, NOW())"""),
             {"id": employer_id, "email": data.employer_email,
              "name": data.supervisor_name, "desig": data.supervisor_designation}
@@ -1444,11 +1444,11 @@ def send_email(data: dict, admin: dict = Depends(get_current_admin), db: DBSessi
             "intern_employers": "intern_employer",
             "graduate_employers": "graduate_employer",
         }.get(audience)
-        rows = db.execute(text("SELECT DISTINCT e.email FROM employers e")).mappings().all()
+        rows = db.execute(text("SELECT DISTINCT e.work_email AS email FROM employers e")).mappings().all()
         emails = [r["email"] for r in rows]
         if status_filter:
             filtered_rows = db.execute(text("""
-                SELECT DISTINCT e.email FROM employers e
+                SELECT DISTINCT e.work_email AS email FROM employers e
                 JOIN org_proformas op ON op.employer_id = e.id
                 WHERE op.engagement_type = :etype
             """), {"etype": "internship" if status_filter == "intern_employer" else "job"}).mappings().all()

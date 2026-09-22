@@ -702,7 +702,7 @@ async function loadDashboard() {
     const engRes = await fetch(API + '/admin/engagements', { headers: authHeaders() });
     if (!engRes.ok) throw new Error(`HTTP ${engRes.status}`);
     const engs = await engRes.json();
-    const recent = (engs || []).slice(0, 5);
+    const recent = (engs.engagements || []).slice(0, 5);
     if (!recent.length) { document.getElementById('recentEngagements').textContent = 'No engagements yet.'; return; }
     document.getElementById('recentEngagements').innerHTML = '<table><thead><tr><th>Student</th><th>Employer</th><th>Type</th><th>Feedback</th></tr></thead><tbody>' +
       recent.map(e => `<tr><td>${e.student_name || 'N/A'}</td><td>${e.employer_name || e.employer_email || 'N/A'}</td><td><span class="badge ${e.type === 'internship' ? 'badge-intern' : 'badge-graduate'}">${e.type === 'internship' ? 'Intern' : 'Graduate'}</span></td><td><span class="badge ${e.feedback_status === 'submitted' ? 'badge-submitted' : 'badge-pending'}">${e.feedback_status}</span></td></tr>`).join('') + '</tbody></table>';
