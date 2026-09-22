@@ -138,6 +138,12 @@ def ensure_columns():
             ("org_proformas", "current_job_role", "VARCHAR"),
             ("org_proformas", "job_department", "VARCHAR"),
             ("org_proformas", "duration_of_employment", "VARCHAR"),
+            # Invite-token lifecycle fields (expiry + single-use), matching
+            # what alumni_action_links already had. Applies to both the
+            # Internship Supervisor and Graduate Employer employer-facing links.
+            ("org_proformas", "invite_token", "VARCHAR"),
+            ("org_proformas", "invite_expires_at", "TIMESTAMP"),
+            ("org_proformas", "invite_used_at", "TIMESTAMP"),
         ]
         for table, col, coltype in migrations:
             db.execute(text(f"""
@@ -259,6 +265,44 @@ def ensure_columns():
             )
         """))
 
+        # --- Student exit form (pre-graduation, distinct from the alumni
+        # exit survey). Student gets a link on email that must be submitted
+        # within 72 hours; if not, a new link is auto-issued, up to 3
+        # reminder emails, after which it's left pending for manual follow-up.
+        db.execute(text("""
+            CREATE TABLE IF NOT EXISTS student_exit_forms (
+                id VARCHAR PRIMARY KEY,
+                student_id UUID NOT NULL REFERENCES students(id),
+                token VARCHAR UNIQUE NOT NULL,
+                status VARCHAR NOT NULL DEFAULT 'pending',
+                reminder_count SMALLINT NOT NULL DEFAULT 0,
+                expires_at TIMESTAMP NOT NULL,
+                used_at TIMESTAMP,
+                submitted_at TIMESTAMP,
+                rating_ga2 SMALLINT, rating_ga3 SMALLINT, rating_ga4 SMALLINT,
+                rating_ga5 SMALLINT, rating_ga6 SMALLINT, rating_ga7 SMALLINT,
+                rating_ga8 SMALLINT, rating_ga9 SMALLINT, rating_ga10 SMALLINT,
+                liked_most TEXT,
+                improvement_suggestions TEXT,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """))
+
+        # --- Recurring alumni survey schedule. One row per alumnus tracks
+        # when their next survey email is due (every 8 months, or after a
+        # year -- interpreted as: send at 8 months, then again 12 months
+        # after that, i.e. a repeating cycle) and when it was last sent.
+        db.execute(text("""
+            CREATE TABLE IF NOT EXISTS alumni_survey_schedule (
+                id VARCHAR PRIMARY KEY,
+                alumnus_id UUID UNIQUE NOT NULL REFERENCES alumni(id),
+                next_send_at TIMESTAMP NOT NULL,
+                last_sent_at TIMESTAMP,
+                interval_months SMALLINT NOT NULL DEFAULT 8,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """))
+
         db.commit()
     except Exception as e:
         db.rollback()
@@ -349,6 +393,9 @@ class CreateEngagementRequest(BaseModel):
     current_job_role: Optional[str] = None
     job_department: Optional[str] = None
     duration_of_employment: Optional[str] = None
+
+class InitiateStudentExitFormRequest(BaseModel):
+    student_id: str
 
 # --- Admin Authentication ---
 
@@ -453,6 +500,22 @@ def save_alumni_record(data: AlumniSaveRequest, admin: dict = Depends(get_curren
              "contact": data.contact_number, "li": data.linkedin_url}
         )
     db.commit()
+
+    # Seed this alumnus into the recurring survey schedule if not already
+    # present, so the background dispatcher will pick them up. First send is
+    # due 8 months out per the finalized requirement.
+    existing_schedule = db.execute(
+        text("SELECT id FROM alumni_survey_schedule WHERE alumnus_id = :aid"), {"aid": alumnus_id}
+    ).mappings().first()
+    if not existing_schedule:
+        db.execute(
+            text("""INSERT INTO alumni_survey_schedule (id, alumnus_id, next_send_at, interval_months)
+                    VALUES (:id, :aid, :next_send, 8)"""),
+            {"id": str(uuid.uuid4()), "aid": alumnus_id,
+             "next_send": datetime.now(timezone.utc) + timedelta(days=8 * 30)}
+        )
+        db.commit()
+
     return {"message": "Alumnus record saved", "alumnus_id": alumnus_id}
 
 
@@ -563,7 +626,18 @@ def list_all_batches_with_status(status: str = "", admin: dict = Depends(get_cur
 def _issue_alumni_action_link(db: DBSession, alumnus_id: str, name: str, email: str, action_type: str, target_id: str = None):
     token = secrets.token_urlsafe(32)
     link_id = str(uuid.uuid4())
-    expires_at = datetime.now(timezone.utc) + timedelta(hours=48)
+
+    # Expiry window varies by action type per the finalized requirements:
+    # the alumni survey link expires after a week; info confirmation and
+    # exit survey links expire after 48 hours, same as the employer-facing
+    # links.
+    expiry_hours_by_type = {
+        "info_confirmation": 48,
+        "exit_survey": 48,
+        "feedback_form": 24 * 7,  # alumni survey: expires after a week
+    }
+    expiry_hours = expiry_hours_by_type.get(action_type, 48)
+    expires_at = datetime.now(timezone.utc) + timedelta(hours=expiry_hours)
 
     db.execute(
         text("""INSERT INTO alumni_action_links (id, alumnus_id, action_type, target_id, token, expires_at)
@@ -588,11 +662,12 @@ def _issue_alumni_action_link(db: DBSession, alumnus_id: str, name: str, email: 
     }
     subject = f"{subject_labels.get(action_type, 'Action required')} - CSSE, JUW"
 
+    expiry_copy = "1 week" if expiry_hours == 24 * 7 else f"{expiry_hours} hours"
     html_body = f"""
     <p>Dear {name},</p>
     <p>Please click the link below to {action_label}:</p>
     <p><a href="{link}">{link}</a></p>
-    <p>This link will expire in 48 hours.</p>
+    <p>This link will expire in {expiry_copy} and can only be used once.</p>
     <p>Regards,<br>Department of Computer Science and Software Engineering<br>Jinnah University for Women</p>
     """
 
@@ -600,6 +675,52 @@ def _issue_alumni_action_link(db: DBSession, alumnus_id: str, name: str, email: 
     if not sent:
         print(f"Failed to send {action_type} email to {email}: {error}")
     return sent, link
+
+
+def _consume_alumni_action_link(db: DBSession, token: str, expected_action_type: str = None):
+    """
+    Validate and consume a single-use alumni action link. Returns the link
+    row (as a dict) on success. Raises HTTPException(410) if expired, or
+    HTTPException(410) if already used, or HTTPException(404) if the token
+    doesn't exist / doesn't match the expected action type.
+
+    This enforces the "same link shouldn't work twice" and "link expires"
+    requirements shared by info confirmation, exit survey, and feedback
+    form links. Callers should call this before accepting a submission, and
+    it marks the link used_at as part of the same call so a second request
+    with the same token is rejected even under concurrent submission.
+    """
+    row = db.execute(
+        text("SELECT * FROM alumni_action_links WHERE token = :token"), {"token": token}
+    ).mappings().first()
+
+    if not row:
+        raise HTTPException(status_code=404, detail="Invalid link")
+
+    if expected_action_type and row["action_type"] != expected_action_type:
+        raise HTTPException(status_code=404, detail="Invalid link")
+
+    if row["used_at"] is not None:
+        raise HTTPException(status_code=410, detail="This link has already been used")
+
+    expires_at = row["expires_at"]
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    if datetime.now(timezone.utc) > expires_at:
+        raise HTTPException(status_code=410, detail="This link has expired")
+
+    result = db.execute(
+        text("""UPDATE alumni_action_links SET used_at = NOW()
+                WHERE token = :token AND used_at IS NULL"""),
+        {"token": token}
+    )
+    db.commit()
+
+    if result.rowcount == 0:
+        # Lost a race with a concurrent submission on the same token.
+        raise HTTPException(status_code=410, detail="This link has already been used")
+
+    return dict(row)
 
 
 @app.post("/api/admin/alumni/campaigns/info-confirmation")
@@ -679,8 +800,214 @@ def send_alumni_feedback_campaign(data: AlumniFeedbackCampaignRequest, admin: di
         ok, _ = _issue_alumni_action_link(db, r["id"], r["full_name"], r["email"], "feedback_form", target_id=form_id)
         if ok:
             sent += 1
+        # Whenever a feedback form is manually sent, treat that as fulfilling
+        # (and resetting) this alumnus's place in the recurring schedule so
+        # the background dispatcher doesn't send a duplicate shortly after.
+        db.execute(
+            text("""UPDATE alumni_survey_schedule
+                    SET last_sent_at = NOW(), next_send_at = :next_send
+                    WHERE alumnus_id = :aid"""),
+            {"aid": r["id"], "next_send": datetime.now(timezone.utc) + timedelta(days=8 * 30)}
+        )
+        db.commit()
 
     return {"sent": sent, "skipped_already_has_form_for_year": skipped}
+
+
+def run_recurring_alumni_survey_dispatch(db: DBSession) -> dict:
+    """
+    Send the alumni feedback/survey form to every alumnus whose
+    alumni_survey_schedule.next_send_at has passed. Per the finalized
+    requirement ("sent via email every 8 months or after a year"), this is
+    interpreted as a repeating cycle: first send at 8 months post-signup,
+    then every 8 months thereafter, so alumni are re-surveyed at least once
+    a year. The survey_year sent is derived from the current date so repeat
+    sends land in distinct records rather than colliding on the unique
+    (alumnus_id, survey_year) constraint.
+
+    This function does the sending itself (not via HTTP) so it can be
+    invoked either by an external scheduler hitting the trigger endpoint
+    below, or by an in-process cron-style call if one is wired up later.
+    """
+    due = db.execute(text("""
+        SELECT sch.id AS schedule_id, sch.alumnus_id, a.email, s.full_name
+        FROM alumni_survey_schedule sch
+        JOIN alumni a ON a.id = sch.alumnus_id
+        JOIN students s ON s.id = a.student_id
+        WHERE sch.next_send_at <= NOW()
+    """)).mappings().all()
+
+    survey_year = str(datetime.now(timezone.utc).year)
+    sent, failed = 0, 0
+
+    for r in due:
+        existing = db.execute(
+            text("SELECT id FROM alumni_feedback_forms WHERE alumnus_id = :aid AND survey_year = :year"),
+            {"aid": r["alumnus_id"], "year": survey_year}
+        ).mappings().first()
+        form_id = existing["id"] if existing else str(uuid.uuid4())
+        if not existing:
+            db.execute(
+                text("INSERT INTO alumni_feedback_forms (id, alumnus_id, survey_year) VALUES (:id, :aid, :year)"),
+                {"id": form_id, "aid": r["alumnus_id"], "year": survey_year}
+            )
+            db.commit()
+
+        ok, _ = _issue_alumni_action_link(db, r["alumnus_id"], r["full_name"], r["email"], "feedback_form", target_id=form_id)
+        if ok:
+            sent += 1
+        else:
+            failed += 1
+
+        db.execute(
+            text("""UPDATE alumni_survey_schedule
+                    SET last_sent_at = NOW(), next_send_at = :next_send
+                    WHERE id = :sid"""),
+            {"sid": r["schedule_id"], "next_send": datetime.now(timezone.utc) + timedelta(days=8 * 30)}
+        )
+        db.commit()
+
+    return {"sent": sent, "failed": failed, "checked": len(due)}
+
+
+@app.post("/api/admin/alumni/campaigns/run-recurring-dispatch")
+def trigger_recurring_alumni_survey_dispatch(admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
+    """
+    Manually trigger the recurring alumni survey dispatch (every 8 months /
+    after a year). In production this endpoint is meant to be hit by an
+    external scheduler (cron, hosting-platform scheduled job, etc.) since
+    this deployment has no in-process background worker; exposing it here
+    also lets an admin trigger it on demand.
+    """
+    return run_recurring_alumni_survey_dispatch(db)
+
+
+# --- Student Exit Form (pre-graduation) ---
+
+STUDENT_EXIT_FORM_WINDOW_HOURS = 72
+STUDENT_EXIT_FORM_MAX_REMINDERS = 3
+
+
+def _issue_student_exit_form_link(db: DBSession, form_id: str, student_id: str, name: str, email: str, is_reminder: bool):
+    token = secrets.token_urlsafe(32)
+    expires_at = datetime.now(timezone.utc) + timedelta(hours=STUDENT_EXIT_FORM_WINDOW_HOURS)
+
+    db.execute(
+        text("""UPDATE student_exit_forms
+                SET token = :token, expires_at = :expires, used_at = NULL, status = 'pending'
+                WHERE id = :id"""),
+        {"token": token, "expires": expires_at, "id": form_id}
+    )
+    db.commit()
+
+    link = f"{FRONTEND_URL}/student/exit-form/{token}"
+    subject = "Exit form reminder - CSSE, JUW" if is_reminder else "Exit form - CSSE, JUW"
+    reminder_note = "<p>This is a reminder -- your previous link expired before it was submitted.</p>" if is_reminder else ""
+    html_body = f"""
+    <p>Dear {name},</p>
+    <p>Please click the link below to complete your exit form. This link is personalized to you, can only be
+    used once, and will expire {STUDENT_EXIT_FORM_WINDOW_HOURS} hours from now.</p>
+    {reminder_note}
+    <p><a href="{link}">{link}</a></p>
+    <p>Regards,<br>Department of Computer Science and Software Engineering<br>Jinnah University for Women</p>
+    """
+
+    sent, error = send_email_smtp(email, subject, html_body)
+    if not sent:
+        print(f"Failed to send student exit form email to {email}: {error}")
+    return sent, link
+
+
+@app.post("/api/admin/students/exit-form/initiate")
+def initiate_student_exit_form(data: InitiateStudentExitFormRequest, admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
+    student = db.execute(
+        text("SELECT id, full_name, email FROM students WHERE id = :id"), {"id": data.student_id}
+    ).mappings().first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    if not student["email"]:
+        raise HTTPException(status_code=400, detail="Student has no email on file")
+
+    existing = db.execute(
+        text("SELECT id, status FROM student_exit_forms WHERE student_id = :sid"), {"sid": student["id"]}
+    ).mappings().first()
+    if existing and existing["status"] == "submitted":
+        raise HTTPException(status_code=400, detail="Exit form already submitted for this student")
+
+    if existing:
+        form_id = existing["id"]
+    else:
+        form_id = str(uuid.uuid4())
+        db.execute(
+            text("""INSERT INTO student_exit_forms (id, student_id, token, status, expires_at)
+                    VALUES (:id, :sid, :placeholder_token, 'pending', NOW())"""),
+            {"id": form_id, "sid": student["id"], "placeholder_token": secrets.token_urlsafe(8)}
+        )
+        db.commit()
+
+    sent, link = _issue_student_exit_form_link(db, form_id, student["id"], student["full_name"], student["email"], is_reminder=False)
+    message = "Exit form sent." if sent else "Exit form created, but the email could not be sent -- use the manual link below."
+    return {"message": message, "form_id": form_id, "sent": sent, "manual_url": None if sent else link}
+
+
+def run_student_exit_form_reminders(db: DBSession) -> dict:
+    """
+    For every pending, unsubmitted exit form whose link has expired, issue a
+    fresh link automatically -- up to STUDENT_EXIT_FORM_MAX_REMINDERS times.
+    Forms that have already used up their reminders are left as-is for
+    manual admin follow-up rather than reminded indefinitely.
+
+    Meant to be invoked periodically by an external scheduler, same as the
+    recurring alumni survey dispatch above.
+    """
+    expired = db.execute(text("""
+        SELECT f.id AS form_id, f.reminder_count, s.id AS student_id, s.full_name, s.email
+        FROM student_exit_forms f
+        JOIN students s ON s.id = f.student_id
+        WHERE f.status = 'pending'
+          AND f.used_at IS NULL
+          AND f.expires_at <= NOW()
+          AND f.reminder_count < :max_reminders
+    """), {"max_reminders": STUDENT_EXIT_FORM_MAX_REMINDERS}).mappings().all()
+
+    sent, failed = 0, 0
+    for r in expired:
+        ok, _ = _issue_student_exit_form_link(db, r["form_id"], r["student_id"], r["full_name"], r["email"], is_reminder=True)
+        db.execute(
+            text("UPDATE student_exit_forms SET reminder_count = reminder_count + 1 WHERE id = :id"),
+            {"id": r["form_id"]}
+        )
+        db.commit()
+        if ok:
+            sent += 1
+        else:
+            failed += 1
+
+    return {"reminders_sent": sent, "failed": failed, "checked": len(expired)}
+
+
+@app.post("/api/admin/students/exit-form/run-reminders")
+def trigger_student_exit_form_reminders(admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
+    """
+    Manually trigger the exit-form reminder sweep. As with the alumni
+    dispatch endpoint, this is meant to be called by an external scheduler
+    on a short interval (e.g. hourly) so expired-but-unsubmitted forms get
+    a fresh link promptly within the 72-hour-per-attempt cadence, and is
+    also callable by an admin on demand.
+    """
+    return run_student_exit_form_reminders(db)
+
+
+@app.get("/api/admin/students/exit-form/status")
+def list_student_exit_form_status(admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
+    rows = db.execute(text("""
+        SELECT f.id, s.full_name, s.enrollment_number, s.batch, f.status,
+               f.reminder_count, f.expires_at, f.submitted_at
+        FROM student_exit_forms f
+        JOIN students s ON s.id = f.student_id
+        ORDER BY f.created_at DESC
+    """)).mappings().all()
+    return [dict(r) for r in rows]
 
 
 # --- Dashboard Stats & Tracking ---
@@ -717,29 +1044,53 @@ def get_dashboard_stats(admin: dict = Depends(get_current_admin), db: DBSession 
 
 
 @app.get("/api/admin/engagements")
-def list_engagements(admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
+def list_engagements(page: int = 1, page_size: int = 10, engagement_type: str = "", admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
+    """
+    List engagements, most recent first. Supports pagination (default 10
+    per page, per the finalized requirement that the Graduate Employer /
+    Internship Supervisor tracking tables show 10 recent engagements with
+    pagination) and an optional engagement_type filter ('internship' | 'job').
+    """
     try:
-        rows = db.execute(text("""
+        base_query = """
+            FROM org_proformas op
+            LEFT JOIN students s ON op.student_id = s.id
+            LEFT JOIN employers e ON op.employer_id = e.id
+            LEFT JOIN internship_evaluations ie ON op.id = ie.proforma_id
+            LEFT JOIN employer_surveys es ON op.id = es.proforma_id
+            WHERE 1=1
+        """
+        params = {}
+        if engagement_type:
+            base_query += " AND op.engagement_type = :etype"
+            params["etype"] = engagement_type
+
+        total = db.execute(text(f"SELECT COUNT(*) {base_query}"), params).scalar()
+
+        offset = (page - 1) * page_size
+        params["limit"] = page_size
+        params["offset"] = offset
+
+        rows = db.execute(text(f"""
             SELECT
                 op.id, s.full_name as student_name, s.enrollment_number,
                 e.name as employer_name, e.email as employer_email,
                 op.engagement_type as type, op.validation_status,
+                op.year_of_graduation,
                 CASE
                     WHEN op.engagement_type = 'internship' AND ie.submitted_at IS NOT NULL THEN 'submitted'
                     WHEN op.engagement_type = 'job' AND es.submitted_at IS NOT NULL THEN 'submitted'
                     ELSE 'pending'
                 END as feedback_status,
                 op.created_at
-            FROM org_proformas op
-            LEFT JOIN students s ON op.student_id = s.id
-            LEFT JOIN employers e ON op.employer_id = e.id
-            LEFT JOIN internship_evaluations ie ON op.id = ie.proforma_id
-            LEFT JOIN employer_surveys es ON op.id = es.proforma_id
+            {base_query}
             ORDER BY op.created_at DESC
-        """)).mappings().all()
-        return [dict(r) for r in rows]
+            LIMIT :limit OFFSET :offset
+        """), params).mappings().all()
+
+        return {"engagements": [dict(r) for r in rows], "total": total, "page": page, "page_size": page_size}
     except Exception:
-        return []
+        return {"engagements": [], "total": 0, "page": page, "page_size": page_size}
 
 
 @app.get("/api/admin/students")
@@ -769,22 +1120,63 @@ def list_students(q: str = "", status: str = "", batch: str = "", page: int = 1,
 
     rows = db.execute(text(query), params).mappings().all()
 
+    # Compute real status tags per student -- previously hardcoded to
+    # ["student"], which silently broke the Intern/Graduate/Alumni filter
+    # chips in the admin UI. A student can hold more than one status at once
+    # (e.g. intern this semester, already an alumnus is not possible, but
+    # intern + graduate-track can overlap), so this is a set, not a single
+    # value.
+    student_ids = [r["id"] for r in rows]
+    intern_ids, graduate_ids, alumni_ids = set(), set(), set()
+    if student_ids:
+        intern_rows = db.execute(text("""
+            SELECT DISTINCT student_id FROM org_proformas
+            WHERE engagement_type = 'internship' AND student_id = ANY(:ids)
+        """), {"ids": student_ids}).mappings().all()
+        intern_ids = {r["student_id"] for r in intern_rows}
+
+        graduate_rows = db.execute(text("""
+            SELECT DISTINCT student_id FROM org_proformas
+            WHERE engagement_type = 'job' AND student_id = ANY(:ids)
+        """), {"ids": student_ids}).mappings().all()
+        graduate_ids = {r["student_id"] for r in graduate_rows}
+
+        alumni_rows = db.execute(text("""
+            SELECT DISTINCT student_id FROM alumni WHERE student_id = ANY(:ids)
+        """), {"ids": student_ids}).mappings().all()
+        alumni_ids = {r["student_id"] for r in alumni_rows}
+
     students = []
     for r in rows:
         d = dict(r)
-        d["statuses"] = ["student"]
+        statuses = ["undergrad"]
+        if d["id"] in intern_ids:
+            statuses.append("intern")
+        if d["id"] in graduate_ids:
+            statuses.append("graduate")
+        if d["id"] in alumni_ids:
+            statuses.append("alumni")
+        d["statuses"] = statuses
         students.append(d)
+
+    # Apply the status filter here (post-computation) since statuses are
+    # derived from joins rather than a column that could be filtered in SQL
+    # directly above.
+    if status:
+        students = [s for s in students if status in s["statuses"]]
 
     return {"students": students, "total": total}
 
 
 @app.get("/api/admin/employers")
-def list_employers(status: str = "", admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
-    """List employers with engagement types and feedback counts."""
+def list_employers(q: str = "", status: str = "", admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
+    """List employers with engagement types and feedback counts. Supports
+    search by employer name (q), per the finalized requirement that the
+    Employers tab support search using name."""
     try:
-        rows = db.execute(text("""
+        query = """
             SELECT
-                e.id, e.email, e.name, e.designation, e.created_at,
+                e.id, e.work_email AS email, e.name, e.designation, e.created_at,
                 COUNT(DISTINCT op.id) as total_engagements,
                 COUNT(DISTINCT op.id) FILTER (WHERE op.engagement_type = 'internship') as intern_engagements,
                 COUNT(DISTINCT op.id) FILTER (WHERE op.engagement_type = 'job') as job_engagements,
@@ -794,9 +1186,17 @@ def list_employers(status: str = "", admin: dict = Depends(get_current_admin), d
             LEFT JOIN org_proformas op ON op.employer_id = e.id
             LEFT JOIN internship_evaluations ie ON ie.proforma_id = op.id
             LEFT JOIN employer_surveys es ON es.proforma_id = op.id
-            GROUP BY e.id, e.email, e.name, e.designation, e.created_at
+        """
+        params = {}
+        if q:
+            query += " WHERE e.name ILIKE :q"
+            params["q"] = f"%{q}%"
+        query += """
+            GROUP BY e.id, e.work_email, e.name, e.designation, e.created_at
             ORDER BY e.created_at DESC
-        """)).mappings().all()
+        """
+
+        rows = db.execute(text(query), params).mappings().all()
 
         result = []
         for r in rows:
@@ -866,7 +1266,7 @@ def create_engagement(data: CreateEngagementRequest, admin: dict = Depends(get_c
     # in sync with what was entered for this engagement (single identity, per
     # the merged Employer block on the Graduate Employer tab).
     employer = db.execute(
-        text("SELECT id FROM employers WHERE email = :email"),
+        text("SELECT id FROM employers WHERE work_email = :email"),
         {"email": data.employer_email}
     ).mappings().first()
 
@@ -881,7 +1281,7 @@ def create_engagement(data: CreateEngagementRequest, admin: dict = Depends(get_c
     else:
         employer_id = str(uuid.uuid4())
         db.execute(
-            text("""INSERT INTO employers (id, email, name, designation, created_at)
+            text("""INSERT INTO employers (id, work_email, name, designation, created_at)
                     VALUES (:id, :email, :name, :desig, NOW())"""),
             {"id": employer_id, "email": data.employer_email,
              "name": data.supervisor_name, "desig": data.supervisor_designation}
@@ -927,12 +1327,20 @@ def create_engagement(data: CreateEngagementRequest, admin: dict = Depends(get_c
     sent = False
     manual_url = None
     if data.send_invite:
+        # Employer-facing invite link: personalized (bound to this proforma),
+        # expires 48 hours from issue, single-use (invite_used_at set on
+        # consumption -- see consume_engagement_invite below). Matches the
+        # finalized requirement for both Internship Supervisor and Graduate
+        # Employer employer-facing links.
         token = secrets.token_urlsafe(32)
+        invite_expires_at = datetime.now(timezone.utc) + timedelta(hours=48)
         link = f"{FRONTEND_URL}/employer/{data.engagement_type}/{token}"
         db.execute(
-            text("UPDATE org_proformas SET invite_token = :token WHERE id = :id"),
-            {"token": token, "id": proforma_id}
-        ) if _has_column(db, "org_proformas", "invite_token") else None
+            text("""UPDATE org_proformas
+                    SET invite_token = :token, invite_expires_at = :expires, invite_used_at = NULL
+                    WHERE id = :id"""),
+            {"token": token, "expires": invite_expires_at, "id": proforma_id}
+        )
         db.commit()
 
         action_label = "the internship evaluation form" if data.engagement_type == "internship" else "the graduate employer survey"
@@ -941,6 +1349,7 @@ def create_engagement(data: CreateEngagementRequest, admin: dict = Depends(get_c
         <p>Dear {data.supervisor_name or 'Sir/Madam'},</p>
         <p>You are being requested to complete {action_label} for {student['full_name']} ({student['enrollment_number']}).</p>
         <p><a href="{link}">{link}</a></p>
+        <p>This link is personalized to you, can only be used once, and will expire 48 hours from now.</p>
         <p>Regards,<br>Department of Computer Science and Software Engineering<br>Jinnah University for Women</p>
         """
         sent, error = send_email_smtp(data.employer_email, subject, html_body)
@@ -955,12 +1364,69 @@ def create_engagement(data: CreateEngagementRequest, admin: dict = Depends(get_c
     return {"message": message, "proforma_id": proforma_id, "sent": sent, "manual_url": manual_url}
 
 
-def _has_column(db: DBSession, table: str, column: str) -> bool:
+@app.get("/api/admin/engagements/invite/{token}")
+def resolve_engagement_invite(token: str, db: DBSession = Depends(get_db)):
+    """
+    Resolve an employer-facing invite link (Internship Supervisor or
+    Graduate Employer) prior to consuming it, so the employer-facing
+    frontend can confirm the proforma and show a read-only "already
+    submitted" or "link expired" state without mutating anything yet.
+    Actual consumption (marking invite_used_at) happens on submission via
+    consume_engagement_invite, so a plain page load doesn't burn the link.
+    """
     row = db.execute(
-        text("SELECT 1 FROM information_schema.columns WHERE table_name = :t AND column_name = :c"),
-        {"t": table, "c": column}
-    ).first()
-    return row is not None
+        text("SELECT id, invite_expires_at, invite_used_at, validation_status, engagement_type FROM org_proformas WHERE invite_token = :token"),
+        {"token": token}
+    ).mappings().first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Invalid link")
+
+    if row["invite_used_at"] is not None:
+        raise HTTPException(status_code=410, detail="This link has already been used")
+
+    expires_at = row["invite_expires_at"]
+    if expires_at is not None:
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        if datetime.now(timezone.utc) > expires_at:
+            raise HTTPException(status_code=410, detail="This link has expired")
+
+    return {"proforma_id": row["id"], "engagement_type": row["engagement_type"], "validation_status": row["validation_status"]}
+
+
+def consume_engagement_invite(db: DBSession, token: str) -> dict:
+    """
+    Mark an employer-facing invite link as used. Call this from whichever
+    endpoint accepts the actual evaluation/survey submission, before writing
+    the submission, so a second submission attempt on the same token is
+    rejected even under concurrent requests. Not wired to a submission
+    endpoint here since none exists in this file yet -- provided for that
+    endpoint to call.
+    """
+    row = db.execute(
+        text("SELECT id, invite_expires_at, invite_used_at FROM org_proformas WHERE invite_token = :token"),
+        {"token": token}
+    ).mappings().first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Invalid link")
+    if row["invite_used_at"] is not None:
+        raise HTTPException(status_code=410, detail="This link has already been used")
+
+    expires_at = row["invite_expires_at"]
+    if expires_at is not None:
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        if datetime.now(timezone.utc) > expires_at:
+            raise HTTPException(status_code=410, detail="This link has expired")
+
+    result = db.execute(
+        text("UPDATE org_proformas SET invite_used_at = NOW() WHERE id = :id AND invite_used_at IS NULL"),
+        {"id": row["id"]}
+    )
+    db.commit()
+    if result.rowcount == 0:
+        raise HTTPException(status_code=410, detail="This link has already been used")
+    return dict(row)
 
 
 @app.post("/api/admin/send-email")
@@ -978,11 +1444,11 @@ def send_email(data: dict, admin: dict = Depends(get_current_admin), db: DBSessi
             "intern_employers": "intern_employer",
             "graduate_employers": "graduate_employer",
         }.get(audience)
-        rows = db.execute(text("SELECT DISTINCT e.email FROM employers e")).mappings().all()
+        rows = db.execute(text("SELECT DISTINCT e.work_email AS email FROM employers e")).mappings().all()
         emails = [r["email"] for r in rows]
         if status_filter:
             filtered_rows = db.execute(text("""
-                SELECT DISTINCT e.email FROM employers e
+                SELECT DISTINCT e.work_email AS email FROM employers e
                 JOIN org_proformas op ON op.employer_id = e.id
                 WHERE op.engagement_type = :etype
             """), {"etype": "internship" if status_filter == "intern_employer" else "job"}).mappings().all()
