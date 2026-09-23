@@ -20,7 +20,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
-FRONTEND_URL = os.getenv("FRONTEND_URL", "https://employer-feedback-juwcs-jof2.onrender.com/")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
 # --- SMTP configuration ---
 SMTP_HOST = os.getenv("SMTP_HOST", "")
@@ -33,6 +33,13 @@ SMTP_USE_TLS = os.getenv("SMTP_USE_TLS", "true").lower() != "false"
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(bind=engine)
+
+# --- Startup diagnostics ---
+print(f"[STARTUP] FRONTEND_URL = {FRONTEND_URL}")
+print(f"[STARTUP] SMTP_HOST = {'SET (' + SMTP_HOST + ')' if SMTP_HOST else 'NOT SET'}")
+print(f"[STARTUP] SMTP_USER = {'SET (' + SMTP_USER + ')' if SMTP_USER else 'NOT SET'}")
+print(f"[STARTUP] SMTP_PASSWORD = {'SET (length={})'.format(len(SMTP_PASSWORD)) if SMTP_PASSWORD else 'NOT SET'}")
+print(f"[STARTUP] SMTP_PORT = {SMTP_PORT}, SMTP_USE_TLS = {SMTP_USE_TLS}")
 
 app = FastAPI(title="OBE Indirect Assessments Panel")
 
