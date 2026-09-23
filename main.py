@@ -20,7 +20,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "https://employer-feedback-juwcs-jof2.onrender.com/")
 
 # --- SMTP configuration ---
 SMTP_HOST = os.getenv("SMTP_HOST", "")
