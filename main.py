@@ -31,7 +31,11 @@ SMTP_FROM_EMAIL = os.getenv("SMTP_FROM_EMAIL", SMTP_USER)
 SMTP_FROM_NAME = os.getenv("SMTP_FROM_NAME", "CSSE, JUW - OBE Indirect Assessments")
 SMTP_USE_TLS = os.getenv("SMTP_USE_TLS", "true").lower() != "false"
 
-engine = create_engine(DATABASE_URL)
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,
+    pool_recycle=300,
+)
 SessionLocal = sessionmaker(bind=engine)
 
 # --- Startup diagnostics ---
