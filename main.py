@@ -1061,13 +1061,16 @@ def get_engagement(engagement_id: str, admin: dict = Depends(get_current_admin),
 
 
 def _check_intern_dates(start_date, end_date):
-    if start_date and end_date:
-        try:
-            start, end = date.fromisoformat(start_date), date.fromisoformat(end_date)
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Dates must be in YYYY-MM-DD format")
-        if start >= end:
-            raise HTTPException(status_code=400, detail="Internship starting date must be before the completion date")
+    if not start_date or not end_date:
+        raise HTTPException(status_code=400, detail="Internship starting and completion dates are required")
+    try:
+        start, end = date.fromisoformat(start_date), date.fromisoformat(end_date)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Dates must be valid dates in YYYY-MM-DD format")
+    if not (2000 <= start.year <= 2099 and 2000 <= end.year <= 2099):
+        raise HTTPException(status_code=400, detail="Dates must be between 2000 and 2099")
+    if end <= start:
+        raise HTTPException(status_code=400, detail="Internship completion date must be after the starting date")
 
 
 @app.post("/api/admin/engagements")

@@ -15,12 +15,13 @@
 }
 body { font-family: 'Segoe UI', -apple-system, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; }
 
-.login-wrapper { display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 2rem; }
+.login-wrapper { position: fixed; inset: 0; display: grid; place-items: center; padding: 1rem; background: var(--bg); overflow-y: auto; z-index: 40; }
+.hidden { display: none !important; }
 .login-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 2.5rem; width: 100%; max-width: 400px; }
 .login-card h1 { font-size: 20px; margin-bottom: 4px; }
 .login-card .sub { font-size: 13px; color: var(--text-secondary); margin-bottom: 1.5rem; }
 
-.app-shell { display: none; min-height: 100vh; }
+.app-shell { min-height: 100vh; }
 .header { background: var(--primary); color: #fff; padding: 0 1.5rem; height: 56px; display: flex; align-items: center; justify-content: space-between; }
 .header h1 { font-size: 15px; font-weight: 600; }
 .header .admin-name { font-size: 13px; opacity: 0.8; }
@@ -169,7 +170,7 @@ td .muted, .muted { color: var(--text-muted); font-size: 12px; }
   </div>
 </div>
 
-<div id="appShell" class="app-shell">
+<div id="appShell" class="app-shell hidden">
   <div class="header">
     <h1>OBE Indirect Assessments Panel</h1>
     <div style="display:flex;align-items:center;gap:1rem;">
@@ -200,14 +201,14 @@ td .muted, .muted { color: var(--text-muted); font-size: 12px; }
 
       <!-- Dashboard -->
       <div class="page active" id="page-dashboard">
-        <div class="page-head"><div><h2 class="page-title">Dashboard</h2><p class="page-sub">Overview of activity across the OBE Indirect Assessments panel.</p></div></div>
+        <div class="page-head"><div><h2 class="page-title">Dashboard</h2></div></div>
         <div class="stat-grid" id="statsGrid"></div>
       </div>
 
       <!-- Students -->
       <div class="page" id="page-students">
         <div class="page-head">
-          <div><h2 class="page-title">Students</h2><p class="page-sub">All student records. Graduate is derived from batch year; Intern appears once an internship engagement exists.</p></div>
+          <div><h2 class="page-title">Students</h2></div>
           <div class="actions">
             <button class="btn btn-secondary" onclick="openCsvModal()">Bulk upload CSV</button>
             <button class="btn btn-primary" onclick="openStudentModal()">Add student</button>
@@ -218,7 +219,6 @@ td .muted, .muted { color: var(--text-muted); font-size: 12px; }
           <div class="search-box"><input class="input" type="text" id="studentSearchInput" placeholder="Search by name, enrollment number or email" autocomplete="off"></div>
         </div>
         <div class="tag-filters" id="studentStatusFilters">
-          <span class="filter-caption">Status</span>
           <div class="tag-filter active" onclick="setStudentStatus(this, '')">All</div>
           <div class="tag-filter" onclick="setStudentStatus(this, 'intern')">Intern</div>
           <div class="tag-filter" onclick="setStudentStatus(this, 'graduate')">Graduate</div>
@@ -236,7 +236,7 @@ td .muted, .muted { color: var(--text-muted); font-size: 12px; }
       <!-- Employers -->
       <div class="page" id="page-employers">
         <div class="page-head">
-          <div><h2 class="page-title">Employers</h2><p class="page-sub">Employers are also created automatically when an engagement is initiated.</p></div>
+          <div><h2 class="page-title">Employers</h2></div>
           <div class="actions"><button class="btn btn-primary" onclick="openEmployerModal()">Add employer</button></div>
         </div>
         <div id="employerActionAlert" class="alert"></div>
@@ -255,7 +255,7 @@ td .muted, .muted { color: var(--text-muted); font-size: 12px; }
       <!-- Internship Supervisor -->
       <div class="page" id="page-intern">
         <div class="page-head">
-          <div><h2 class="page-title">Internship Supervisor</h2><p class="page-sub">Internship evaluations sent to supervisors. Links are personalized, single-use and valid for 48 hours.</p></div>
+          <div><h2 class="page-title">Internship Supervisor</h2></div>
           <div class="actions"><button class="btn btn-primary" onclick="openEngagementModal('internship')">Initiate evaluation</button></div>
         </div>
         <div id="internActionAlert" class="alert"></div>
@@ -272,7 +272,7 @@ td .muted, .muted { color: var(--text-muted); font-size: 12px; }
       <!-- Graduate Employer -->
       <div class="page" id="page-grad">
         <div class="page-head">
-          <div><h2 class="page-title">Graduate Employer</h2><p class="page-sub">Graduate employer evaluations. Links are personalized, single-use and valid for 48 hours.</p></div>
+          <div><h2 class="page-title">Graduate Employer</h2></div>
           <div class="actions"><button class="btn btn-primary" onclick="openEngagementModal('job')">Initiate evaluation</button></div>
         </div>
         <div id="gradActionAlert" class="alert"></div>
@@ -289,7 +289,7 @@ td .muted, .muted { color: var(--text-muted); font-size: 12px; }
       <!-- Exit Survey -->
       <div class="page" id="page-exit">
         <div class="page-head">
-          <div><h2 class="page-title">Exit Survey</h2><p class="page-sub">Each link is valid for 72 hours. Unsubmitted surveys get up to 3 automatic reminders, each with a new 72-hour link, and are then marked Expired.</p></div>
+          <div><h2 class="page-title">Exit Survey</h2></div>
         </div>
         <div id="exitAlert" class="alert"></div>
         <div id="exitManualLink" class="manual-link"></div>
@@ -299,10 +299,9 @@ td .muted, .muted { color: var(--text-muted); font-size: 12px; }
             <button class="btn btn-primary" id="exitSendAllBtn" onclick="exitSendAll()" disabled>Send to all in batch</button>
           </div>
         </div>
-        <p class="summary-line" id="exitSummary"></p>
         <div class="card flush" id="exitTableCard" style="display:none;">
           <div class="table-wrap">
-            <table><thead><tr><th>Name</th><th>Enrollment</th><th>Email</th><th>Date initiated</th><th>Status</th><th>Reminders</th><th>Actions</th></tr></thead>
+            <table><thead><tr><th>Name</th><th>Batch</th><th>Date initiated</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody id="exitBody"></tbody></table>
           </div>
         </div>
@@ -311,7 +310,7 @@ td .muted, .muted { color: var(--text-muted); font-size: 12px; }
       <!-- Alumni Feedback -->
       <div class="page" id="page-alumni">
         <div class="page-head">
-          <div><h2 class="page-title">Alumni Feedback</h2><p class="page-sub">Info confirmation (48-hour link) and the alumni feedback form (1-week link), sent to a whole batch or to individual alumni.</p></div>
+          <div><h2 class="page-title">Alumni Feedback</h2></div>
         </div>
         <div id="alumniAlert" class="alert"></div>
         <div id="alumniManualLink" class="manual-link"></div>
@@ -334,10 +333,9 @@ td .muted, .muted { color: var(--text-muted); font-size: 12px; }
             <button class="btn btn-primary" id="alumniBatchFbBtn" onclick="alumniSend('feedback_form', null)" disabled>Send feedback form to batch</button>
           </div>
         </div>
-        <p class="summary-line" id="alumniSummary"></p>
         <div class="card flush" id="alumniTableCard" style="display:none;">
           <div class="table-wrap">
-            <table><thead><tr><th>Name</th><th>Enrollment</th><th>Email</th><th>Info confirmation</th><th>Feedback forms (completed / sent)</th><th>Actions</th></tr></thead>
+            <table><thead><tr><th>Name</th><th>Batch</th><th>Info confirmation</th><th>Feedback form</th><th>Actions</th></tr></thead>
             <tbody id="alumniBody"></tbody></table>
           </div>
         </div>
@@ -345,7 +343,7 @@ td .muted, .muted { color: var(--text-muted); font-size: 12px; }
 
       <!-- Send email -->
       <div class="page" id="page-email">
-        <div class="page-head"><div><h2 class="page-title">Send email</h2><p class="page-sub">Compose and send email to a group of employers.</p></div></div>
+        <div class="page-head"><div><h2 class="page-title">Send email</h2></div></div>
         <div class="card">
           <div id="emailAlert" class="alert"></div>
           <div class="form-row">
@@ -367,7 +365,7 @@ td .muted, .muted { color: var(--text-muted); font-size: 12px; }
 
       <!-- Settings -->
       <div class="page" id="page-settings">
-        <div class="page-head"><div><h2 class="page-title">Settings</h2><p class="page-sub">Manage admin accounts.</p></div></div>
+        <div class="page-head"><div><h2 class="page-title">Settings</h2></div></div>
         <div class="card">
           <h3>Add new admin</h3>
           <div id="settingsAlert" class="alert"></div>
@@ -517,11 +515,15 @@ td .muted, .muted { color: var(--text-muted); font-size: 12px; }
       </div>
       <div class="form-row" id="engDatesRow">
         <div class="form-group" id="engStartGroup">
-          <label>Internship starting date</label>
-          <input type="date" id="engStart" onchange="validateEngDates()">
-          <div class="field-error">Start date must be before the completion date.</div>
+          <label>Internship starting date <span class="req">*</span></label>
+          <input type="date" id="engStart" min="2000-01-01" max="2099-12-31" onchange="validateEngDates(true)" onblur="validateEngDates(true)">
+          <div class="field-error" id="engStartError"></div>
         </div>
-        <div class="form-group"><label>Internship completion date</label><input type="date" id="engEnd" onchange="validateEngDates()"></div>
+        <div class="form-group" id="engEndGroup">
+          <label>Internship completion date <span class="req">*</span></label>
+          <input type="date" id="engEnd" min="2000-01-01" max="2099-12-31" onchange="validateEngDates(true)" onblur="validateEngDates(true)">
+          <div class="field-error" id="engEndError"></div>
+        </div>
       </div>
 
       <div class="sub-heading" id="engPersonHeading">Supervisor</div>
@@ -530,10 +532,9 @@ td .muted, .muted { color: var(--text-muted); font-size: 12px; }
         <div class="form-group"><label>Designation</label><input type="text" id="engSupervisorDesig"></div>
       </div>
       <div class="form-row">
-        <div class="form-group" id="engContactEmailGroup"><label>Contact email</label><input type="email" id="engContactEmail"></div>
         <div class="form-group"><label>Phone number</label><input type="text" id="engPhone"></div>
+        <div class="form-group"><label>LinkedIn profile</label><input type="text" id="engLinkedin" placeholder="linkedin.com/in/..."></div>
       </div>
-      <div class="form-group" style="max-width:calc(50% - 0.5rem);"><label>LinkedIn profile</label><input type="text" id="engLinkedin" placeholder="linkedin.com/in/..."></div>
 
       <div class="checkbox-group" id="engSendInviteGroup"><input type="checkbox" id="engSendInvite" checked><label for="engSendInvite">Email the evaluation link now</label></div>
       <div id="engManualLink" class="manual-link"></div>
@@ -665,13 +666,13 @@ async function checkAuth() {
 }
 function enterApp(name) {
   document.getElementById('adminName').textContent = name || 'Admin';
-  document.getElementById('loginPage').style.display = 'none';
-  document.getElementById('appShell').style.display = 'block';
+  document.getElementById('loginPage').classList.add('hidden');
+  document.getElementById('appShell').classList.remove('hidden');
   loadDashboard();
 }
 async function checkSetup() {
-  document.getElementById('loginPage').style.display = 'flex';
-  document.getElementById('appShell').style.display = 'none';
+  document.getElementById('loginPage').classList.remove('hidden');
+  document.getElementById('appShell').classList.add('hidden');
   try {
     const res = await fetch(API + '/admin/check-setup');
     const data = await res.json();
@@ -767,7 +768,7 @@ async function loadStudentBatches() {
   try {
     const batches = await api('/admin/batches-list');
     const c = document.getElementById('batchTagFilters');
-    c.innerHTML = '<span class="filter-caption">Batch</span><div class="tag-filter" data-batch="">All batches</div>'
+    c.innerHTML = '<div class="tag-filter" data-batch="">All batches</div>'
       + batches.map(b => `<div class="tag-filter" data-batch="${esc(b.batch)}">${esc(b.batch)}</div>`).join('');
     c.querySelectorAll('.tag-filter').forEach(el => {
       el.onclick = () => setStudentBatch(el, el.dataset.batch);
@@ -784,7 +785,7 @@ async function loadStudents() {
     studentState.rows = data.students || [];
     tbody.innerHTML = studentState.rows.length ? studentState.rows.map((s, i) => `<tr>
       <td>${esc(s.full_name)}<span class="name-tags">${(s.statuses || []).map(t => `<span class="badge badge-${t}">${t === 'intern' ? 'Intern' : 'Graduate'}</span>`).join('')}</span>
-        ${s.email ? `<div class="muted">${esc(s.email)}</div>` : ''}</td>
+</td>
       <td>${esc(s.enrollment_number)}</td><td>${esc(s.degree_program)}</td><td>${esc(s.batch)}</td>
       <td><div class="btn-group">
         <button class="btn btn-sm btn-secondary" onclick="openStudentModal(${i})">Edit</button>
@@ -955,7 +956,7 @@ async function loadEmployers() {
     const data = await api(`/admin/employers?q=${encodeURIComponent(q)}&page=${employerState.page}&page_size=${PAGE_SIZE}`);
     employerState.rows = data.employers || [];
     tbody.innerHTML = employerState.rows.length ? employerState.rows.map((e, i) => `<tr>
-      <td>${esc(e.name || '-')}<div class="muted">${esc(e.email)}</div></td>
+      <td>${esc(e.name || '-')}</td>
       <td>${esc(e.organization || '-')}</td><td>${esc(e.designation || '-')}</td>
       <td>${esc(EMPLOYER_TYPE_LABELS[e.employer_type] || '-')}</td>
       <td><div class="btn-group">
@@ -1048,9 +1049,9 @@ async function loadEngagements(type) {
     const data = await api(`/admin/engagements?engagement_type=${type}&page=${st.page}&page_size=${PAGE_SIZE}`);
     st.rows = data.engagements || [];
     tbody.innerHTML = st.rows.length ? st.rows.map((e, i) => {
-      const student = `${esc(e.student_name)}<div class="muted">${esc(e.enrollment_number)}</div>`;
-      const employer = `${esc(e.employer_name || '-')}<div class="muted">${esc(e.organization || e.employer_email || '')}</div>`;
-      const status = statusBadge(e.status) + (e.status === 'pending' && e.link_expires_at ? `<div class="muted">Valid until ${fmtDate(e.link_expires_at)}</div>` : '');
+      const student = esc(e.student_name);
+      const employer = esc(e.employer_name || '-');
+      const status = statusBadge(e.status);
       const actions = engActionButtons(type, e, i);
       return type === 'internship'
         ? `<tr><td>${student}</td><td>${esc(e.batch)}</td><td>${employer}</td><td>${status}</td><td>${actions}</td></tr>`
@@ -1084,7 +1085,7 @@ async function engAction(type, i, action) {
 
 // --- Engagement modal ---
 let engSelectedStudentId = null;
-const ENG_FIELDS = ['engOrg', 'engDept', 'engStart', 'engEnd', 'engSupervisor', 'engSupervisorDesig', 'engContactEmail', 'engPhone', 'engLinkedin',
+const ENG_FIELDS = ['engOrg', 'engDept', 'engStart', 'engEnd', 'engSupervisor', 'engSupervisorDesig', 'engPhone', 'engLinkedin',
   'engGradName', 'engGradProg', 'engGradYear', 'engGradRole', 'engGradDept', 'engGradDuration'];
 
 function setEngStudent(s) {
@@ -1120,10 +1121,12 @@ function configureEngModal(type, mode) {
   document.getElementById('engDeptLabel').textContent = isIntern ? 'Department served' : 'Department';
   document.getElementById('engPersonHeading').textContent = isIntern ? 'Supervisor' : 'Employer (respondent)';
   document.getElementById('engEmailLabel').innerHTML = (isIntern ? 'Supervisor work email' : 'Employer work email') + ' <span class="req">*</span>';
-  document.getElementById('engContactEmailGroup').style.display = isIntern ? '' : 'none';
   document.getElementById('engSendInviteGroup').style.display = mode === 'modify' ? 'none' : 'flex';
   document.getElementById('engEmployerEmail').disabled = mode === 'modify';
-  document.getElementById('engStartGroup').classList.remove('has-error');
+  setFieldError('engStartGroup', 'engStartError', '');
+  setFieldError('engEndGroup', 'engEndError', '');
+  document.getElementById('engStart').max = '2099-12-31';
+  document.getElementById('engEnd').min = '2000-01-01';
   hideAlert('engModalAlert');
   showManualLink('engManualLink', null);
 }
@@ -1143,32 +1146,50 @@ async function openEngagementModal(type, i) {
     setEngStudent({ id: null, full_name: d.student_name, enrollment_number: d.enrollment_number, batch_label: d.batch });
     document.getElementById('engEmployerEmail').value = d.employer_email || '';
     const map = { engOrg: 'organization_name', engDept: 'department_served', engStart: 'start_date', engEnd: 'end_date',
-      engSupervisor: 'supervisor_name', engSupervisorDesig: 'supervisor_designation', engContactEmail: 'contact_email',
-      engPhone: 'contact_phone', engLinkedin: 'linkedin_url', engGradName: 'graduate_full_name', engGradProg: 'graduate_degree_program',
+      engSupervisor: 'supervisor_name', engSupervisorDesig: 'supervisor_designation', engPhone: 'contact_phone', engLinkedin: 'linkedin_url', engGradName: 'graduate_full_name', engGradProg: 'graduate_degree_program',
       engGradYear: 'year_of_graduation', engGradRole: 'current_job_role', engGradDept: 'job_department', engGradDuration: 'duration_of_employment' };
     Object.entries(map).forEach(([el, key]) => document.getElementById(el).value = d[key] || '');
+    if (type === 'internship') validateEngDates(false);
   } catch (err) { showAlert('engModalAlert', err.message, 'error'); }
 }
 
-function validateEngDates() {
-  const s = document.getElementById('engStart').value, e = document.getElementById('engEnd').value;
-  const invalid = !!(s && e && s >= e);
-  document.getElementById('engStartGroup').classList.toggle('has-error', invalid);
-  return !invalid;
+// Internship dates: both required, valid calendar dates within 2000-2099,
+// completion strictly after start. The pickers are also constrained so an
+// invalid range can't be selected.
+function validateEngDates(showErrors) {
+  const startEl = document.getElementById('engStart'), endEl = document.getElementById('engEnd');
+  const s = startEl.value, e = endEl.value;
+  endEl.min = s ? nextDay(s) : '2000-01-01';
+  startEl.max = e ? prevDay(e) : '2099-12-31';
+  let startErr = '', endErr = '';
+  if (startEl.validity.badInput || (s && (s < '2000-01-01' || s > '2099-12-31'))) startErr = 'Enter a valid date.';
+  else if (!s) startErr = 'Starting date is required.';
+  if (endEl.validity.badInput || (e && (e < '2000-01-01' || e > '2099-12-31'))) endErr = 'Enter a valid date.';
+  else if (!e) endErr = 'Completion date is required.';
+  else if (s && e <= s) endErr = 'Completion date must be after the starting date.';
+  if (showErrors) {
+    setFieldError('engStartGroup', 'engStartError', startErr);
+    setFieldError('engEndGroup', 'engEndError', endErr);
+  }
+  return !startErr && !endErr;
 }
+function setFieldError(groupId, errId, msg) {
+  document.getElementById(groupId).classList.toggle('has-error', !!msg);
+  document.getElementById(errId).textContent = msg;
+}
+function nextDay(d) { const x = new Date(d + 'T00:00:00Z'); x.setUTCDate(x.getUTCDate() + 1); return x.toISOString().slice(0, 10); }
+function prevDay(d) { const x = new Date(d + 'T00:00:00Z'); x.setUTCDate(x.getUTCDate() - 1); return x.toISOString().slice(0, 10); }
 
 async function saveEngagement() {
   const id = document.getElementById('engId').value;
   const type = document.getElementById('engType').value;
   const v = el => document.getElementById(el).value.trim();
-  if (type === 'internship' && !validateEngDates()) { showAlert('engModalAlert', 'Internship starting date must be before the completion date.', 'error'); return; }
-  const contactEmail = v('engContactEmail');
-  if (contactEmail && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(contactEmail)) { showAlert('engModalAlert', 'Enter a valid contact email.', 'error'); return; }
+  if (type === 'internship' && !validateEngDates(true)) { showAlert('engModalAlert', 'Fix the internship dates before saving.', 'error'); return; }
 
   const details = {
     organization_name: v('engOrg'), department_served: v('engDept'),
     supervisor_name: v('engSupervisor'), supervisor_designation: v('engSupervisorDesig'),
-    contact_email: type === 'internship' ? contactEmail : v('engEmployerEmail'),
+    contact_email: v('engEmployerEmail'),
     contact_phone: v('engPhone'), linkedin_url: v('engLinkedin'),
     start_date: type === 'internship' ? v('engStart') : '', end_date: type === 'internship' ? v('engEnd') : '',
   };
@@ -1225,28 +1246,25 @@ async function loadExitBatches() {
 async function loadExitStudents() {
   const batch = document.getElementById('exitBatch').value;
   const card = document.getElementById('exitTableCard');
-  const summary = document.getElementById('exitSummary');
   const sendAll = document.getElementById('exitSendAllBtn');
-  if (!batch) { card.style.display = 'none'; summary.textContent = ''; sendAll.disabled = true; return; }
+  if (!batch) { card.style.display = 'none'; sendAll.disabled = true; return; }
   try {
     exitRows = await api('/admin/exit-survey/students?batch=' + encodeURIComponent(batch));
     const count = s => exitRows.filter(r => r.status === s).length;
     const sendable = exitRows.filter(r => r.status === 'not_sent' && r.email).length;
     const noEmail = exitRows.filter(r => r.status === 'not_sent' && !r.email).length;
-    summary.textContent = `${exitRows.length} students: ${count('not_sent')} not sent, ${count('initiated')} initiated, ${count('submitted')} submitted, ${count('expired')} expired.`
-      + (noEmail ? ` ${noEmail} have no email on file and are skipped.` : '');
     sendAll.disabled = sendable === 0;
     sendAll.textContent = sendable ? `Send to all in batch (${sendable})` : 'Send to all in batch';
     card.style.display = 'block';
     document.getElementById('exitBody').innerHTML = exitRows.length ? exitRows.map((r, i) => {
       let action = '';
-      if (r.status === 'not_sent') action = `<button class="btn btn-sm btn-secondary" onclick="exitSendOne(${i})" ${r.email ? '' : 'disabled title="No email on file"'}>Send</button>`;
+      if (r.status === 'not_sent') action = r.email ? `<button class="btn btn-sm btn-secondary" onclick="exitSendOne(${i})">Send</button>` : '<span class="muted">No email</span>';
       else if (r.status !== 'submitted' && r.link_active) action = `<button class="btn btn-sm btn-secondary" onclick="exitFormAction(${i}, 'resend')">Re-email</button>`;
       else if (r.status !== 'submitted') action = `<button class="btn btn-sm btn-secondary" onclick="exitFormAction(${i}, 'fresh-link')">Send fresh link</button>`;
-      return `<tr><td>${esc(r.full_name)}</td><td>${esc(r.enrollment_number)}</td><td>${r.email ? esc(r.email) : '<span class="muted">No email</span>'}</td>
-        <td>${fmtDate(r.initiated_at)}</td><td>${statusBadge(r.status)}</td><td>${r.form_id ? `${r.reminder_count} / 3` : '-'}</td><td>${action}</td></tr>`;
-    }).join('') : '<tr class="empty-row"><td colspan="7">No students in this batch.</td></tr>';
-  } catch (err) { summary.textContent = err.message; card.style.display = 'none'; }
+      return `<tr><td>${esc(r.full_name)}</td><td>${esc(r.batch)}</td>
+        <td>${fmtDate(r.initiated_at)}</td><td>${statusBadge(r.status)}</td><td>${action}</td></tr>`;
+    }).join('') : '<tr class="empty-row"><td colspan="5">No students in this batch.</td></tr>';
+  } catch (err) { card.style.display = 'none'; showAlert(card.id === 'exitTableCard' ? 'exitAlert' : 'alumniAlert', err.message, 'error'); }
 }
 
 async function exitSend(payload) {
@@ -1308,23 +1326,21 @@ async function loadAlumniBatches() {
 async function loadAlumniStudents() {
   const batch = document.getElementById('alumniBatch').value;
   const card = document.getElementById('alumniTableCard');
-  const summary = document.getElementById('alumniSummary');
   ['alumniBatchInfoBtn', 'alumniBatchFbBtn'].forEach(id => document.getElementById(id).disabled = !batch);
-  if (!batch) { card.style.display = 'none'; summary.textContent = ''; return; }
+  if (!batch) { card.style.display = 'none'; return; }
   try {
     alumniRows = await api('/admin/alumni/students?batch=' + encodeURIComponent(batch));
     const confirmed = alumniRows.filter(r => r.info_status === 'confirmed').length;
     const noEmail = alumniRows.filter(r => !r.email).length;
-    summary.textContent = `${alumniRows.length} alumni: ${confirmed} confirmed their info.` + (noEmail ? ` ${noEmail} have no email on file and are skipped.` : '');
     card.style.display = 'block';
     document.getElementById('alumniBody').innerHTML = alumniRows.length ? alumniRows.map((r, i) => `<tr>
-      <td>${esc(r.full_name)}</td><td>${esc(r.enrollment_number)}</td><td>${r.email ? esc(r.email) : '<span class="muted">No email</span>'}</td>
-      <td>${statusBadge(r.info_status)}</td><td>${r.feedback_completed} / ${r.feedback_sent}</td>
-      <td><div class="btn-group">
-        <button class="btn btn-sm btn-secondary" onclick="alumniSend('info_confirmation', ${i})" ${!r.email || r.info_status === 'confirmed' ? 'disabled' : ''}>Info confirmation</button>
-        <button class="btn btn-sm btn-secondary" onclick="alumniSend('feedback_form', ${i})" ${r.email ? '' : 'disabled'}>Feedback form</button>
-      </div></td></tr>`).join('') : '<tr class="empty-row"><td colspan="6">No students in this batch.</td></tr>';
-  } catch (err) { summary.textContent = err.message; card.style.display = 'none'; }
+      <td>${esc(r.full_name)}</td><td>${esc(r.batch)}</td>
+      <td>${statusBadge(r.info_status)}</td><td>${statusBadge(r.feedback_completed ? 'submitted' : (r.feedback_sent ? 'sent' : 'not_sent'))}</td>
+      <td>${r.email ? `<div class="btn-group">
+        <button class="btn btn-sm btn-secondary" onclick="alumniSend('info_confirmation', ${i})" ${r.info_status === 'confirmed' ? 'disabled' : ''}>Info confirmation</button>
+        <button class="btn btn-sm btn-secondary" onclick="alumniSend('feedback_form', ${i})">Feedback form</button>
+      </div>` : '<span class="muted">No email</span>'}</td></tr>`).join('') : '<tr class="empty-row"><td colspan="5">No students in this batch.</td></tr>';
+  } catch (err) { card.style.display = 'none'; showAlert(card.id === 'exitTableCard' ? 'exitAlert' : 'alumniAlert', err.message, 'error'); }
 }
 
 async function alumniSend(action, i) {
