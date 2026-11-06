@@ -1282,7 +1282,7 @@ def _exit_row_status(r) -> dict:
 
 
 def _send_exit_form_email(name, email, token, expires_at, kind):
-    link = f"{FRONTEND_URL}/student/exit-form/{token}"
+    link = f"{FRONTEND_URL}/alumni-exit-survey.html?token={token}"
     subject = {"initial": "Exit survey - CSSE, JUW",
                "reminder": "Reminder: Exit survey - CSSE, JUW",
                "resend": "Reminder: Exit survey - CSSE, JUW",
@@ -1494,7 +1494,8 @@ def _issue_alumni_action_link(db: DBSession, alumnus_id, name: str, email: str, 
                 "token": token, "expires": expires_at})
     db.commit()
 
-    link = f"{FRONTEND_URL}/alumni/{action_type}/{token}"
+    page = {"info_confirmation": "alumni-confirm-info.html", "feedback_form": "alumni-feedback.html"}[action_type]
+    link = f"{FRONTEND_URL}/{page}?token={token}"
     action_label = {"info_confirmation": "confirm your contact information",
                     "feedback_form": "share your alumni feedback"}.get(action_type, "complete the requested form")
     subject = {"info_confirmation": "Please confirm your information",
@@ -1733,6 +1734,193 @@ def send_email(data: dict, admin: dict = Depends(get_current_admin), db: DBSessi
         ok, _ = send_email_smtp(email, subject, body)
         sent, failed = (sent + 1, failed) if ok else (sent, failed + 1)
     return {"sent": sent, "failed": failed, "total": len(emails)}
+
+# --- Public alumni form endpoints (token-based, no login) ---
+
+def _check_alumni_link(db: DBSession, token: str, action_type: str):
+    row = db.execute(text("SELECT * FROM alumni_action_links WHERE token = :token"), {"token": token}).mappings().first()
+    if not row or row["action_type"] != action_type:
+        raise HTTPException(status_code=404, detail="Invalid link")
+    if row["used_at"] is not None:
+        raise HTTPException(status_code=410, detail="This link has already been used")
+    if now_utc() > utc(row["expires_at"]):
+        raise HTTPException(status_code=410, detail="This link has expired")
+    return dict(row)
+
+
+def _alumnus_student(db: DBSession, alumnus_id):
+    row = db.execute(text("""SELECT s.full_name, s.enrollment_number, s.degree_program, s.batch,
+                                    a.email, a.contact_number, a.linkedin_url
+                             FROM alumni a JOIN students s ON s.id = a.student_id WHERE a.id = :aid"""),
+                     {"aid": alumnus_id}).mappings().first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Alumni record not found")
+    return row
+
+
+class AlumniConfirmInfoRequest(BaseModel):
+    full_name: str
+    batch: str
+    enrollment_number: str
+    email: str
+    linkedin_url: Optional[str] = ""
+    contact_number: Optional[str] = ""
+
+
+@app.get("/api/alumni/confirm-info")
+def get_alumni_confirm_info(token: str, db: DBSession = Depends(get_db)):
+    link = _check_alumni_link(db, token, "info_confirmation")
+    s = _alumnus_student(db, link["alumnus_id"])
+    ic = db.execute(text("SELECT * FROM alumni_info_confirmations WHERE alumnus_id = :aid"),
+                    {"aid": link["alumnus_id"]}).mappings().first()
+    ic = ic or {}
+    return {
+        "confirmed_name": ic.get("confirmed_name") or s["full_name"],
+        "confirmed_batch": ic.get("confirmed_batch") or combine_program_batch(s["degree_program"], s["batch"]),
+        "confirmed_enrollment_number": ic.get("confirmed_enrollment_number") or s["enrollment_number"],
+        "confirmed_email": ic.get("confirmed_email") or s["email"],
+        "confirmed_linkedin_url": ic.get("confirmed_linkedin_url") or s["linkedin_url"] or "",
+        "confirmed_contact_number": ic.get("confirmed_contact_number") or s["contact_number"] or "",
+    }
+
+
+@app.post("/api/alumni/confirm-info")
+def submit_alumni_confirm_info(token: str, data: AlumniConfirmInfoRequest, db: DBSession = Depends(get_db)):
+    link = _consume_alumni_action_link(db, token, "info_confirmation")
+    aid = link["alumnus_id"]
+    db.execute(text("""
+        INSERT INTO alumni_info_confirmations (id, alumnus_id, confirmed_name, confirmed_batch, confirmed_enrollment_number,
+               confirmed_email, confirmed_linkedin_url, confirmed_contact_number, validation_status, submitted_at)
+        VALUES (:id, :aid, :name, :batch, :enr, :email, :li, :contact, 'pending', NOW())
+        ON CONFLICT (alumnus_id) DO UPDATE SET
+            confirmed_name = EXCLUDED.confirmed_name, confirmed_batch = EXCLUDED.confirmed_batch,
+            confirmed_enrollment_number = EXCLUDED.confirmed_enrollment_number, confirmed_email = EXCLUDED.confirmed_email,
+            confirmed_linkedin_url = EXCLUDED.confirmed_linkedin_url, confirmed_contact_number = EXCLUDED.confirmed_contact_number,
+            validation_status = 'pending', submitted_at = NOW()
+    """), {"id": str(uuid.uuid4()), "aid": aid, "name": data.full_name, "batch": data.batch,
+           "enr": data.enrollment_number, "email": data.email, "li": data.linkedin_url, "contact": data.contact_number})
+    db.execute(text("UPDATE alumni SET email = :email, contact_number = :contact, linkedin_url = :li WHERE id = :aid"),
+               {"email": data.email, "contact": data.contact_number, "li": data.linkedin_url, "aid": aid})
+    db.commit()
+    return {"ok": True}
+
+
+class AlumniFeedbackRequest(BaseModel):
+    survey_year: Optional[str] = None
+    current_status: str
+    years_experience: Optional[str] = ""
+    current_employer: Optional[str] = ""
+    job_title: Optional[str] = ""
+    is_first_job: Optional[bool] = None
+    working_as: Optional[str] = ""
+    employment_region: Optional[str] = ""
+    had_offer_before_graduation: Optional[bool] = None
+    first_job_source: Optional[str] = ""
+    starting_salary_bracket: Optional[str] = ""
+    pursuing_higher_studies: Optional[bool] = None
+    higher_studies_degree: Optional[str] = ""
+    higher_studies_university: Optional[str] = ""
+    higher_studies_country: Optional[str] = ""
+    higher_studies_interest: Optional[str] = ""
+    rating_ga1: int
+    rating_ga2: int
+    rating_ga3: int
+    rating_ga4: int
+    rating_ga5: int
+    rating_ga6: int
+    rating_ga7: int
+    rating_ga8: int
+    rating_ga9: int
+    rating_ga10: int
+    feedback: Optional[str] = ""
+
+
+ALUMNI_FEEDBACK_COLUMNS = [
+    "current_status", "years_experience", "current_employer", "job_title", "is_first_job", "working_as",
+    "employment_region", "had_offer_before_graduation", "first_job_source", "starting_salary_bracket",
+    "pursuing_higher_studies", "higher_studies_degree", "higher_studies_university", "higher_studies_country",
+    "higher_studies_interest", "rating_ga1", "rating_ga2", "rating_ga3", "rating_ga4", "rating_ga5",
+    "rating_ga6", "rating_ga7", "rating_ga8", "rating_ga9", "rating_ga10", "feedback",
+]
+
+
+@app.get("/api/alumni/feedback")
+def get_alumni_feedback_form(token: str, db: DBSession = Depends(get_db)):
+    link = _check_alumni_link(db, token, "feedback_form")
+    form = db.execute(text("SELECT survey_year, submitted_at FROM alumni_feedback_forms WHERE id = :id"),
+                      {"id": link["target_id"]}).mappings().first()
+    if not form:
+        raise HTTPException(status_code=404, detail="Feedback form not found")
+    if form["submitted_at"]:
+        raise HTTPException(status_code=410, detail="This feedback form has already been submitted")
+    s = _alumnus_student(db, link["alumnus_id"])
+    return {"full_name": s["full_name"], "degree_program": s["degree_program"], "batch": s["batch"],
+            "survey_year": form["survey_year"]}
+
+
+@app.post("/api/alumni/feedback")
+def submit_alumni_feedback_form(token: str, data: AlumniFeedbackRequest, db: DBSession = Depends(get_db)):
+    link = _consume_alumni_action_link(db, token, "feedback_form")
+    values = data.dict()
+    sets = ", ".join(f"{c} = :{c}" for c in ALUMNI_FEEDBACK_COLUMNS)
+    params = {c: values[c] for c in ALUMNI_FEEDBACK_COLUMNS}
+    params["id"] = link["target_id"]
+    db.execute(text(f"UPDATE alumni_feedback_forms SET {sets}, submitted_at = NOW() WHERE id = :id"), params)
+    db.commit()
+    return {"ok": True}
+
+
+class ExitSurveySubmitRequest(BaseModel):
+    rating_ga2: int
+    rating_ga3: int
+    rating_ga4: int
+    rating_ga5: int
+    rating_ga6: int
+    rating_ga7: int
+    rating_ga8: int
+    rating_ga9: int
+    rating_ga10: int
+    liked_most: Optional[str] = ""
+    improvement_suggestions: Optional[str] = ""
+    post_grad_plan: Optional[str] = ""
+    job_offer_source: Optional[str] = ""
+    intends_higher_studies: Optional[str] = ""
+    higher_studies_specialization: Optional[str] = ""
+
+
+def _check_exit_form(db: DBSession, token: str):
+    row = db.execute(text("""SELECT f.*, s.full_name, s.degree_program, s.batch
+                             FROM student_exit_forms f JOIN students s ON s.id = f.student_id
+                             WHERE f.token = :token"""), {"token": token}).mappings().first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Invalid link")
+    if row["submitted_at"] or row["status"] == "submitted" or row["used_at"] is not None:
+        raise HTTPException(status_code=410, detail="This exit survey has already been submitted")
+    if now_utc() > utc(row["expires_at"]):
+        raise HTTPException(status_code=410, detail="This link has expired")
+    return row
+
+
+@app.get("/api/alumni/exit-survey")
+def get_exit_survey_form(token: str, db: DBSession = Depends(get_db)):
+    row = _check_exit_form(db, token)
+    return {"full_name": row["full_name"], "degree_program": row["degree_program"], "batch": row["batch"]}
+
+
+@app.post("/api/alumni/exit-survey")
+def submit_exit_survey_form(token: str, data: ExitSurveySubmitRequest, db: DBSession = Depends(get_db)):
+    row = _check_exit_form(db, token)
+    values = data.dict()
+    cols = list(values.keys())
+    sets = ", ".join(f"{c} = :{c}" for c in cols)
+    params = dict(values)
+    params["id"] = row["id"]
+    result = db.execute(text(f"""UPDATE student_exit_forms SET {sets}, status = 'submitted', submitted_at = NOW(), used_at = NOW()
+                                 WHERE id = :id AND used_at IS NULL"""), params)
+    db.commit()
+    if result.rowcount == 0:
+        raise HTTPException(status_code=410, detail="This exit survey has already been submitted")
+    return {"ok": True}
 
 # --- Serve frontend ---
 
