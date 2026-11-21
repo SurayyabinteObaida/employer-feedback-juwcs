@@ -942,7 +942,11 @@ def _send_engagement_email(to_email, supervisor_name, engagement_type, student_n
     html_body = f"""
     <p>Dear {supervisor_name or 'Sir/Madam'},</p>
     {'<p>This is a reminder of our earlier request.</p>' if reminder else ''}
-    <p>You are requested to complete {action_label} for {student_name} ({enrollment}).</p>
+    <p>You are requested to complete {action_label} for {student_name} ({enrollment}). Please use the link below to:</p>
+    <ol>
+      <li>Confirm your details{' and the internship dates' if engagement_type == 'internship' else ''}, and correct anything that is wrong.</li>
+      <li>Fill in {action_label}.</li>
+    </ol>
     <p><a href="{link}">{link}</a></p>
     <p>This link is personalized to you and can only be used once. Please confirm your information by {expiry_text}.
     After you confirm, the link stays active for {CONFIRMED_LINK_DAYS} days so you can complete the form.</p>
