@@ -50,6 +50,8 @@ td input[type=radio] { width: 16px; height: 16px; accent-color: var(--accent); c
 .question { font-size: 14px; margin-bottom: 0.5rem; }
 .muted { font-size: 13px; color: var(--text-secondary); }
 .hidden { display: none; }
+.field-error input { border-color: #dc2626; }
+.field-msg { font-size: 12px; color: #991b1b; margin-top: 4px; }
 @media (max-width: 768px) {
   .main { padding: 1rem; }
   .form-row { grid-template-columns: 1fr; }
@@ -202,6 +204,30 @@ function fmtDate(isoStr) {
 }
 async function readJson(res) { try { return await res.json(); } catch (e) { return {}; } }
 
+
+// Live check: completion date must be after the starting date.
+function checkDateOrder(startId, endId) {
+  const start = document.getElementById(startId), end = document.getElementById(endId);
+  if (!start || !end) return true;
+  end.min = start.value || '';
+  const group = end.closest('.form-group');
+  let msg = group.querySelector('.field-msg');
+  const bad = start.value && end.value && end.value <= start.value;
+  group.classList.toggle('field-error', !!bad);
+  if (bad && !msg) {
+    msg = document.createElement('div'); msg.className = 'field-msg';
+    msg.textContent = 'Completion date must be after the starting date.';
+    group.appendChild(msg);
+  } else if (!bad && msg) { msg.remove(); }
+  return !bad;
+}
+function watchDateOrder(startId, endId) {
+  ['input', 'change'].forEach(ev => {
+    document.getElementById(startId).addEventListener(ev, () => checkDateOrder(startId, endId));
+    document.getElementById(endId).addEventListener(ev, () => checkDateOrder(startId, endId));
+  });
+}
+
 function infoFields() { return form.type === 'internship' ? INTERN_INFO_FIELDS : GRAD_INFO_FIELDS; }
 function ratingFields() { return form.type === 'internship' ? INTERN_RATING_FIELDS : GRADUATE_RATING_FIELDS; }
 
@@ -238,6 +264,7 @@ function render() {
       <input type="${type}" id="info_${key}" value="${esc(form.info[key])}" ${readOnly ? 'disabled' : ''}></div>`).join('')}
     </div>`).join('');
   show('confirmBtn', !readOnly);
+  if (!readOnly && intern) { watchDateOrder('info_start_date', 'info_end_date'); checkDateOrder('info_start_date', 'info_end_date'); }
   document.getElementById('confirmNote').textContent = readOnly
     ? 'Information confirmed.'
     : 'Please check the information below, correct anything that is wrong, and confirm it to open the evaluation form.';
@@ -292,7 +319,7 @@ async function confirmInfo() {
   if (form.type === 'internship' && (!payload.start_date || !payload.end_date)) {
     showAlert('confirmAlert', 'Internship starting and completion dates are required.', 'error'); return;
   }
-  if (form.type === 'internship' && payload.end_date <= payload.start_date) {
+  if (form.type === 'internship' && !checkDateOrder('info_start_date', 'info_end_date')) {
     showAlert('confirmAlert', 'Internship completion date must be after the starting date.', 'error'); return;
   }
   const btn = document.getElementById('confirmBtn');

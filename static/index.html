@@ -111,6 +111,8 @@ tr:hover td { background: #f8fafc; }
 .tag-filter { padding: 6px 14px; border-radius: 16px; font-size: 13px; cursor: pointer; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text-secondary); transition: all 0.15s; }
 .tag-filter.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 
+.field-error input { border-color: #dc2626; }
+.field-msg { font-size: 12px; color: #991b1b; margin-top: 4px; }
 @media (max-width: 768px) {
   .form-row, .form-row-3 { grid-template-columns: 1fr; }
   .sidebar { width: 180px; }
@@ -1087,6 +1089,30 @@ function clearStudentFor(prefix) {
   document.getElementById(prefix + 'StudentSearch').value = '';
 }
 
+
+// Live check: completion date must be after the starting date.
+function checkDateOrder(startId, endId) {
+  const start = document.getElementById(startId), end = document.getElementById(endId);
+  if (!start || !end) return true;
+  end.min = start.value || '';
+  const group = end.closest('.form-group');
+  let msg = group.querySelector('.field-msg');
+  const bad = start.value && end.value && end.value <= start.value;
+  group.classList.toggle('field-error', !!bad);
+  if (bad && !msg) {
+    msg = document.createElement('div'); msg.className = 'field-msg';
+    msg.textContent = 'Completion date must be after the starting date.';
+    group.appendChild(msg);
+  } else if (!bad && msg) { msg.remove(); }
+  return !bad;
+}
+function watchDateOrder(startId, endId) {
+  ['input', 'change'].forEach(ev => {
+    document.getElementById(startId).addEventListener(ev, () => checkDateOrder(startId, endId));
+    document.getElementById(endId).addEventListener(ev, () => checkDateOrder(startId, endId));
+  });
+}
+
 // --- Engagements ---
 
 async function createEngagementFor(type) {
@@ -1098,6 +1124,10 @@ async function createEngagementFor(type) {
 
   if (!email) { showAlert(alertId, 'Enter employer email.', 'error'); return; }
   if (!studentId) { showAlert(alertId, 'Search and select a student.', 'error'); return; }
+  if (type === 'internship') {
+    if (!document.getElementById('internStart').value || !document.getElementById('internEnd').value) { showAlert(alertId, 'Internship starting and completion dates are required.', 'error'); return; }
+    if (!checkDateOrder('internStart', 'internEnd')) { showAlert(alertId, 'Internship completion date must be after the starting date.', 'error'); return; }
+  }
 
   const btn = document.getElementById(btnId); btn.disabled = true; btn.textContent = 'Creating...';
   try {
@@ -1335,6 +1365,7 @@ async function createNewAdmin() {
   } catch (err) { showAlert('settingsAlert', err.message, 'error'); }
 }
 
+watchDateOrder('internStart', 'internEnd');
 document.getElementById('loginPassword').addEventListener('keydown', e => { if (e.key === 'Enter') adminLogin(); });
 checkAuth();
 </script>
