@@ -140,6 +140,18 @@ td .muted, .muted { color: var(--text-muted); font-size: 12px; }
 .inline-controls { display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap; }
 .inline-controls .form-group { margin-bottom: 0; min-width: 260px; }
 
+.count-table th:not(:first-child), .count-table td:not(:first-child) { text-align: center; width: 110px; }
+.count-table td.zero { color: var(--text-muted); }
+.choice-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 1rem; }
+.choice-block { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.choice-block .q { font-size: 13px; font-weight: 600; padding: 10px 12px; background: var(--bg); border-bottom: 1px solid var(--border); }
+.choice-block td:last-child { text-align: right; width: 80px; }
+tr.clickable { cursor: pointer; }
+.answer-list { display: grid; gap: 10px; }
+.answer-list .a-q { font-size: 12px; color: var(--text-secondary); }
+.answer-list .a-v { font-size: 14px; white-space: pre-wrap; word-break: break-word; }
+.score-pill { display: inline-block; min-width: 26px; text-align: center; padding: 1px 8px; border-radius: 10px; background: #f0f4ff; color: var(--accent); font-weight: 600; }
+
 @media (max-width: 768px) {
   .form-row, .form-row-3 { grid-template-columns: 1fr; }
   .sidebar { width: 170px; }
@@ -191,6 +203,11 @@ td .muted, .muted { color: var(--text-muted); font-size: 12px; }
       <div class="nav-item" data-page="grad" onclick="navigate('grad')">Graduate Employer</div>
       <div class="nav-item" data-page="exit" onclick="navigate('exit')">Exit Survey</div>
       <div class="nav-item" data-page="alumni" onclick="navigate('alumni')">Alumni Feedback</div>
+      <div class="nav-label">Responses</div>
+      <div class="nav-item" data-page="resp-internship" onclick="navigate('resp-internship')">Internship Supervisor</div>
+      <div class="nav-item" data-page="resp-graduate" onclick="navigate('resp-graduate')">Graduate Employer</div>
+      <div class="nav-item" data-page="resp-exit" onclick="navigate('resp-exit')">Exit Survey</div>
+      <div class="nav-item" data-page="resp-alumni" onclick="navigate('resp-alumni')">Alumni Feedback</div>
       <div class="nav-label">Actions</div>
       <div class="nav-item" data-page="email" onclick="navigate('email')">Send email</div>
       <div class="nav-label">System</div>
@@ -340,6 +357,9 @@ td .muted, .muted { color: var(--text-muted); font-size: 12px; }
           </div>
         </div>
       </div>
+
+      <!-- Responses (one page per form, built by buildResponsePages) -->
+      <div id="responsePages"></div>
 
       <!-- Send email -->
       <div class="page" id="page-email">
@@ -546,6 +566,14 @@ td .muted, .muted { color: var(--text-muted); font-size: 12px; }
   </div>
 </div>
 
+<!-- Response detail modal -->
+<div class="modal-backdrop" id="responseModal">
+  <div class="modal wide">
+    <div class="modal-head"><h3 id="responseModalTitle">Response</h3><button class="modal-close" onclick="closeModal('responseModal')">&times;</button></div>
+    <div class="modal-body" id="responseModalBody"></div>
+  </div>
+</div>
+
 <script>
 const API = window.location.origin + '/api';
 let adminToken = localStorage.getItem('admin_token');
@@ -730,6 +758,10 @@ function navigate(page) {
     grad: () => loadEngagements('job'),
     exit: loadExitBatches,
     alumni: () => { loadAlumniRecent(); loadAlumniBatches(); },
+    'resp-internship': () => openResponses('internship'),
+    'resp-graduate': () => openResponses('graduate'),
+    'resp-exit': () => openResponses('exit'),
+    'resp-alumni': () => openResponses('alumni'),
   }[page] || (() => {}))();
 }
 
@@ -883,7 +915,7 @@ const CSV_FIELD_ALIASES = {
   degree_program: ['degree_program', 'batch_name', 'program', 'degreeprogram'],
   batch: ['batch', 'batch_year', 'batchyear'],
 };
-const CSV_OPTIONAL_FIELD_ALIASES = { obe_student_id: ['obe_student_id', 's_id', 'sid'] };
+const CSV_OPTIONAL_FIELD_ALIASES = { obe_student_id: ['obe_student_id', 's_id', 'sid'], email: ['email', 'student_email', 'studentemail', 'email_address'] };
 function detectCsvMapping(header) {
   const mapping = {}, missing = [];
   for (const [field, aliases] of Object.entries(CSV_FIELD_ALIASES)) {
@@ -915,6 +947,7 @@ function handleCsvFileChange() {
         full_name: r[mapping.full_name] || '', enrollment_number: r[mapping.enrollment_number] || '',
         degree_program: r[mapping.degree_program] || '', batch: r[mapping.batch] || '', current_semester: '',
         obe_student_id: mapping.obe_student_id !== undefined ? (r[mapping.obe_student_id] || '') : '',
+        email: mapping.email !== undefined ? (r[mapping.email] || '') : '',
       })).filter(r => r.full_name && r.enrollment_number);
       document.getElementById('csvRowCount').textContent = parsedCsvRows.length;
       document.getElementById('csvPreviewBody').innerHTML = parsedCsvRows.slice(0, 20).map(r =>
@@ -1396,8 +1429,260 @@ async function createNewAdmin() {
   } catch (err) { showAlert('settingsAlert', err.message, 'error'); }
 }
 
+// ---------- Responses ----------
+// Question wording and options match the live forms exactly.
+const SCALE_EMPLOYER = { 5: 'Excellent', 4: 'Good', 3: 'Average', 2: 'Fair', 1: 'Needs Improvement' };
+const SCALE_AGREE = { 5: 'Strongly Agree', 4: 'Agree', 3: 'Neutral', 2: 'Disagree', 1: 'Strongly Disagree' };
+const YES_NO = [['true', 'Yes'], ['false', 'No']];
+
+const RESPONSE_DEFS = {
+  internship: {
+    title: 'Internship Supervisor Responses', scale: SCALE_EMPLOYER,
+    columns: ['Student', 'Batch', 'Supervisor', 'Organization', 'Submitted'],
+    row: r => [r.full_name, r.batch, r.respondent || '-', r.organization || '-', fmtDate(r.submitted_at)],
+    info: [['Student', 'full_name'], ['Enrollment', 'enrollment_number'], ['Batch', 'batch'], ['Host organization', 'organization'],
+      ['Department served', 'department_served'], ['Internship starting date', 'start_date'], ['Internship completion date', 'end_date'],
+      ['Respondent name', 'respondent'], ['Designation', 'supervisor_designation'], ['Contact email', 'contact_email'],
+      ['Phone number', 'contact_phone'], ['LinkedIn profile', 'linkedin_url']],
+    sections: [
+      { title: 'Performance indicators', type: 'rating', items: [
+        ['rating_core_knowledge', "How would you rate the intern's knowledge of core computing concepts?"],
+        ['rating_problem_solving', "How would you rate the intern's ability to identify, break down, debug, and analyze software/technical problems encountered during assigned tasks?"],
+        ['rating_work_quality', "How would you rate the overall quality of work delivered by the intern on the assigned project(s)?"],
+        ['rating_tool_usage', "How would you rate the intern's effective use of modern tools and technologies?"],
+        ['rating_teamwork', "How would you rate the intern's ability to work effectively both independently and as part of a team?"],
+        ['rating_communication', "How would you rate the intern's communication skills with team members, both oral and written?"],
+        ['rating_societal_awareness', "How would you rate the intern's awareness of how their assigned work might affect end-users, clients, or the team?"],
+        ['rating_ethics', "How would you rate the intern's professional ethics?"],
+        ['rating_learning_attitude', "How well does the intern show interest in learning new tools, technologies, and skills, and adapting to changing work needs?"]] },
+      { title: 'Additional evaluation', type: 'rating', items: [
+        ['rating_task_completion', "How would you rate the intern's ability to complete tasks on time?"],
+        ['rating_overall_competence', "How would you rate this intern's overall competence in comparison with other interns you have supervised?"]] },
+      { title: 'Attendance', type: 'choice', items: [
+        ['attendance_bracket', 'Attendance during internship', [['above_80', 'Above 80%'], ['71_80', '71% - 80%'], ['61_70', '61% - 70%'], ['50_60', '50% - 60%'], ['below_50', 'Below 50%']]]] },
+      { title: 'Comments / suggestions for the academic institution', type: 'text', items: [['comments', 'Comments / suggestions']] },
+    ],
+  },
+  graduate: {
+    title: 'Graduate Employer Responses', scale: SCALE_EMPLOYER,
+    columns: ['Student', 'Batch', 'Employer', 'Organization', 'Submitted'],
+    row: r => [r.full_name, r.batch, r.respondent || '-', r.organization || '-', fmtDate(r.submitted_at)],
+    info: [['Graduate', 'full_name'], ['Enrollment', 'enrollment_number'], ['Batch', 'batch'], ['Organization name', 'organization'],
+      ['Department', 'department_served'], ["Respondent's name", 'respondent'], ['Designation', 'supervisor_designation'],
+      ['Email address', 'contact_email'], ['Contact number', 'contact_phone'], ['LinkedIn (URL)', 'linkedin_url']],
+    sections: [
+      { title: 'Graduate information', type: 'text', items: [['year_of_graduation', 'Year of graduation'], ['current_job_role', 'Current job role'],
+        ['employment_department', 'Department'], ['employment_duration', 'Duration of employment']] },
+      { title: 'Performance indicators', type: 'rating', items: [
+        ['rating_core_knowledge', 'Based on your observation, this employee demonstrates strong knowledge of core computing concepts'],
+        ['rating_knowledge_application', 'In your experience, this employee effectively accomplishes assigned professional tasks'],
+        ['rating_problem_solving', 'From what you have observed, this employee is able to identify, break down, debug, and analyze software/technical problems encountered during assigned tasks'],
+        ['rating_dev_contribution', 'In your assessment, this employee contributes effectively to their assigned responsibilities'],
+        ['rating_tool_usage', 'Based on your observation, this employee makes effective use of modern tools'],
+        ['rating_teamwork', 'In your experience, this employee works effectively both independently and as part of a development/project team'],
+        ['rating_communication', 'From your interactions, this employee communicates effectively, both written and oral, in all forms of communication'],
+        ['rating_professionalism', 'Based on your observation, this employee demonstrates professional responsibility by maintaining punctuality, regular attendance, and fulfilling assigned duties'],
+        ['rating_ethics', 'In your assessment, this employee upholds high standards of honesty and ethical behavior'],
+        ['rating_learning_attitude', 'From what you have observed, this employee demonstrates enthusiasm for learning, accepts feedback positively, and independently acquires new knowledge/skills required for assigned tasks']] },
+      { title: 'Overall performance', type: 'choice', items: [
+        ['overall_performance', 'Among all employees in your organization, how would you rate the performance of this graduate?',
+          [['outstanding', 'Outstanding'], ['above_average', 'Above Average'], ['average', 'Average'], ['below_average', 'Below Average']]]] },
+      { title: 'General comments', type: 'text', items: [['comments', 'General comments']] },
+    ],
+  },
+  exit: {
+    title: 'Exit Survey Responses', scale: SCALE_AGREE,
+    columns: ['Name', 'Batch', 'Submitted'],
+    row: r => [r.full_name, r.batch, fmtDate(r.submitted_at)],
+    info: [['Name', 'full_name'], ['Enrollment', 'enrollment_number'], ['Batch', 'batch']],
+    sections: [
+      { title: 'Graduate Attributes Assessment', type: 'rating', items: [
+        ['rating_ga2', 'The core courses in my program (e.g., Data Structures, Algorithms, Operating Systems, Databases) gave me a strong theoretical and computing foundation.'],
+        ['rating_ga3', 'Through coursework and my Final Year Project, I learned to systematically identify, formulate, and analyze complex computing problems.'],
+        ['rating_ga4', 'My Final Year Project and course projects helped me design and develop software solutions that meet specified requirements within specified resources (cost, time, usability, etc.).'],
+        ['rating_ga5', 'I gained hands-on proficiency with modern programming languages, frameworks, and development tools (e.g. Git, cloud platforms, IDEs) used in the industry during my studies.'],
+        ['rating_ga6', 'Through group projects, lab work, and my FYP team, I developed the ability to work effectively both individually and as a member of a diverse team.'],
+        ['rating_ga7', 'I can communicate ideas clearly in writing (reports, documentation) and verbally (presentations, demonstrations) to technical and non-technical audiences.'],
+        ['rating_ga8', 'My coursework and projects helped me understand the impact of computing solutions on society, and public safety.'],
+        ['rating_ga9', 'I understand and actively apply the ethical principles and professional responsibilities of the computing profession (e.g. data privacy, plagiarism, software licensing).'],
+        ['rating_ga10', 'I feel confident in my ability to independently learn new technologies and adapt to the evolving computing industry and ecosystem.']] },
+      { title: 'Program feedback', type: 'text', items: [
+        ['liked_most', 'What did you like most about the program?'],
+        ['improvement_suggestions', 'What would you improve in the program (curriculum, teaching, facilities, etc.)?']] },
+      { title: 'Career & Higher Studies Plans', type: 'choice', items: [
+        ['post_grad_plan', 'Which best describes your plan immediately after graduation?', [['seeking_employment', 'Seeking employment'], ['have_offer', 'Already have a job offer'],
+          ['pursuing_higher_studies', 'Pursuing higher studies'], ['starting_venture', 'Starting own venture'], ['uncertain', 'Uncertain domestic circumstances'], ['other', 'Other']]],
+        ['job_offer_source', 'If you have an active job offer, how did you obtain it?', [['career_services', 'University Career Service Office'], ['internship_conversion', 'Internship conversion'],
+          ['faculty_referral', 'Faculty referral'], ['linkedin', 'LinkedIn'], ['personal_network', 'Personal network'], ['campus_recruitment', 'Campus recruitment']]],
+        ['intends_higher_studies', 'Do you intend to pursue higher studies (MS/PhD) in the future?', [['within_1_year', 'Yes, within 1 year'], ['within_2_5_years', 'Yes, within 2-5 years'], ['no', 'No']]]] },
+      { title: 'Higher studies', type: 'text', items: [['higher_studies_specialization', 'Preferred area of specialization and country/region (if known)']] },
+    ],
+  },
+  alumni: {
+    title: 'Alumni Feedback Responses', scale: SCALE_AGREE,
+    columns: ['Name', 'Batch', 'Survey year', 'Submitted'],
+    row: r => [r.full_name, r.batch, r.respondent || '-', fmtDate(r.submitted_at)],
+    info: [['Name', 'full_name'], ['Enrollment', 'enrollment_number'], ['Batch', 'batch'], ['Survey year', 'survey_year']],
+    sections: [
+      { title: 'Current status', type: 'choice', items: [
+        ['current_status', 'Current status', [['employed_ft', 'Employed (Full-time)'], ['employed_pt', 'Employed (Part-time)'], ['freelancer', 'Freelancer'],
+          ['entrepreneur', 'Entrepreneur'], ['pursuing_higher_studies', 'Pursuing higher studies'], ['seeking_employment', 'Seeking employment'], ['other', 'Other']]]] },
+      { title: 'Employment information', type: 'text', items: [
+        ['years_experience', 'Total years of professional experience since graduation'], ['current_employer', 'Current employer / organization'], ['job_title', 'Job title']] },
+      { title: 'Employment information', type: 'choice', items: [
+        ['is_first_job', 'Is this your first job?', YES_NO],
+        ['working_as', 'You are working in/as', [['software_house', 'Software House'], ['academia', 'Academia'], ['entrepreneur', 'Entrepreneur'], ['freelancer', 'Freelancer'],
+          ['financial_institution', 'Financial Institution'], ['healthcare', 'Healthcare'], ['public_sector', 'Public Sector'], ['other', 'Other']]],
+        ['employment_region', 'Region of employment', [['pakistan', 'Pakistan'], ['abroad', 'Abroad']]],
+        ['had_offer_before_graduation', 'Did you receive any job offer before graduation?', YES_NO],
+        ['first_job_source', 'How did you obtain your first job?', [['career_services', 'University Career Services Office'], ['campus_recruitment', 'Campus Recruitment'], ['jtech', 'JTECH'],
+          ['internship_conversion', 'Internship leading to job'], ['linkedin', 'LinkedIn'], ['faculty_referral', 'Faculty Referral'], ['personal_network', 'Personal Network'], ['other', 'Other']]],
+        ['starting_salary_bracket', 'Starting salary for your first job', [['below_50k', 'Less than 50,000'], ['50k_100k', '50,000 - less than 100,000'],
+          ['100k_150k', '100,000 - less than 150,000'], ['above_150k', 'Above 150,000']]]] },
+      { title: 'Higher education', type: 'choice', items: [
+        ['pursuing_higher_studies', 'Are you pursuing higher studies?', YES_NO],
+        ['higher_studies_interest', 'Rate your willingness to pursue higher education', [['highly_interested', 'Highly interested'], ['somewhat_interested', 'Somewhat interested'], ['not_interested', 'Not interested at all']]]] },
+      { title: 'Higher education', type: 'text', items: [['higher_studies_degree', 'Degree'], ['higher_studies_university', 'University'], ['higher_studies_country', 'Country']] },
+      { title: 'Program Outcomes Assessment', type: 'rating', items: [
+        ['rating_ga1', 'My program equipped me with strong theoretical and computing foundations for my current role.'],
+        ['rating_ga2', 'My technical foundation allows me to handle domain-specific issues with confidence.'],
+        ['rating_ga3', 'I solve problems step by step, identifying the root cause through logical reasoning.'],
+        ['rating_ga4', 'I can design solutions that meet specified needs with appropriate consideration of constraints (cost, safety, standards, etc.).'],
+        ['rating_ga5', 'I am proficient with the latest tools, frameworks, and technologies currently used in the industry.'],
+        ['rating_ga6', 'I function effectively as an individual and as a member/leader in diverse teams.'],
+        ['rating_ga7', 'I understand the societal, health, safety, and legal responsibilities relevant to professional practice.'],
+        ['rating_ga8', 'I can communicate effectively (written/oral) with technical and non-technical audiences.'],
+        ['rating_ga9', 'I apply ethical principles and professional responsibilities in my work.'],
+        ['rating_ga10', 'I am able to learn new technologies independently.']] },
+      { title: 'Feedback', type: 'text', items: [['feedback', 'Please share your feedback on how well the program prepared you for your career — its strengths and what could be improved.']] },
+    ],
+  },
+};
+const respState = {};
+
+function buildResponsePages() {
+  document.getElementById('responsePages').innerHTML = Object.entries(RESPONSE_DEFS).map(([form, def]) => `
+    <div class="page" id="page-resp-${form}">
+      <div class="page-head"><div><h2 class="page-title">${esc(def.title)}</h2></div></div>
+      <div class="card">
+        <div class="inline-controls">
+          <div class="form-group"><label>Batch</label><select id="resp-${form}-batch" onchange="respBatchChanged('${form}')"><option value="">All batches</option></select></div>
+        </div>
+      </div>
+      <div class="tag-filters" id="resp-${form}-tabs">
+        <div class="tag-filter active" data-view="summary" onclick="respSetView('${form}', 'summary')">Summary</div>
+        <div class="tag-filter" data-view="individual" onclick="respSetView('${form}', 'individual')">Individual responses</div>
+      </div>
+      <div id="resp-${form}-summary"></div>
+      <div class="card flush" id="resp-${form}-individual" style="display:none;">
+        <div class="table-wrap">
+          <table><thead><tr>${def.columns.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead><tbody id="resp-${form}-body"></tbody></table>
+        </div>
+        <div class="pager" id="resp-${form}-pager"></div>
+      </div>
+    </div>`).join('');
+  Object.keys(RESPONSE_DEFS).forEach(f => respState[f] = { view: 'summary', page: 1, rows: [] });
+}
+
+async function openResponses(form) {
+  const sel = document.getElementById(`resp-${form}-batch`);
+  const prev = sel.value;
+  try {
+    const batches = await api('/admin/batches-list');
+    sel.innerHTML = '<option value="">All batches</option>' + batches.map(b => `<option value="${esc(b.batch)}">${esc(b.batch)}</option>`).join('');
+    if (prev && batches.some(b => b.batch === prev)) sel.value = prev;
+  } catch (err) { /* keep "All batches" */ }
+  respLoad(form);
+}
+function respBatchChanged(form) { respState[form].page = 1; respLoad(form); }
+function respSetView(form, view) {
+  respState[form].view = view;
+  document.querySelectorAll(`#resp-${form}-tabs .tag-filter`).forEach(t => t.classList.toggle('active', t.dataset.view === view));
+  document.getElementById(`resp-${form}-summary`).style.display = view === 'summary' ? 'block' : 'none';
+  document.getElementById(`resp-${form}-individual`).style.display = view === 'individual' ? 'block' : 'none';
+  respLoad(form);
+}
+function respLoad(form) { return respState[form].view === 'summary' ? respLoadSummary(form) : respLoadList(form); }
+
+async function respLoadSummary(form) {
+  const def = RESPONSE_DEFS[form];
+  const box = document.getElementById(`resp-${form}-summary`);
+  const batch = document.getElementById(`resp-${form}-batch`).value;
+  box.innerHTML = '<p class="muted">Loading...</p>';
+  try {
+    const { counts } = await api(`/admin/responses/${form}/summary?batch=${encodeURIComponent(batch)}`);
+    const cell = n => `<td class="${n ? '' : 'zero'}">${n || 0}</td>`;
+    box.innerHTML = def.sections.filter(sec => sec.type !== 'text').map(sec => {
+      if (sec.type === 'rating') {
+        return `<div class="card flush"><div style="padding:1rem 1.5rem 0;"><h3>${esc(sec.title)}</h3></div><div class="table-wrap">
+          <table class="count-table"><thead><tr><th>Question</th>${[5, 4, 3, 2, 1].map(n => `<th>${n}<div class="muted">${esc(def.scale[n])}</div></th>`).join('')}</tr></thead><tbody>
+          ${sec.items.map(([key, label]) => { const c = counts[key] || {}; return `<tr><td>${esc(label)}</td>${[5, 4, 3, 2, 1].map(n => cell(c[n])).join('')}</tr>`; }).join('')}
+          </tbody></table></div></div>`;
+      }
+      return `<div class="card"><h3>${esc(sec.title)}</h3><div class="choice-grid">
+        ${sec.items.map(([key, label, options]) => {
+          const c = counts[key] || {};
+          const known = options.map(([v, l]) => [l, c[v]]);
+          const extra = Object.keys(c).filter(v => !options.some(o => o[0] === v)).map(v => [v, c[v]]);
+          return `<div class="choice-block"><div class="q">${esc(label)}</div><table><tbody>
+            ${[...known, ...extra].map(([l, n]) => `<tr><td>${esc(l)}</td>${cell(n)}</tr>`).join('')}
+            </tbody></table></div>`;
+        }).join('')}
+      </div></div>`;
+    }).join('');
+  } catch (err) { box.innerHTML = `<div class="alert alert-error visible">${esc(err.message)}</div>`; }
+}
+
+async function respLoadList(form) {
+  const def = RESPONSE_DEFS[form], st = respState[form];
+  const tbody = document.getElementById(`resp-${form}-body`);
+  const batch = document.getElementById(`resp-${form}-batch`).value;
+  try {
+    const d = await api(`/admin/responses/${form}?batch=${encodeURIComponent(batch)}&page=${st.page}&page_size=${PAGE_SIZE}`);
+    st.rows = d.items || [];
+    tbody.innerHTML = st.rows.length
+      ? st.rows.map((r, i) => `<tr class="clickable" onclick="respOpen('${form}', ${i})">${def.row(r).map(v => `<td>${esc(v)}</td>`).join('')}</tr>`).join('')
+      : `<tr class="empty-row"><td colspan="${def.columns.length}">No submitted responses.</td></tr>`;
+    renderPager(`resp-${form}-pager`, st.page, d.total || 0, p => { st.page = p; respLoadList(form); });
+  } catch (err) { tbody.innerHTML = `<tr class="empty-row"><td colspan="${def.columns.length}">${esc(err.message)}</td></tr>`; }
+}
+
+async function respOpen(form, i) {
+  const def = RESPONSE_DEFS[form], r = respState[form].rows[i];
+  const body = document.getElementById('responseModalBody');
+  document.getElementById('responseModalTitle').textContent = r.full_name;
+  body.innerHTML = '<p class="muted">Loading...</p>';
+  openModal('responseModal');
+  try {
+    const d = await api(`/admin/responses/${form}/${encodeURIComponent(r.id)}`);
+    const show = v => (v === null || v === undefined || v === '') ? '-' : v;
+    const info = [...def.info, ['Submitted', 'submitted_at']].map(([l, k]) =>
+      `<div><div class="pf-label">${esc(l)}</div><div class="pf-value">${esc(k === 'submitted_at' ? fmtDate(d[k]) : show(d[k]))}</div></div>`).join('');
+    let prevTitle = '';
+    const sections = def.sections.map(sec => {
+      const heading = sec.title === prevTitle ? '' : `<div class="sub-heading" style="margin-top:1.25rem;">${esc(sec.title)}</div>`;
+      prevTitle = sec.title;
+      let inner;
+      if (sec.type === 'rating') {
+        inner = `<div class="table-wrap" style="border:1px solid var(--border);border-radius:var(--radius);"><table><thead><tr><th>Question</th><th style="width:190px;">Response</th></tr></thead><tbody>
+          ${sec.items.map(([k, l]) => `<tr><td>${esc(l)}</td><td>${d[k] ? `<span class="score-pill">${esc(d[k])}</span> ${esc(def.scale[d[k]] || '')}` : '-'}</td></tr>`).join('')}
+          </tbody></table></div>`;
+      } else {
+        inner = `<div class="answer-list">${sec.items.map(([k, l, options]) => {
+          const v = d[k];
+          const label = options ? ((options.find(o => o[0] === String(v)) || [])[1] || show(v)) : show(v);
+          return `<div><div class="a-q">${esc(l)}</div><div class="a-v">${esc(label)}</div></div>`;
+        }).join('')}</div>`;
+      }
+      return heading ? heading + inner : `<div style="margin-top:10px;">${inner}</div>`;
+    }).join('');
+    body.innerHTML = `<div class="profile-grid">${info}</div>${sections}`;
+  } catch (err) { body.innerHTML = `<div class="alert alert-error visible">${esc(err.message)}</div>`; }
+}
+
 // ---------- Wiring ----------
 (function init() {
+  buildResponsePages();
   const studentSearch = document.getElementById('studentSearchInput');
   studentSearch.addEventListener('input', debounce(() => { studentState.page = 1; loadStudents(); }, 300));
   attachAutocomplete(studentSearch, fetchStudentSuggestions, it => {

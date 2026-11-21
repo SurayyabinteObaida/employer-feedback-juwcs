@@ -696,13 +696,16 @@ def update_student(student_id: str, data: StudentRequest, admin: dict = Depends(
                        {"e": data.enrollment_number.strip(), "id": student_id}).first()
     if clash:
         raise HTTPException(status_code=400, detail="Another student already has this enrollment number.")
+    # An email that isn't sent (None) keeps the stored one, so an edit never wipes it.
     result = db.execute(text("""
         UPDATE students SET full_name = :name, enrollment_number = :enr, degree_program = :prog,
-               batch = :batch, current_semester = :sem, email = :email
+               batch = :batch, current_semester = :sem,
+               email = CASE WHEN :keep_email THEN email ELSE :email END
         WHERE id::text = :id
     """), {"id": student_id, "name": data.full_name.strip(), "enr": data.enrollment_number.strip(),
            "prog": data.degree_program.strip(), "batch": data.batch.strip(),
-           "sem": (data.current_semester or "").strip() or None, "email": (data.email or "").strip() or None})
+           "sem": (data.current_semester or "").strip() or None,
+           "keep_email": data.email is None, "email": (data.email or "").strip() or None})
     db.commit()
     if result.rowcount == 0:
         raise HTTPException(status_code=404, detail="Student not found")
@@ -741,22 +744,24 @@ def bulk_upsert_students(data: BulkStudentsRequest, admin: dict = Depends(get_cu
         prog = (row.get("degree_program") or "").strip()
         batch = (row.get("batch") or "").strip()
         obe_id = (row.get("obe_student_id") or "").strip() or None
+        email = (row.get("email") or "").strip() or None
         if not name or not enr:
             failed.append({"row": i, "enrollment_number": enr, "error": "Missing name or enrollment number"})
             continue
         try:
             existing = db.execute(text("SELECT id FROM students WHERE enrollment_number = :e"), {"e": enr}).first()
-            params = {"name": name, "enr": enr, "prog": prog, "batch": batch, "obe": obe_id}
+            params = {"name": name, "enr": enr, "prog": prog, "batch": batch, "obe": obe_id, "email": email}
             obe_set = ", obe_student_id = COALESCE(:obe, obe_student_id)" if has_obe_col else ""
             if existing:
                 params["id"] = existing[0]
-                db.execute(text(f"""UPDATE students SET full_name = :name, degree_program = :prog, batch = :batch{obe_set}
+                db.execute(text(f"""UPDATE students SET full_name = :name, degree_program = :prog, batch = :batch,
+                                    email = COALESCE(:email, email){obe_set}
                                     WHERE id = :id"""), params)
                 updated += 1
             else:
                 params["id"] = str(uuid.uuid4())
-                cols = "id, full_name, enrollment_number, degree_program, batch" + (", obe_student_id" if has_obe_col else "")
-                vals = ":id, :name, :enr, :prog, :batch" + (", :obe" if has_obe_col else "")
+                cols = "id, full_name, enrollment_number, degree_program, batch, email" + (", obe_student_id" if has_obe_col else "")
+                vals = ":id, :name, :enr, :prog, :batch, :email" + (", :obe" if has_obe_col else "")
                 db.execute(text(f"INSERT INTO students ({cols}) VALUES ({vals})"), params)
                 created += 1
             db.commit()
@@ -2171,6 +2176,133 @@ def submit_employer_form(token: str, data: EmployerEvaluationRequest, db: DBSess
     if not sent:
         print(f"Failed to send thank-you email to {r['work_email']}: {error}")
     return {"ok": True}
+
+# --- Responses (submitted data of the four forms) ---
+# One config per form: the joined source, the list columns, the answer columns
+# shown in the individual view, and the choice/rating columns counted in the summary.
+
+EXIT_ANSWER_COLS = ["rating_ga2", "rating_ga3", "rating_ga4", "rating_ga5", "rating_ga6", "rating_ga7", "rating_ga8",
+                    "rating_ga9", "rating_ga10", "liked_most", "improvement_suggestions", "post_grad_plan",
+                    "job_offer_source", "intends_higher_studies", "higher_studies_specialization"]
+ALUMNI_ANSWER_COLS = ["current_status", "years_experience", "current_employer", "job_title", "is_first_job", "working_as",
+                      "employment_region", "had_offer_before_graduation", "first_job_source", "starting_salary_bracket",
+                      "pursuing_higher_studies", "higher_studies_degree", "higher_studies_university",
+                      "higher_studies_country", "higher_studies_interest"] + [f"rating_ga{i}" for i in range(1, 11)] + ["feedback"]
+
+_EXIT_SELECT = ", ".join(EXIT_ANSWER_COLS)
+RESPONSE_FORMS = {
+    "internship": {
+        "source": """internship_evaluations r JOIN engagements g ON g.id = r.engagement_id
+                     JOIN students s ON s.id = g.student_id LEFT JOIN org_proformas op ON op.engagement_id = g.id""",
+        "list": "op.supervisor_name AS respondent, op.organization_name AS organization",
+        "detail": """op.supervisor_name AS respondent, op.organization_name AS organization, op.department_served,
+                     op.supervisor_designation, op.contact_email, op.contact_phone, op.linkedin_url, op.start_date, op.end_date""",
+        "answers": INTERN_RATING_KEYS + ["attendance_bracket", "comments"],
+        "counted": INTERN_RATING_KEYS + ["attendance_bracket"],
+    },
+    "graduate": {
+        "source": """employer_surveys r JOIN engagements g ON g.id = r.engagement_id
+                     JOIN students s ON s.id = g.student_id JOIN employers e ON e.id = g.employer_id
+                     LEFT JOIN org_proformas op ON op.engagement_id = g.id""",
+        "list": "COALESCE(op.supervisor_name, e.name) AS respondent, op.organization_name AS organization",
+        "detail": """COALESCE(op.supervisor_name, e.name) AS respondent, op.organization_name AS organization, op.department_served,
+                     op.supervisor_designation, op.contact_email, op.contact_phone, op.linkedin_url""",
+        "answers": GRAD_SECTION_B_KEYS + GRAD_RATING_KEYS + ["overall_performance", "comments"],
+        "counted": GRAD_RATING_KEYS + ["overall_performance"],
+    },
+    "exit": {
+        # New exit surveys plus the legacy alumni exit survey table.
+        "source": f"""(SELECT f.id::text AS id, f.student_id, f.submitted_at, {_EXIT_SELECT}
+                       FROM student_exit_forms f WHERE f.submitted_at IS NOT NULL
+                       UNION ALL
+                       SELECT 'legacy-' || x.id, a.student_id, x.submitted_at, {', '.join('x.' + c for c in EXIT_ANSWER_COLS)}
+                       FROM alumni_exit_surveys x JOIN alumni a ON a.id = x.alumnus_id WHERE x.submitted_at IS NOT NULL) r
+                      JOIN students s ON s.id = r.student_id""",
+        "list": "NULL AS respondent, NULL AS organization",
+        "detail": "NULL AS respondent",
+        "answers": EXIT_ANSWER_COLS,
+        "counted": [f"rating_ga{i}" for i in range(2, 11)] + ["post_grad_plan", "job_offer_source", "intends_higher_studies"],
+    },
+    "alumni": {
+        "source": """alumni_feedback_forms r JOIN alumni a ON a.id = r.alumnus_id JOIN students s ON s.id = a.student_id""",
+        "list": "r.survey_year AS respondent, NULL AS organization",
+        "detail": "r.survey_year",
+        "answers": ALUMNI_ANSWER_COLS,
+        "counted": ["current_status", "is_first_job", "working_as", "employment_region", "had_offer_before_graduation",
+                    "first_job_source", "starting_salary_bracket", "pursuing_higher_studies", "higher_studies_interest"]
+                   + [f"rating_ga{i}" for i in range(1, 11)],
+    },
+}
+
+
+def _response_form(form: str) -> dict:
+    cfg = RESPONSE_FORMS.get(form)
+    if not cfg:
+        raise HTTPException(status_code=404, detail="Unknown form")
+    return cfg
+
+
+def _response_where(batch: str):
+    where, params = ["r.submitted_at IS NOT NULL"], {}
+    add_batch_filter(where, params, batch)
+    return " AND ".join(where), params
+
+
+def _answer_value(v):
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    return v
+
+
+@app.get("/api/admin/responses/{form}")
+def list_responses(form: str, batch: str = "", page: int = 1, page_size: int = 10,
+                   admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
+    cfg = _response_form(form)
+    page, page_size = max(page, 1), min(max(page_size, 1), 100)
+    where, params = _response_where(batch)
+    total = db.execute(text(f"SELECT COUNT(*) FROM {cfg['source']} WHERE {where}"), params).scalar()
+    rows = db.execute(text(f"""
+        SELECT r.id::text AS id, s.full_name, s.enrollment_number, s.degree_program, s.batch, r.submitted_at, {cfg['list']}
+        FROM {cfg['source']} WHERE {where}
+        ORDER BY r.submitted_at DESC LIMIT :limit OFFSET :offset
+    """), {**params, "limit": page_size, "offset": (page - 1) * page_size}).mappings().all()
+    items = [{"id": r["id"], "full_name": r["full_name"], "enrollment_number": r["enrollment_number"],
+              "batch": combine_program_batch(r["degree_program"], r["batch"]),
+              "respondent": r["respondent"], "organization": r["organization"],
+              "submitted_at": iso(r["submitted_at"])} for r in rows]
+    return {"items": items, "total": total}
+
+
+@app.get("/api/admin/responses/{form}/summary")
+def summarize_responses(form: str, batch: str = "", admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
+    """For every rated or multiple-choice question: how many respondents chose each option."""
+    cfg = _response_form(form)
+    where, params = _response_where(batch)
+    counts = {}
+    for col in cfg["counted"]:
+        rows = db.execute(text(f"""SELECT r.{col} AS v, COUNT(*) AS n FROM {cfg['source']}
+                                   WHERE {where} AND r.{col} IS NOT NULL GROUP BY r.{col}"""), params).all()
+        counts[col] = {str(_answer_value(v)): n for v, n in rows}
+    return {"counts": counts}
+
+
+@app.get("/api/admin/responses/{form}/{response_id}")
+def get_response(form: str, response_id: str, admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
+    cfg = _response_form(form)
+    row = db.execute(text(f"""
+        SELECT s.full_name, s.enrollment_number, s.degree_program, s.batch, r.submitted_at, {cfg['detail']},
+               {', '.join('r.' + c for c in cfg['answers'])}
+        FROM {cfg['source']} WHERE r.id::text = :id AND r.submitted_at IS NOT NULL
+    """), {"id": response_id}).mappings().first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Response not found")
+    d = {k: _answer_value(v) for k, v in dict(row).items()}
+    d["batch"] = combine_program_batch(d.pop("degree_program"), d["batch"])
+    d["submitted_at"] = iso(row["submitted_at"])
+    for k in ("start_date", "end_date"):
+        if k in d:
+            d[k] = _date_str(d[k])
+    return d
 
 # --- Serve frontend ---
 
