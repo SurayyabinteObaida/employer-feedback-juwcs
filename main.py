@@ -2162,8 +2162,9 @@ def submit_employer_form(token: str, data: EmployerEvaluationRequest, db: DBSess
     form_name = "internship evaluation" if r["type"] == "internship" else "graduate employer survey"
     html_body = f"""
     <p>Dear {r['supervisor_name'] or 'Sir/Madam'},</p>
-    <p>Thank you for completing the {form_name} for {r['full_name']} ({r['enrollment_number']}).
-    Your feedback has been recorded.</p>
+    <p>Thank you for taking the time to fill in the {form_name} for {r['full_name']} ({r['enrollment_number']}).
+    Your feedback has been recorded and will help us improve our program.</p>
+    <p>We look forward to continued collaboration with you and your organization.</p>
     {EMAIL_SIGNATURE}
     """
     sent, error = send_email_smtp(r["work_email"], "Thank you for your feedback - CSSE, JUW", html_body)
