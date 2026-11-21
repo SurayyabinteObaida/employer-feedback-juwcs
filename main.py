@@ -994,17 +994,49 @@ def _issue_engagement_link(db: DBSession, ctx: dict):
                                   ctx["full_name"], ctx["enrollment_number"], token, expires_at)
 
 
+def _engagement_filter(engagement_type: str, batch: str):
+    where, params = ["1=1"], {}
+    if engagement_type:
+        where.append("g.type = :etype")
+        params["etype"] = engagement_type
+    add_batch_filter(where, params, batch)
+    return " AND ".join(where), params
+
+
+@app.get("/api/admin/engagements/stats")
+def engagement_stats(engagement_type: str = "", batch: str = "",
+                     admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
+    """Counts for the stat cards on the Internship Supervisor / Graduate Employer tabs."""
+    where, params = _engagement_filter(engagement_type, batch)
+    rows = db.execute(text(f"""
+        SELECT op.invite_token IS NOT NULL AS has_link, op.invite_expires_at, op.invite_confirmed_at,
+               CASE WHEN g.type = 'internship'
+                    THEN (SELECT MAX(submitted_at) FROM internship_evaluations WHERE engagement_id = g.id)
+                    ELSE (SELECT MAX(submitted_at) FROM employer_surveys WHERE engagement_id = g.id) END AS submitted_at
+        FROM engagements g
+        LEFT JOIN org_proformas op ON op.engagement_id = g.id
+        LEFT JOIN students s ON s.id = g.student_id
+        WHERE {where}
+    """), params).mappings().all()
+    stats = {"initiated": len(rows), "not_sent": 0, "link_sent": 0, "confirmed": 0, "submitted": 0, "expired": 0}
+    for r in rows:
+        status = _invite_status(r["submitted_at"], r["has_link"], r["invite_expires_at"])
+        if status == "pending":
+            stats["confirmed" if r["invite_confirmed_at"] else "link_sent"] += 1
+        else:
+            stats[status] += 1
+    return stats
+
+
 @app.get("/api/admin/engagements")
-def list_engagements(page: int = 1, page_size: int = 10, engagement_type: str = "",
+def list_engagements(page: int = 1, page_size: int = 10, engagement_type: str = "", batch: str = "",
                      admin: dict = Depends(get_current_admin), db: DBSession = Depends(get_db)):
     page = max(page, 1)
     page_size = min(max(page_size, 1), 100)
-    where, params = "1=1", {}
-    if engagement_type:
-        where = "g.type = :etype"
-        params["etype"] = engagement_type
+    where, params = _engagement_filter(engagement_type, batch)
 
-    total = db.execute(text(f"SELECT COUNT(*) FROM engagements g WHERE {where}"), params).scalar()
+    total = db.execute(text(f"""SELECT COUNT(*) FROM engagements g LEFT JOIN students s ON s.id = g.student_id
+                                WHERE {where}"""), params).scalar()
     params["limit"] = page_size
     params["offset"] = (page - 1) * page_size
     rows = db.execute(text(f"""
