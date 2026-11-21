@@ -577,11 +577,11 @@ async function checkSetup() {
     const data = await res.json();
     document.getElementById('loginForm').style.display = data.has_admins ? 'block' : 'none';
     document.getElementById('setupForm').style.display = data.has_admins ? 'none' : 'block';
-    document.getElementById('loginPage').style.display = 'block';
+    document.getElementById('loginPage').style.display = 'flex';
     document.getElementById('appShell').style.display = 'none';
   } catch (err) {
     document.getElementById('loginForm').style.display = 'block';
-    document.getElementById('loginPage').style.display = 'block';
+    document.getElementById('loginPage').style.display = 'flex';
     document.getElementById('appShell').style.display = 'none';
   }
 }
