@@ -140,6 +140,7 @@ td .muted, .muted { color: var(--text-muted); font-size: 12px; }
 .inline-controls { display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap; }
 .inline-controls .form-group { margin-bottom: 0; min-width: 260px; }
 
+.stat-grid.compact { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
 .count-table th:not(:first-child), .count-table td:not(:first-child) { text-align: center; width: 110px; }
 .count-table td.zero { color: var(--text-muted); }
 .choice-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 1rem; }
@@ -277,6 +278,12 @@ tr.clickable { cursor: pointer; }
         </div>
         <div id="internActionAlert" class="alert"></div>
         <div id="internActionLink" class="manual-link"></div>
+        <div class="card">
+          <div class="inline-controls">
+            <div class="form-group"><label>Batch</label><select id="internBatch" onchange="engBatchChanged('internship')"><option value="">All batches</option></select></div>
+          </div>
+        </div>
+        <div class="stat-grid compact" id="internStats"></div>
         <div class="card flush">
           <div class="table-wrap">
             <table><thead><tr><th>Student</th><th>Batch</th><th>Employer</th><th>Status</th><th>Actions</th></tr></thead>
@@ -294,6 +301,12 @@ tr.clickable { cursor: pointer; }
         </div>
         <div id="gradActionAlert" class="alert"></div>
         <div id="gradActionLink" class="manual-link"></div>
+        <div class="card">
+          <div class="inline-controls">
+            <div class="form-group"><label>Batch</label><select id="gradBatch" onchange="engBatchChanged('job')"><option value="">All batches</option></select></div>
+          </div>
+        </div>
+        <div class="stat-grid compact" id="gradStats"></div>
         <div class="card flush">
           <div class="table-wrap">
             <table><thead><tr><th>Employer</th><th>Student</th><th>Evaluation year</th><th>Status</th><th>Feedback date</th><th>Actions</th></tr></thead>
@@ -316,6 +329,7 @@ tr.clickable { cursor: pointer; }
             <button class="btn btn-primary" id="exitSendAllBtn" onclick="exitSendAll()" disabled>Send to all in batch</button>
           </div>
         </div>
+        <div class="stat-grid compact" id="exitStats" style="display:none;"></div>
         <div class="card flush" id="exitTableCard" style="display:none;">
           <div class="table-wrap">
             <table><thead><tr><th>Name</th><th>Batch</th><th>Date initiated</th><th>Status</th><th>Actions</th></tr></thead>
@@ -350,6 +364,7 @@ tr.clickable { cursor: pointer; }
             <button class="btn btn-primary" id="alumniBatchFbBtn" onclick="alumniSend('feedback_form', null)" disabled>Send feedback form to batch</button>
           </div>
         </div>
+        <div class="stat-grid compact" id="alumniStats" style="display:none;"></div>
         <div class="card flush" id="alumniTableCard" style="display:none;">
           <div class="table-wrap">
             <table><thead><tr><th>Name</th><th>Batch</th><th>Info confirmation</th><th>Feedback form</th><th>Actions</th></tr></thead>
@@ -754,8 +769,8 @@ function navigate(page) {
     dashboard: loadDashboard,
     students: () => { loadStudentBatches(); loadStudents(); },
     employers: loadEmployers,
-    intern: () => loadEngagements('internship'),
-    grad: () => loadEngagements('job'),
+    intern: () => loadEngBatches('internship'),
+    grad: () => loadEngBatches('job'),
     exit: loadExitBatches,
     alumni: () => { loadAlumniRecent(); loadAlumniBatches(); },
     'resp-internship': () => openResponses('internship'),
@@ -1070,16 +1085,45 @@ async function deleteEmployer(i) {
   } catch (err) { showAlert('employerActionAlert', err.message, 'error'); }
 }
 
+// ---------- Stat cards ----------
+function renderStats(id, cards) {
+  document.getElementById(id).innerHTML = cards.map(([label, value]) =>
+    `<div class="stat-card"><div class="value">${value || 0}</div><div class="label">${esc(label)}</div></div>`).join('');
+}
+
 // ---------- Engagements (Internship Supervisor / Graduate Employer) ----------
 const engState = { internship: { page: 1, rows: [] }, job: { page: 1, rows: [] } };
 const engPrefix = t => t === 'internship' ? 'intern' : 'grad';
+
+async function loadEngBatches(type) {
+  const sel = document.getElementById(engPrefix(type) + 'Batch');
+  const prev = sel.value;
+  try {
+    const batches = await api('/admin/batches-list');
+    sel.innerHTML = '<option value="">All batches</option>' + batches.map(b => `<option value="${esc(b.batch)}">${esc(b.batch)}</option>`).join('');
+    if (prev && batches.some(b => b.batch === prev)) sel.value = prev;
+  } catch (err) { /* keep "All batches" */ }
+  loadEngagements(type);
+}
+function engBatchChanged(type) { engState[type].page = 1; loadEngagements(type); }
+
+async function loadEngStats(type) {
+  const batch = document.getElementById(engPrefix(type) + 'Batch').value;
+  try {
+    const s = await api(`/admin/engagements/stats?engagement_type=${type}&batch=${encodeURIComponent(batch)}`);
+    renderStats(engPrefix(type) + 'Stats', [['Initiated', s.initiated], ['Not sent', s.not_sent], ['Link sent', s.link_sent],
+      ['Info confirmed', s.confirmed], ['Submitted', s.submitted], ['Expired', s.expired]]);
+  } catch (err) { document.getElementById(engPrefix(type) + 'Stats').innerHTML = ''; }
+}
 
 async function loadEngagements(type) {
   const st = engState[type];
   const tbody = document.getElementById(engPrefix(type) + 'Body');
   const cols = type === 'internship' ? 5 : 6;
+  const batch = document.getElementById(engPrefix(type) + 'Batch').value;
+  loadEngStats(type);
   try {
-    const data = await api(`/admin/engagements?engagement_type=${type}&page=${st.page}&page_size=${PAGE_SIZE}`);
+    const data = await api(`/admin/engagements?engagement_type=${type}&batch=${encodeURIComponent(batch)}&page=${st.page}&page_size=${PAGE_SIZE}`);
     st.rows = data.engagements || [];
     tbody.innerHTML = st.rows.length ? st.rows.map((e, i) => {
       const student = esc(e.student_name);
@@ -1280,12 +1324,16 @@ async function loadExitStudents() {
   const batch = document.getElementById('exitBatch').value;
   const card = document.getElementById('exitTableCard');
   const sendAll = document.getElementById('exitSendAllBtn');
-  if (!batch) { card.style.display = 'none'; sendAll.disabled = true; return; }
+  const statsEl = document.getElementById('exitStats');
+  if (!batch) { card.style.display = 'none'; statsEl.style.display = 'none'; sendAll.disabled = true; return; }
   try {
     exitRows = await api('/admin/exit-survey/students?batch=' + encodeURIComponent(batch));
     const count = s => exitRows.filter(r => r.status === s).length;
     const sendable = exitRows.filter(r => r.status === 'not_sent' && r.email).length;
     const noEmail = exitRows.filter(r => r.status === 'not_sent' && !r.email).length;
+    renderStats('exitStats', [['Students in batch', exitRows.length], ['Not sent', count('not_sent')], ['Initiated', count('initiated')],
+      ['Submitted', count('submitted')], ['Expired', count('expired')]]);
+    statsEl.style.display = 'grid';
     sendAll.disabled = sendable === 0;
     sendAll.textContent = sendable ? `Send to all in batch (${sendable})` : 'Send to all in batch';
     card.style.display = 'block';
@@ -1360,11 +1408,16 @@ async function loadAlumniStudents() {
   const batch = document.getElementById('alumniBatch').value;
   const card = document.getElementById('alumniTableCard');
   ['alumniBatchInfoBtn', 'alumniBatchFbBtn'].forEach(id => document.getElementById(id).disabled = !batch);
-  if (!batch) { card.style.display = 'none'; return; }
+  const statsEl = document.getElementById('alumniStats');
+  if (!batch) { card.style.display = 'none'; statsEl.style.display = 'none'; return; }
   try {
     alumniRows = await api('/admin/alumni/students?batch=' + encodeURIComponent(batch));
     const confirmed = alumniRows.filter(r => r.info_status === 'confirmed').length;
     const noEmail = alumniRows.filter(r => !r.email).length;
+    const sum = k => alumniRows.reduce((t, r) => t + (r[k] || 0), 0);
+    renderStats('alumniStats', [['Alumni in batch', alumniRows.length], ['Info confirmed', confirmed],
+      ['Feedback forms sent', sum('feedback_sent')], ['Feedback forms submitted', sum('feedback_completed')]]);
+    statsEl.style.display = 'grid';
     card.style.display = 'block';
     document.getElementById('alumniBody').innerHTML = alumniRows.length ? alumniRows.map((r, i) => `<tr>
       <td>${esc(r.full_name)}</td><td>${esc(r.batch)}</td>
