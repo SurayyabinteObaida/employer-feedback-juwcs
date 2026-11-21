@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Employer Feedback - CSSE, JUW</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --primary: #1e3a5f; --accent: #2563eb; --accent-hover: #1d4ed8;
+  --surface: #ffffff; --bg: #f5f7fa; --border: #e2e6ed; --border-strong: #cdd3dc;
+  --text: #1a1f2e; --text-secondary: #5a6274; --text-muted: #8a91a0;
+  --success-bg: #dcfce7; --danger-bg: #fee2e2; --warning-bg: #fef3c7; --radius: 6px;
+}
+body { font-family: 'Segoe UI', -apple-system, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; }
+.header { background: var(--primary); color: #fff; padding: 0 2rem; height: 56px; display: flex; align-items: center; }
+.header h1 { font-size: 15px; font-weight: 600; }
+.main { padding: 1.5rem 2rem 3rem; }
+.page-title { font-size: 20px; font-weight: 600; margin-bottom: 1.25rem; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; margin-bottom: 1rem; }
+.card h3 { font-size: 15px; font-weight: 600; margin-bottom: 1rem; }
+.info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px 16px; }
+.info-grid .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: 0.3px; color: var(--text-muted); }
+.info-grid .val { font-size: 14px; font-weight: 500; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.form-group { margin-bottom: 1rem; }
+.form-group label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+.form-group input, .form-group select, .form-group textarea {
+  width: 100%; padding: 9px 12px; border: 1px solid var(--border-strong); border-radius: var(--radius); font-size: 14px; font-family: inherit;
+}
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(37,99,235,0.1); }
+.btn { padding: 9px 18px; border: none; border-radius: var(--radius); font-size: 14px; font-family: inherit; cursor: pointer; font-weight: 500; background: var(--accent); color: #fff; }
+.btn:hover { background: var(--accent-hover); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.alert { padding: 10px 14px; border-radius: var(--radius); font-size: 13px; margin-bottom: 1rem; display: none; }
+.alert.visible { display: block; }
+.alert-success { background: var(--success-bg); color: #15603a; }
+.alert-error { background: var(--danger-bg); color: #991b1b; }
+.alert-warning { background: var(--warning-bg); color: #854d0e; }
+.scale-note { font-size: 13px; color: var(--text-secondary); margin-bottom: 0.75rem; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th { text-align: center; padding: 10px 8px; background: var(--bg); color: var(--text-secondary); font-weight: 600; border-bottom: 1px solid var(--border); font-size: 13px; }
+th:first-child { text-align: left; }
+td { padding: 10px 8px; border-bottom: 1px solid var(--border); text-align: center; }
+td:first-child { text-align: left; }
+td input[type=radio] { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
+.radio-row { display: flex; gap: 1.25rem; flex-wrap: wrap; }
+.radio-row label { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 400; cursor: pointer; }
+.radio-row input { accent-color: var(--accent); }
+.question { font-size: 14px; margin-bottom: 0.5rem; }
+.muted { font-size: 13px; color: var(--text-secondary); }
+.hidden { display: none; }
+@media (max-width: 768px) {
+  .main { padding: 1rem; }
+  .form-row { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<div class="header"><h1>OBE Indirect Assessments - CSSE, JUW</h1></div>
+
+<div class="main">
+  <h2 class="page-title" id="pageTitle">Loading...</h2>
+  <div id="pageAlert" class="alert"></div>
+
+  <div id="content" class="hidden">
+    <div class="card">
+      <h3 id="studentHeading"></h3>
+      <div class="info-grid" id="studentInfo"></div>
+    </div>
+
+    <!-- Step 1: confirm information -->
+    <div class="card" id="confirmCard">
+      <h3 id="confirmHeading"></h3>
+      <p class="muted" id="confirmNote" style="margin-bottom:1rem;"></p>
+      <div id="confirmAlert" class="alert"></div>
+      <div id="confirmFields"></div>
+      <button class="btn" id="confirmBtn" onclick="confirmInfo()">Confirm information</button>
+    </div>
+
+    <!-- Step 2: evaluation -->
+    <div id="evalSection" class="hidden">
+      <div class="card hidden" id="sectionBCard">
+        <h3>Graduate information</h3>
+        <div class="form-row">
+          <div class="form-group"><label for="year_of_graduation">Year of graduation</label><input type="text" id="year_of_graduation"></div>
+          <div class="form-group"><label for="current_job_role">Current job role</label><input type="text" id="current_job_role"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label for="employment_department">Department</label><input type="text" id="employment_department"></div>
+          <div class="form-group"><label for="employment_duration">Duration of employment</label><input type="text" id="employment_duration"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Performance indicators</h3>
+        <p class="scale-note">5: Excellent &nbsp; 4: Good &nbsp; 3: Average &nbsp; 2: Fair &nbsp; 1: Needs Improvement</p>
+        <div style="overflow-x:auto;">
+          <table><thead><tr><th>Indicator</th><th>5</th><th>4</th><th>3</th><th>2</th><th>1</th></tr></thead>
+          <tbody id="ratingsBody"></tbody></table>
+        </div>
+      </div>
+
+      <div class="card hidden" id="sectionDCard">
+        <h3>Additional evaluation</h3>
+        <div style="overflow-x:auto;margin-bottom:1.25rem;">
+          <table><thead><tr><th>Question</th><th>5</th><th>4</th><th>3</th><th>2</th><th>1</th></tr></thead>
+          <tbody id="sectionDBody"></tbody></table>
+        </div>
+        <div class="form-group" style="max-width:420px;">
+          <label for="attendance_bracket">Attendance during internship</label>
+          <select id="attendance_bracket">
+            <option value="">Select attendance range</option>
+            <option value="above_80">Above 80%</option>
+            <option value="71_80">71% - 80%</option>
+            <option value="61_70">61% - 70%</option>
+            <option value="50_60">50% - 60%</option>
+            <option value="below_50">Below 50%</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="card hidden" id="overallCard">
+        <h3>Overall performance</h3>
+        <p class="question">Among all employees in your organization, how would you rate the performance of this graduate?</p>
+        <div class="radio-row">
+          <label><input type="radio" name="overall_performance" value="outstanding"> Outstanding</label>
+          <label><input type="radio" name="overall_performance" value="above_average"> Above Average</label>
+          <label><input type="radio" name="overall_performance" value="average"> Average</label>
+          <label><input type="radio" name="overall_performance" value="below_average"> Below Average</label>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 id="commentsHeading"></h3>
+        <div class="form-group" style="margin-bottom:0;"><textarea id="comments" rows="5"></textarea></div>
+      </div>
+
+      <div id="submitAlert" class="alert"></div>
+      <button class="btn" id="submitBtn" onclick="submitForm()">Submit</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const INTERN_RATING_FIELDS = [
+  ['rating_core_knowledge', "How would you rate the intern's knowledge of core computing concepts?"],
+  ['rating_problem_solving', "How would you rate the intern's ability to identify, break down, debug, and analyze software/technical problems encountered during assigned tasks?"],
+  ['rating_work_quality', "How would you rate the overall quality of work delivered by the intern on the assigned project(s)?"],
+  ['rating_tool_usage', "How would you rate the intern's effective use of modern tools and technologies?"],
+  ['rating_teamwork', "How would you rate the intern's ability to work effectively both independently and as part of a team?"],
+  ['rating_communication', "How would you rate the intern's communication skills with team members, both oral and written?"],
+  ['rating_societal_awareness', "How would you rate the intern's awareness of how their assigned work might affect end-users, clients, or the team?"],
+  ['rating_ethics', "How would you rate the intern's professional ethics?"],
+  ['rating_learning_attitude', "How well does the intern show interest in learning new tools, technologies, and skills, and adapting to changing work needs?"],
+];
+const INTERN_SECTION_D_FIELDS = [
+  ['rating_task_completion', "How would you rate the intern's ability to complete tasks on time?"],
+  ['rating_overall_competence', "How would you rate this intern's overall competence in comparison with other interns you have supervised?"],
+];
+const GRADUATE_RATING_FIELDS = [
+  ['rating_core_knowledge', 'Based on your observation, this employee demonstrates strong knowledge of core computing concepts'],
+  ['rating_knowledge_application', 'In your experience, this employee effectively accomplishes assigned professional tasks'],
+  ['rating_problem_solving', 'From what you have observed, this employee is able to identify, break down, debug, and analyze software/technical problems encountered during assigned tasks'],
+  ['rating_dev_contribution', 'In your assessment, this employee contributes effectively to their assigned responsibilities'],
+  ['rating_tool_usage', 'Based on your observation, this employee makes effective use of modern tools'],
+  ['rating_teamwork', 'In your experience, this employee works effectively both independently and as part of a development/project team'],
+  ['rating_communication', 'From your interactions, this employee communicates effectively, both written and oral, in all forms of communication'],
+  ['rating_professionalism', 'Based on your observation, this employee demonstrates professional responsibility by maintaining punctuality, regular attendance, and fulfilling assigned duties'],
+  ['rating_ethics', 'In your assessment, this employee upholds high standards of honesty and ethical behavior'],
+  ['rating_learning_attitude', 'From what you have observed, this employee demonstrates enthusiasm for learning, accepts feedback positively, and independently acquires new knowledge/skills required for assigned tasks'],
+];
+
+const INTERN_INFO_FIELDS = [
+  [['organization_name', 'Host organization', 'text'], ['department_served', 'Department served', 'text']],
+  [['start_date', 'Internship starting date', 'date'], ['end_date', 'Internship completion date', 'date']],
+  [['supervisor_name', 'Respondent name', 'text'], ['supervisor_designation', 'Designation', 'text']],
+  [['contact_email', 'Contact email', 'email'], ['linkedin_url', 'LinkedIn profile', 'text']],
+  [['contact_phone', 'Phone number', 'text']],
+];
+const GRAD_INFO_FIELDS = [
+  [['organization_name', 'Organization name', 'text'], ['department_served', 'Department', 'text']],
+  [['supervisor_name', "Respondent's name", 'text'], ['supervisor_designation', 'Designation', 'text']],
+  [['contact_email', 'Email address', 'email'], ['contact_phone', 'Contact number', 'text']],
+  [['linkedin_url', 'LinkedIn (URL)', 'text']],
+];
+
+const parts = window.location.pathname.split('/').filter(Boolean);
+const TOKEN = parts[2] || '';
+const API = window.location.origin + '/api/employer/form/' + encodeURIComponent(TOKEN);
+let form = null;
+
+function esc(v) {
+  return String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function showAlert(id, msg, type) { const el = document.getElementById(id); el.className = `alert alert-${type} visible`; el.textContent = msg; }
+function show(id, on) { document.getElementById(id).classList.toggle('hidden', !on); }
+function fmtDate(isoStr) {
+  if (!isoStr) return '';
+  return new Date(isoStr).toLocaleString(undefined, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+async function readJson(res) { try { return await res.json(); } catch (e) { return {}; } }
+
+function infoFields() { return form.type === 'internship' ? INTERN_INFO_FIELDS : GRAD_INFO_FIELDS; }
+function ratingFields() { return form.type === 'internship' ? INTERN_RATING_FIELDS : GRADUATE_RATING_FIELDS; }
+
+async function load() {
+  try {
+    const res = await fetch(API);
+    const data = await readJson(res);
+    if (!res.ok) throw new Error(data.detail || 'This link could not be opened.');
+    form = data;
+    render();
+  } catch (err) {
+    document.getElementById('pageTitle').textContent = 'Employer Feedback';
+    showAlert('pageAlert', err.message, 'error');
+  }
+}
+
+function render() {
+  const intern = form.type === 'internship';
+  document.getElementById('pageTitle').textContent = intern ? 'Internship Evaluation Proforma' : 'Graduate Employer Survey';
+  document.getElementById('studentHeading').textContent = intern ? 'Intern details' : 'Graduate details';
+  document.getElementById('confirmHeading').textContent = intern ? 'Respondent contact details' : 'Employer & organization information';
+  document.getElementById('commentsHeading').textContent = intern ? 'Comments / suggestions for the academic institution' : 'General comments';
+
+  const s = form.student;
+  document.getElementById('studentInfo').innerHTML = [
+    ['Name', s.full_name], ['Enrollment', s.enrollment_number], ['Program', s.degree_program], ['Batch', s.batch],
+  ].map(([l, v]) => `<div><div class="lbl">${l}</div><div class="val">${esc(v) || '-'}</div></div>`).join('');
+
+  // Step 1 fields
+  const readOnly = form.confirmed || form.status === 'submitted';
+  document.getElementById('confirmFields').innerHTML = infoFields().map(row => `
+    <div class="form-row">${row.map(([key, label, type]) => `
+      <div class="form-group"><label for="info_${key}">${label}</label>
+      <input type="${type}" id="info_${key}" value="${esc(form.info[key])}" ${readOnly ? 'disabled' : ''}></div>`).join('')}
+    </div>`).join('');
+  show('confirmBtn', !readOnly);
+  document.getElementById('confirmNote').textContent = readOnly
+    ? 'Information confirmed.'
+    : 'Please check the information below, correct anything that is wrong, and confirm it to open the evaluation form.';
+
+  // Step 2
+  const rowHtml = ([key, label]) => `<tr><td>${esc(label)}</td>${[5, 4, 3, 2, 1].map(n =>
+    `<td><input type="radio" name="${key}" value="${n}" aria-label="${n}"></td>`).join('')}</tr>`;
+  document.getElementById('ratingsBody').innerHTML = ratingFields().map(rowHtml).join('');
+  document.getElementById('sectionDBody').innerHTML = intern ? INTERN_SECTION_D_FIELDS.map(rowHtml).join('') : '';
+  show('sectionDCard', intern);
+  show('sectionBCard', !intern);
+  show('overallCard', !intern);
+  if (!intern) {
+    for (const [k, v] of Object.entries(form.section_b)) document.getElementById(k).value = v;
+  }
+
+  show('content', true);
+  show('evalSection', form.confirmed || form.status === 'submitted');
+
+  if (form.status === 'submitted') {
+    fillAnswers(form.answers || {});
+    document.querySelectorAll('#evalSection input, #evalSection select, #evalSection textarea').forEach(el => el.disabled = true);
+    show('submitBtn', false);
+    const when = form.answers && form.answers.submitted_at ? ' on ' + fmtDate(form.answers.submitted_at) : '';
+    showAlert('pageAlert', `This form was submitted${when}. Thank you for your feedback.`, 'success');
+  } else if (form.confirmed) {
+    showAlert('pageAlert', `Please submit the form by ${fmtDate(form.expires_at)}.`, 'warning');
+  }
+}
+
+function fillAnswers(a) {
+  for (const [key] of [...ratingFields(), ...(form.type === 'internship' ? INTERN_SECTION_D_FIELDS : [])]) {
+    const el = document.querySelector(`input[name="${key}"][value="${a[key]}"]`);
+    if (el) el.checked = true;
+  }
+  if (form.type === 'internship') {
+    document.getElementById('attendance_bracket').value = a.attendance_bracket || '';
+  } else {
+    ['year_of_graduation', 'current_job_role', 'employment_department', 'employment_duration'].forEach(k => document.getElementById(k).value = a[k] || '');
+    const op = document.querySelector(`input[name="overall_performance"][value="${a.overall_performance}"]`);
+    if (op) op.checked = true;
+  }
+  document.getElementById('comments').value = a.comments || '';
+}
+
+async function confirmInfo() {
+  const payload = {};
+  infoFields().flat().forEach(([key]) => payload[key] = document.getElementById('info_' + key).value.trim());
+  if (!payload.organization_name || !payload.supervisor_name || !payload.contact_email) {
+    showAlert('confirmAlert', 'Organization, name and email are required.', 'error'); return;
+  }
+  if (form.type === 'internship' && (!payload.start_date || !payload.end_date)) {
+    showAlert('confirmAlert', 'Internship starting and completion dates are required.', 'error'); return;
+  }
+  if (form.type === 'internship' && payload.end_date <= payload.start_date) {
+    showAlert('confirmAlert', 'Internship completion date must be after the starting date.', 'error'); return;
+  }
+  const btn = document.getElementById('confirmBtn');
+  btn.disabled = true; btn.textContent = 'Confirming...';
+  try {
+    const res = await fetch(API + '/confirm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const data = await readJson(res);
+    if (!res.ok) throw new Error(data.detail || 'Could not confirm the information.');
+    form.info = payload;
+    form.confirmed = true;
+    form.expires_at = data.expires_at;
+    document.getElementById('confirmAlert').className = 'alert';
+    render();
+    document.getElementById('evalSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch (err) {
+    showAlert('confirmAlert', err.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Confirm information';
+  }
+}
+
+async function submitForm() {
+  const ratings = {};
+  const all = [...ratingFields(), ...(form.type === 'internship' ? INTERN_SECTION_D_FIELDS : [])];
+  for (const [key] of all) {
+    const el = document.querySelector(`input[name="${key}"]:checked`);
+    if (!el) { showAlert('submitAlert', 'Please answer every rating question.', 'error'); return; }
+    ratings[key] = parseInt(el.value, 10);
+  }
+  const payload = { ratings, comments: document.getElementById('comments').value.trim() };
+  if (form.type === 'internship') {
+    payload.attendance_bracket = document.getElementById('attendance_bracket').value;
+    if (!payload.attendance_bracket) { showAlert('submitAlert', 'Please select the attendance range.', 'error'); return; }
+  } else {
+    for (const k of ['year_of_graduation', 'current_job_role', 'employment_department', 'employment_duration']) {
+      payload[k] = document.getElementById(k).value.trim();
+      if (!payload[k]) { showAlert('submitAlert', 'Please fill in all graduate information fields.', 'error'); return; }
+    }
+    const op = document.querySelector('input[name="overall_performance"]:checked');
+    if (!op) { showAlert('submitAlert', 'Please select the overall performance.', 'error'); return; }
+    payload.overall_performance = op.value;
+  }
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true; btn.textContent = 'Submitting...';
+  try {
+    const res = await fetch(API + '/submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const data = await readJson(res);
+    if (!res.ok) throw new Error(data.detail || 'Could not submit the form.');
+    document.getElementById('submitAlert').className = 'alert';
+    await load();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  } catch (err) {
+    showAlert('submitAlert', err.message, 'error');
+    btn.disabled = false; btn.textContent = 'Submit';
+  }
+}
+
+load();
+</script>
+</body>
+</html>

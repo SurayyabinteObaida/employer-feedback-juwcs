@@ -34,6 +34,7 @@ SMTP_USE_TLS = os.getenv("SMTP_USE_TLS", "true").lower() != "false"
 
 # --- Link lifetimes ---
 ENGAGEMENT_LINK_HOURS = 48
+CONFIRMED_LINK_DAYS = 3  # employer link stays active this long after they confirm their info
 EXIT_FORM_WINDOW_HOURS = 72
 EXIT_FORM_MAX_REMINDERS = 3
 EXIT_REMINDER_INTERVAL_MINUTES = int(os.getenv("EXIT_REMINDER_INTERVAL_MINUTES", "60"))
@@ -328,6 +329,7 @@ def ensure_columns():
             ("org_proformas", "invite_token", "VARCHAR"),
             ("org_proformas", "invite_expires_at", "TIMESTAMP"),
             ("org_proformas", "invite_used_at", "TIMESTAMP"),
+            ("org_proformas", "invite_confirmed_at", "TIMESTAMP"),
             # Merged exit survey: fields carried over from the alumni exit survey.
             ("student_exit_forms", "post_grad_plan", "VARCHAR"),
             ("student_exit_forms", "job_offer_source", "VARCHAR"),
@@ -942,7 +944,8 @@ def _send_engagement_email(to_email, supervisor_name, engagement_type, student_n
     {'<p>This is a reminder of our earlier request.</p>' if reminder else ''}
     <p>You are requested to complete {action_label} for {student_name} ({enrollment}).</p>
     <p><a href="{link}">{link}</a></p>
-    <p>This link is personalized to you, can only be used once, and expires on {expiry_text}.</p>
+    <p>This link is personalized to you and can only be used once. Please confirm your information by {expiry_text}.
+    After you confirm, the link stays active for {CONFIRMED_LINK_DAYS} days so you can complete the form.</p>
     {EMAIL_SIGNATURE}
     """
     sent, error = send_email_smtp(to_email, subject, html_body)
@@ -974,7 +977,8 @@ def _engagement_context(db: DBSession, engagement_id: str) -> dict:
 def _issue_engagement_link(db: DBSession, ctx: dict):
     token = secrets.token_urlsafe(32)
     expires_at = now_utc() + timedelta(hours=ENGAGEMENT_LINK_HOURS)
-    db.execute(text("""UPDATE org_proformas SET invite_token = :token, invite_expires_at = :expires, invite_used_at = NULL
+    db.execute(text("""UPDATE org_proformas SET invite_token = :token, invite_expires_at = :expires, invite_used_at = NULL,
+                              invite_confirmed_at = NULL
                        WHERE id = :id"""), {"token": token, "expires": expires_at, "id": ctx["proforma_id"]})
     db.commit()
     return _send_engagement_email(ctx["work_email"], ctx["supervisor_name"], ctx["type"],
@@ -1922,6 +1926,247 @@ def submit_exit_survey_form(token: str, data: ExitSurveySubmitRequest, db: DBSes
         raise HTTPException(status_code=410, detail="This exit survey has already been submitted")
     return {"ok": True}
 
+# --- Public employer form endpoints (token-based, no login) ---
+# Internship Supervisor and Graduate Employer links open /employer/<type>/<token>.
+# Step 1: the employer confirms or edits their information. The link then stays
+# active for CONFIRMED_LINK_DAYS days. Step 2: they submit the evaluation, which
+# uses up the link; after that the page is view-only.
+
+INTERN_RATING_KEYS = [
+    "rating_core_knowledge", "rating_problem_solving", "rating_work_quality", "rating_tool_usage",
+    "rating_teamwork", "rating_communication", "rating_societal_awareness", "rating_ethics",
+    "rating_learning_attitude", "rating_task_completion", "rating_overall_competence",
+]
+GRAD_RATING_KEYS = [
+    "rating_core_knowledge", "rating_knowledge_application", "rating_problem_solving", "rating_dev_contribution",
+    "rating_tool_usage", "rating_teamwork", "rating_communication", "rating_professionalism",
+    "rating_ethics", "rating_learning_attitude",
+]
+GRAD_SECTION_B_KEYS = ["year_of_graduation", "current_job_role", "employment_department", "employment_duration"]
+ATTENDANCE_BRACKETS = ("above_80", "71_80", "61_70", "50_60", "below_50")
+OVERALL_PERFORMANCE = ("outstanding", "above_average", "average", "below_average")
+EMPLOYER_INFO_KEYS = ["organization_name", "department_served", "supervisor_name", "supervisor_designation",
+                      "contact_email", "contact_phone", "linkedin_url", "start_date", "end_date"]
+
+
+class EmployerInfoConfirmRequest(BaseModel):
+    organization_name: str
+    department_served: Optional[str] = ""
+    supervisor_name: str
+    supervisor_designation: Optional[str] = ""
+    contact_email: str
+    contact_phone: Optional[str] = ""
+    linkedin_url: Optional[str] = ""
+    start_date: Optional[str] = ""
+    end_date: Optional[str] = ""
+
+
+class EmployerEvaluationRequest(BaseModel):
+    ratings: dict
+    attendance_bracket: Optional[str] = ""
+    overall_performance: Optional[str] = ""
+    year_of_graduation: Optional[str] = ""
+    current_job_role: Optional[str] = ""
+    employment_department: Optional[str] = ""
+    employment_duration: Optional[str] = ""
+    comments: Optional[str] = ""
+
+
+def _date_str(v) -> str:
+    if not v:
+        return ""
+    return v.isoformat()[:10] if hasattr(v, "isoformat") else str(v)[:10]
+
+
+def _employer_link_row(db: DBSession, token: str) -> dict:
+    row = db.execute(text("""
+        SELECT op.id AS proforma_id, op.engagement_id, op.invite_expires_at, op.invite_used_at, op.invite_confirmed_at,
+               op.organization_name, op.department_served, op.supervisor_name, op.supervisor_designation,
+               op.contact_email, op.contact_phone, op.linkedin_url, op.start_date, op.end_date,
+               op.year_of_graduation, op.current_job_role, op.job_department, op.duration_of_employment,
+               g.type, e.work_email, s.full_name, s.enrollment_number, s.degree_program, s.batch
+        FROM org_proformas op
+        JOIN engagements g ON g.id = op.engagement_id
+        JOIN employers e ON e.id = g.employer_id
+        JOIN students s ON s.id = g.student_id
+        WHERE op.invite_token = :token
+    """), {"token": token}).mappings().first()
+    if not row:
+        raise HTTPException(status_code=404, detail="This link is not valid.")
+    d = dict(row)
+    d["type"] = str(d["type"])
+    return d
+
+
+def _employer_info(r: dict) -> dict:
+    info = {k: r[k] or "" for k in EMPLOYER_INFO_KEYS if k not in ("start_date", "end_date")}
+    info["start_date"] = _date_str(r["start_date"])
+    info["end_date"] = _date_str(r["end_date"])
+    return info
+
+
+def _employer_link_open(r: dict):
+    if r["invite_used_at"] is not None:
+        raise HTTPException(status_code=410, detail="This form has already been submitted.")
+    if not r["invite_expires_at"] or now_utc() > utc(r["invite_expires_at"]):
+        raise HTTPException(status_code=410, detail="This link has expired. Please contact the department for a new link.")
+
+
+def _submitted_answers(db: DBSession, r: dict) -> dict:
+    if r["type"] == "internship":
+        cols = INTERN_RATING_KEYS + ["attendance_bracket", "comments", "submitted_at"]
+        row = db.execute(text(f"""SELECT {', '.join(cols)} FROM internship_evaluations
+                                  WHERE engagement_id = :eid AND submitted_at IS NOT NULL"""),
+                         {"eid": r["engagement_id"]}).mappings().first()
+    else:
+        cols = GRAD_RATING_KEYS + GRAD_SECTION_B_KEYS + ["overall_performance", "comments", "submitted_at"]
+        row = db.execute(text(f"""SELECT {', '.join(cols)} FROM employer_surveys
+                                  WHERE engagement_id = :eid AND submitted_at IS NOT NULL
+                                  ORDER BY submitted_at DESC LIMIT 1"""),
+                         {"eid": r["engagement_id"]}).mappings().first()
+    if not row:
+        return {}
+    d = dict(row)
+    d["submitted_at"] = iso(d["submitted_at"])
+    return d
+
+
+@app.get("/api/employer/form/{token}")
+def get_employer_form(token: str, db: DBSession = Depends(get_db)):
+    r = _employer_link_row(db, token)
+    data = {
+        "type": r["type"],
+        "student": {"full_name": r["full_name"], "enrollment_number": r["enrollment_number"],
+                    "degree_program": r["degree_program"], "batch": r["batch"]},
+        "info": _employer_info(r),
+        "section_b": {"year_of_graduation": r["year_of_graduation"] or "", "current_job_role": r["current_job_role"] or "",
+                      "employment_department": r["job_department"] or "",
+                      "employment_duration": r["duration_of_employment"] or ""},
+        "confirmed": r["invite_confirmed_at"] is not None,
+        "expires_at": iso(r["invite_expires_at"]),
+    }
+    if r["invite_used_at"] is not None:
+        return {**data, "status": "submitted", "answers": _submitted_answers(db, r)}
+    _employer_link_open(r)
+    return {**data, "status": "open"}
+
+
+@app.post("/api/employer/form/{token}/confirm")
+def confirm_employer_info(token: str, data: EmployerInfoConfirmRequest, db: DBSession = Depends(get_db)):
+    r = _employer_link_row(db, token)
+    _employer_link_open(r)
+    if r["invite_confirmed_at"] is not None:
+        return {"expires_at": iso(r["invite_expires_at"]), "email_sent": False}
+
+    values = {k: (getattr(data, k) or "").strip() for k in EMPLOYER_INFO_KEYS}
+    if not values["organization_name"] or not values["supervisor_name"] or not values["contact_email"]:
+        raise HTTPException(status_code=400, detail="Organization, name and email are required.")
+    if "@" not in values["contact_email"]:
+        raise HTTPException(status_code=400, detail="Enter a valid email address.")
+    if r["type"] == "internship":
+        _check_intern_dates(values["start_date"], values["end_date"])
+    else:
+        values["start_date"] = values["end_date"] = ""
+
+    old = _employer_info(r)
+    edited = any((old[k] or "") != values[k] for k in EMPLOYER_INFO_KEYS)
+    expires_at = now_utc() + timedelta(days=CONFIRMED_LINK_DAYS)
+    db.execute(text("""
+        UPDATE org_proformas SET organization_name = :organization_name, department_served = :department_served,
+               supervisor_name = :supervisor_name, supervisor_designation = :supervisor_designation,
+               contact_email = :contact_email, contact_phone = :contact_phone, linkedin_url = :linkedin_url,
+               start_date = :start_date, end_date = :end_date, validation_status = :status,
+               invite_confirmed_at = NOW(), invite_expires_at = :expires
+        WHERE id = :id
+    """), {**{k: (values[k] or None) for k in EMPLOYER_INFO_KEYS},
+           "status": "edited" if edited else "validated", "expires": expires_at, "id": r["proforma_id"]})
+    db.commit()
+
+    link = f"{FRONTEND_URL}/employer/{r['type']}/{token}"
+    form_name = "internship evaluation form" if r["type"] == "internship" else "graduate employer survey"
+    html_body = f"""
+    <p>Dear {values['supervisor_name']},</p>
+    <p>Thank you for confirming your information. Please complete the {form_name} for {r['full_name']}
+    ({r['enrollment_number']}) using the link below.</p>
+    <p><a href="{link}">{link}</a></p>
+    <p>The link stays active for {CONFIRMED_LINK_DAYS} days, until {expires_at.strftime("%d %b %Y, %H:%M UTC")}.</p>
+    {EMAIL_SIGNATURE}
+    """
+    sent, error = send_email_smtp(r["work_email"], "Please complete the " + form_name + " - CSSE, JUW", html_body)
+    if not sent:
+        print(f"Failed to send confirmation email to {r['work_email']}: {error}")
+    return {"expires_at": iso(expires_at), "email_sent": sent}
+
+
+@app.post("/api/employer/form/{token}/submit")
+def submit_employer_form(token: str, data: EmployerEvaluationRequest, db: DBSession = Depends(get_db)):
+    r = _employer_link_row(db, token)
+    _employer_link_open(r)
+    if r["invite_confirmed_at"] is None:
+        raise HTTPException(status_code=400, detail="Please confirm your information first.")
+
+    keys = INTERN_RATING_KEYS if r["type"] == "internship" else GRAD_RATING_KEYS
+    ratings = {}
+    for k in keys:
+        try:
+            v = int(data.ratings.get(k))
+        except (TypeError, ValueError):
+            v = None
+        if v not in (1, 2, 3, 4, 5):
+            raise HTTPException(status_code=400, detail="Please answer every rating question.")
+        ratings[k] = v
+    comments = (data.comments or "").strip() or None
+
+    if r["type"] == "internship":
+        if data.attendance_bracket not in ATTENDANCE_BRACKETS:
+            raise HTTPException(status_code=400, detail="Please select the attendance range.")
+    else:
+        if data.overall_performance not in OVERALL_PERFORMANCE:
+            raise HTTPException(status_code=400, detail="Please select the overall performance.")
+        section_b = {k: (getattr(data, k) or "").strip() for k in GRAD_SECTION_B_KEYS}
+        if not all(section_b.values()):
+            raise HTTPException(status_code=400, detail="Please fill in all graduate information fields.")
+
+    # Use up the link and save the form in one transaction.
+    used = db.execute(text("UPDATE org_proformas SET invite_used_at = NOW() WHERE id = :id AND invite_used_at IS NULL"),
+                      {"id": r["proforma_id"]})
+    if used.rowcount == 0:
+        db.rollback()
+        raise HTTPException(status_code=410, detail="This form has already been submitted.")
+
+    if r["type"] == "internship":
+        params = {**ratings, "attendance_bracket": data.attendance_bracket, "comments": comments,
+                  "eid": r["engagement_id"]}
+        existing = db.execute(text("SELECT id FROM internship_evaluations WHERE engagement_id = :eid"),
+                              {"eid": r["engagement_id"]}).first()
+        cols = INTERN_RATING_KEYS + ["attendance_bracket", "comments"]
+        if existing:
+            sets = ", ".join(f"{c} = :{c}" for c in cols)
+            db.execute(text(f"UPDATE internship_evaluations SET {sets}, submitted_at = NOW() WHERE engagement_id = :eid"), params)
+        else:
+            params["id"] = str(uuid.uuid4())
+            db.execute(text(f"""INSERT INTO internship_evaluations (id, engagement_id, {', '.join(cols)}, submitted_at)
+                                VALUES (:id, :eid, {', '.join(':' + c for c in cols)}, NOW())"""), params)
+    else:
+        cols = GRAD_RATING_KEYS + GRAD_SECTION_B_KEYS + ["overall_performance", "comments"]
+        params = {**ratings, **section_b, "overall_performance": data.overall_performance, "comments": comments,
+                  "id": str(uuid.uuid4()), "eid": r["engagement_id"], "year": str(now_utc().year)}
+        db.execute(text(f"""INSERT INTO employer_surveys (id, engagement_id, survey_year, {', '.join(cols)}, submitted_at)
+                            VALUES (:id, :eid, :year, {', '.join(':' + c for c in cols)}, NOW())"""), params)
+    db.commit()
+
+    form_name = "internship evaluation" if r["type"] == "internship" else "graduate employer survey"
+    html_body = f"""
+    <p>Dear {r['supervisor_name'] or 'Sir/Madam'},</p>
+    <p>Thank you for completing the {form_name} for {r['full_name']} ({r['enrollment_number']}).
+    Your feedback has been recorded.</p>
+    {EMAIL_SIGNATURE}
+    """
+    sent, error = send_email_smtp(r["work_email"], "Thank you for your feedback - CSSE, JUW", html_body)
+    if not sent:
+        print(f"Failed to send thank-you email to {r['work_email']}: {error}")
+    return {"ok": True}
+
 # --- Serve frontend ---
 
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
@@ -1934,6 +2179,10 @@ if os.path.exists(STATIC_DIR):
         if os.path.isfile(admin_path):
             return FileResponse(admin_path)
         return HTMLResponse("<h1>Admin page not found</h1>", status_code=404)
+
+    @app.get("/employer/{engagement_type}/{token}")
+    def serve_employer_form(engagement_type: str, token: str):
+        return FileResponse(os.path.join(STATIC_DIR, "employer-form.html"))
 
     @app.get("/{path:path}")
     def serve_frontend(path: str):
